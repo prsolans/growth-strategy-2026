@@ -224,6 +224,13 @@ function generateGrowthStrategyDoc(companyName) {
     ' | Plan: ' + data.contract.plan + ' | Envelopes: ' + data.consumption.envelopesSent + '/' + data.consumption.envelopesPurchased);
 
   // ── Step 2: Run 5 LLM research calls (sequential) ─────────────────
+  // OPTIMIZATION NOTE: Calls 2, 3, 4 only use Call 1's accountProfile for
+  // enrichment context — the cross-call dependencies (3→businessMap, 4→agreements)
+  // are not essential. These three could run in parallel via UrlFetchApp.fetchAll()
+  // after Call 1 completes, cutting the sequence from 1→2→3→4→5 to 1→(2‖3‖4)→5.
+  // Requires: extracting request-building from callLLM(), dropping the businessMap
+  // param from researchAgreementLandscape, and the agreements param from
+  // researchContractCommerce. See git log for full analysis.
 
   // Call 1: Account Profile
   Logger.log('[DocGen] === LLM CALL 1/5: Account Profile ===');
@@ -331,7 +338,7 @@ function generateGrowthStrategyDoc(companyName) {
   body.appendPageBreak();
 
   Logger.log('[DocGen] Building Section 3/9: Priority Map');
-  addPriorityMapSection(body, data, priorityMap);
+  addPriorityMapSection(body, data, priorityMap, productSignals);
   addInlineSources(body, priorityMap);
   body.appendPageBreak();
 
@@ -1435,7 +1442,7 @@ function addContractCommerceSection(body, data, contractCommerce) {
 /**
  * Section 9: Priority Map
  */
-function addPriorityMapSection(body, data, priorityMap) {
+function addPriorityMapSection(body, data, priorityMap, productSignals) {
   addSectionHeading(body, data.identity.name + ' | Priority Map');
 
   var pm = priorityMap || {};
@@ -1458,6 +1465,100 @@ function addPriorityMapSection(body, data, priorityMap) {
       ]);
     });
     addStyledTable(body, mapRows);
+  }
+
+  // Recommended Bundles table (deterministic, from productSignals.bundleSignals)
+  var ps = productSignals || {};
+  var bundleSignals = ps.bundleSignals || [];
+  if (bundleSignals.length > 0) {
+    // Build a catalog lookup by bundle name
+    var catalogByName = {};
+    DOCUSIGN_CATALOG.bundles.forEach(function(cat) {
+      catalogByName[cat.name] = cat;
+    });
+
+    addSubHeading(body, 'Recommended Bundles');
+    var bundleRows = [['Bundle', 'Signal', 'Key Components', 'Rationale']];
+    bundleSignals.forEach(function(b) {
+      var catalogEntry = catalogByName[b.bundle] || {};
+      var bundleLabel = b.bundle + (catalogEntry.description ? '\n' + catalogEntry.description : '');
+      bundleRows.push([
+        bundleLabel,
+        b.strength ? b.strength.charAt(0).toUpperCase() + b.strength.slice(1) : '',
+        (b.recommendedComponents || []).join(', '),
+        (b.reasons || []).join('; ')
+      ]);
+    });
+
+    // Custom table rendering for Signal column color-coding
+    var table = body.appendTable(bundleRows);
+    table.setBorderColor('#CCCCCC');
+    table.setBorderWidth(1);
+
+    var colWidths = [105, 55, 140, 216];
+    for (var w = 0; w < colWidths.length; w++) {
+      table.setColumnWidth(w, colWidths[w]);
+    }
+
+    var numCols = bundleRows[0].length;
+
+    // Style header row
+    var headerRow = table.getRow(0);
+    for (var hc = 0; hc < numCols; hc++) {
+      var hCell = headerRow.getCell(hc);
+      hCell.setBackgroundColor(HEADER_BG);
+      hCell.editAsText().setForegroundColor(HEADER_FG);
+      hCell.editAsText().setBold(true);
+      hCell.editAsText().setFontSize(10);
+      hCell.setPaddingTop(6);
+      hCell.setPaddingBottom(6);
+      hCell.setPaddingLeft(8);
+      hCell.setPaddingRight(8);
+    }
+
+    // Style data rows
+    for (var r = 1; r < table.getNumRows(); r++) {
+      var row = table.getRow(r);
+      var bg = (r % 2 === 0) ? TABLE_ALT_BG : '#FFFFFF';
+      for (var c = 0; c < numCols; c++) {
+        var dataCell = row.getCell(c);
+        dataCell.setBackgroundColor(bg);
+        dataCell.editAsText().setFontSize(10);
+        dataCell.editAsText().setBold(false);
+        dataCell.editAsText().setForegroundColor('#333333');
+        dataCell.setPaddingTop(4);
+        dataCell.setPaddingBottom(4);
+        dataCell.setPaddingLeft(8);
+        dataCell.setPaddingRight(8);
+      }
+
+      // Bold the bundle name (first line) in the Bundle column, leave description normal
+      var bundleCell = row.getCell(0);
+      var bundleText = bundleCell.getText();
+      var newlineIdx = bundleText.indexOf('\n');
+      if (newlineIdx > 0) {
+        bundleCell.editAsText().setBold(0, newlineIdx - 1, true);
+        bundleCell.editAsText().setFontSize(newlineIdx + 1, bundleText.length - 1, 9);
+        bundleCell.editAsText().setForegroundColor(newlineIdx + 1, bundleText.length - 1, '#666666');
+      } else {
+        bundleCell.editAsText().setBold(true);
+      }
+
+      // Color-code the Signal column (index 1)
+      var signalCell = row.getCell(1);
+      var signalValue = signalCell.getText().trim().toLowerCase();
+      if (signalValue === 'strong') {
+        signalCell.setBackgroundColor(HEALTH_GREEN);
+        signalCell.editAsText().setForegroundColor(LABEL_GREEN);
+        signalCell.editAsText().setBold(true);
+      } else if (signalValue === 'moderate') {
+        signalCell.setBackgroundColor(HEALTH_YELLOW);
+        signalCell.editAsText().setForegroundColor(LABEL_YELLOW);
+        signalCell.editAsText().setBold(true);
+      }
+    }
+
+    addSpacer(body);
   }
 
   // Expansion Opportunities table
