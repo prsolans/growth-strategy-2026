@@ -1,0 +1,14 @@
+# OS
+.DS_Store
+
+# Claude Code
+.claude/
+
+# Data files
+data/
+
+# Generated outputs
+outputs/
+
+# Node
+node_modules/

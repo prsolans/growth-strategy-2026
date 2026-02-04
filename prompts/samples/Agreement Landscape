@@ -1,0 +1,20 @@
+I'm trying to create an agreement matrix for one of my customers: [Company Name] . I need the information to be digestible so that it could be understood by an executive quickly and easily.
+
+The matrix should:
+Use the x-axis to represent the volume of each agreement type (i.e. how frequently it is used or signed).
+Use the y-axis to represent the complexity of each agreement (i.e. number of clauses, stakeholders involved, legal review needed, customization, etc.).
+The matrix will only use the first quadrant graphically.
+
+Please identify and map the top 20 agreement types relevant to this company, based on its industry, operations, and common practices (e.g., NDAs, MSAs, vendor agreements, employment contracts, licensing agreements, etc.). This includes both internal (within the company) and external (with customers, vendors, regulators, etc.) agreements.
+
+For each agreement, provide the following in a table:
+Agreement Type
+Volume (1 to 10; 1 = Low, 5 = Medium, 10 = High)
+Complexity (1 to 10; 1 = Low, 5 = Medium, 10 = High)
+Internal or External
+Primary Business Unit (e.g., Legal, HR, Procurement, Sales, Operations, etc. ; if multiple units, list all but highlight the most important one) 
+Brief Description of the Agreement
+
+Base your suggestions on what is typical for companies in this industry if exact internal details are unavailable. Furthermore, provide ranks on exactly where they would fit into the matrix detailing which ones will be in the most upper right (highest volume and highest complexity) or lower left (least volume and least complexity) and if they have the same rank, explain which one should be higher/lower.
+
+Generate a table as the output that will allow me to easily create a visual for the matrix.
