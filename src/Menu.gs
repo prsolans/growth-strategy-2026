@@ -152,7 +152,7 @@ function escapeHtml(str) {
  * Change the company name to match a row in your sheet.
  */
 function testGenerate() {
-  var companyName = 'Everbright, LLC';  // <-- change to any company name in your sheet
+  var companyName = 'Merck Sharp & Dohme LLC';  // <-- change to any company name in your sheet
   Logger.log('[TEST] Starting test for: ' + companyName);
   var url = generateGrowthStrategyDoc(companyName);
   Logger.log('[TEST] Done. Doc URL: ' + url);

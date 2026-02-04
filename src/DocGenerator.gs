@@ -223,7 +223,7 @@ function generateGrowthStrategyDoc(companyName) {
   Logger.log('[DocGen] Internal data extracted. Industry: ' + data.context.industry +
     ' | Plan: ' + data.contract.plan + ' | Envelopes: ' + data.consumption.envelopesSent + '/' + data.consumption.envelopesPurchased);
 
-  // ── Step 2: Run 5 LLM research calls (sequential) ─────────────────
+  // ── Step 2: Run 6 LLM research calls (sequential) ─────────────────
   // OPTIMIZATION NOTE: Calls 2, 3, 4 only use Call 1's accountProfile for
   // enrichment context — the cross-call dependencies (3→businessMap, 4→agreements)
   // are not essential. These three could run in parallel via UrlFetchApp.fetchAll()
@@ -233,7 +233,7 @@ function generateGrowthStrategyDoc(companyName) {
   // researchContractCommerce. See git log for full analysis.
 
   // Call 1: Account Profile
-  Logger.log('[DocGen] === LLM CALL 1/5: Account Profile ===');
+  Logger.log('[DocGen] === LLM CALL 1/6: Account Profile ===');
   var accountProfile;
   try {
     accountProfile = researchAccountProfile(data.identity.name, data.context.industry);
@@ -244,7 +244,7 @@ function generateGrowthStrategyDoc(companyName) {
   }
 
   // Call 2: Business Map
-  Logger.log('[DocGen] === LLM CALL 2/5: Business Map ===');
+  Logger.log('[DocGen] === LLM CALL 2/6: Business Map ===');
   var businessMap;
   try {
     businessMap = researchBusinessMap(data.identity.name, data.context.industry,
@@ -256,7 +256,7 @@ function generateGrowthStrategyDoc(companyName) {
   }
 
   // Call 3: Agreement Landscape
-  Logger.log('[DocGen] === LLM CALL 3/5: Agreement Landscape ===');
+  Logger.log('[DocGen] === LLM CALL 3/6: Agreement Landscape ===');
   var agreementLandscape;
   try {
     agreementLandscape = researchAgreementLandscape(data.identity.name, data.context.industry,
@@ -275,7 +275,7 @@ function generateGrowthStrategyDoc(companyName) {
   }
 
   // Call 4: Contract Commerce
-  Logger.log('[DocGen] === LLM CALL 4/5: Contract Commerce ===');
+  Logger.log('[DocGen] === LLM CALL 4/6: Contract Commerce ===');
   var contractCommerce;
   try {
     contractCommerce = researchContractCommerce(data.identity.name, data.context.industry,
@@ -287,7 +287,7 @@ function generateGrowthStrategyDoc(companyName) {
   }
 
   // Call 5: Priority Map
-  Logger.log('[DocGen] === LLM CALL 5/5: Priority Map ===');
+  Logger.log('[DocGen] === LLM CALL 5/6: Priority Map ===');
   var externalResearch = {
     accountProfile: accountProfile,
     businessMap: businessMap,
@@ -302,6 +302,18 @@ function generateGrowthStrategyDoc(companyName) {
   } catch (e) {
     Logger.log('[DocGen] Call 5 FAILED: ' + e.message);
     priorityMap = {};
+  }
+
+  // Call 6: Executive Briefing
+  Logger.log('[DocGen] === LLM CALL 6/6: Executive Briefing ===');
+  var briefing;
+  try {
+    briefing = generateExecutiveBriefing(data.identity.name, accountProfile, priorityMap, productSignals);
+    Logger.log('[DocGen] Call 6 succeeded. Priorities: ' +
+      (briefing && briefing.priorities ? briefing.priorities.length : 0));
+  } catch (e) {
+    Logger.log('[DocGen] Call 6 FAILED: ' + e.message);
+    briefing = {};
   }
 
   // ── Step 3: Create the Google Doc ─────────────────────────────────
@@ -325,46 +337,52 @@ function generateGrowthStrategyDoc(companyName) {
   body.setMarginLeft(48);
   body.setMarginRight(48);
 
-  // ── Build 9 sections ──────────────────────────────────────────────
-  // Order: analysis & recommendations first, then supporting detail.
+  // ── Build 10 sections ─────────────────────────────────────────────
+  // Order: executive briefing first, then analysis & recommendations, then supporting detail.
 
-  Logger.log('[DocGen] Building Section 1/9: Company Profile');
+  Logger.log('[DocGen] Building Section 0/10: Executive Meeting Briefing');
+  addExecutiveBriefingSection(body, data, briefing);
+  if (briefing && briefing.priorities) {
+    body.appendPageBreak();
+  }
+
+  Logger.log('[DocGen] Building Section 1/10: Company Profile');
   addCompanyProfileSection(body, data, accountProfile);
   addInlineSources(body, accountProfile);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 2/9: Account Health Analysis');
+  Logger.log('[DocGen] Building Section 2/10: Account Health Analysis');
   addAccountHealthSection(body, data);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 3/9: Priority Map');
+  Logger.log('[DocGen] Building Section 3/10: Priority Map');
   addPriorityMapSection(body, data, priorityMap, productSignals);
   addInlineSources(body, priorityMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 4/9: Docusign Footprint');
+  Logger.log('[DocGen] Building Section 4/10: Docusign Footprint');
   addDocusignTodaySection(body, data, priorityMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 5/9: Business Performance & Strategy');
+  Logger.log('[DocGen] Building Section 5/10: Business Performance & Strategy');
   addBusinessPerformanceSection(body, data, accountProfile);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 6/9: Executive Contacts & Technology');
+  Logger.log('[DocGen] Building Section 6/10: Executive Contacts & Technology');
   addExecutivesAndTechSection(body, data, accountProfile);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 7/9: Business Map');
+  Logger.log('[DocGen] Building Section 7/10: Business Map');
   addBusinessMapSection(body, data, businessMap);
   addInlineSources(body, businessMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 8/9: Agreement Landscape');
+  Logger.log('[DocGen] Building Section 8/10: Agreement Landscape');
   addAgreementLandscapeSection(body, data, agreementLandscape);
   addInlineSources(body, agreementLandscape);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 9/9: Contract Commerce Estimate');
+  Logger.log('[DocGen] Building Section 9/10: Contract Commerce Estimate');
   addContractCommerceSection(body, data, contractCommerce);
   addInlineSources(body, contractCommerce);
 
@@ -386,14 +404,117 @@ function generateGrowthStrategyDoc(companyName) {
 
 
 // ═══════════════════════════════════════════════════════════════════════
+// Rich Text Helper
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Append a paragraph with inline **bold** and *italic* markdown formatting
+ * rendered as Google Doc rich text.
+ * @param {Body} body  Google Doc body
+ * @param {string} text  Text with markdown-style markers
+ * @returns {Paragraph} the appended paragraph
+ */
+function appendRichText(body, text) {
+  if (!text) return body.appendParagraph('');
+
+  // Parse segments: split on **...**  and *...*  markers
+  // Regex captures: group 1 = bold content, group 2 = italic content, group 3 = plain text
+  var segments = [];
+  var regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)/g;
+  var lastIndex = 0;
+  var match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Push any plain text before this match
+    if (match.index > lastIndex) {
+      segments.push({ text: text.substring(lastIndex, match.index), style: 'plain' });
+    }
+    if (match[2]) {
+      // Bold match (group 2 is the content inside **)
+      segments.push({ text: match[2], style: 'bold' });
+    } else if (match[4]) {
+      // Italic match (group 4 is the content inside *)
+      segments.push({ text: match[4], style: 'italic' });
+    }
+    lastIndex = regex.lastIndex;
+  }
+  // Push remaining plain text
+  if (lastIndex < text.length) {
+    segments.push({ text: text.substring(lastIndex), style: 'plain' });
+  }
+
+  // Build the paragraph with all text first, then apply ranges
+  var fullText = segments.map(function(s) { return s.text; }).join('');
+  var para = body.appendParagraph(fullText);
+  para.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+  para.editAsText().setFontSize(11);
+  para.editAsText().setBold(false);
+  para.editAsText().setItalic(false);
+  para.editAsText().setForegroundColor('#333333');
+  para.setLineSpacing(1.15);
+  para.setSpacingAfter(6);
+
+  // Apply bold/italic formatting to specific ranges
+  var offset = 0;
+  var textEl = para.editAsText();
+  segments.forEach(function(seg) {
+    if (seg.text.length > 0) {
+      if (seg.style === 'bold') {
+        textEl.setBold(offset, offset + seg.text.length - 1, true);
+      } else if (seg.style === 'italic') {
+        textEl.setItalic(offset, offset + seg.text.length - 1, true);
+      }
+      offset += seg.text.length;
+    }
+  });
+
+  return para;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
 // Section Builders
 // ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Section 0: Executive Meeting Briefing
+ */
+function addExecutiveBriefingSection(body, data, briefing) {
+  if (!briefing || !briefing.priorities) return;
+
+  addSectionHeading(body, data.identity.name + ': Executive Meeting Briefing');
+
+  // Intro paragraph with rich text
+  if (briefing.introText) {
+    appendRichText(body, briefing.introText);
+    addSpacer(body);
+  }
+
+  // Numbered priorities
+  var priorities = briefing.priorities || [];
+  priorities.forEach(function(p, idx) {
+    // Priority title as bold subheading-style line
+    var titleText = (idx + 1) + '. ' + (p.title || 'Priority ' + (idx + 1));
+    var titlePara = body.appendParagraph(titleText);
+    titlePara.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+    titlePara.editAsText().setFontSize(12);
+    titlePara.editAsText().setBold(true);
+    titlePara.editAsText().setForegroundColor(DOCUSIGN_PURPLE);
+    titlePara.setSpacingBefore(8);
+    titlePara.setSpacingAfter(2);
+
+    // Body paragraph with inline formatting
+    if (p.body) {
+      appendRichText(body, p.body);
+    }
+  });
+}
 
 /**
  * Section 1: Company Profile
  */
 function addCompanyProfileSection(body, data, accountProfile) {
-  addSectionHeading(body, data.identity.name + ' | Company Profile');
+  addSectionHeading(body, 'Company Profile');
 
   var ap = accountProfile || {};
 
@@ -443,7 +564,7 @@ function addCompanyProfileSection(body, data, accountProfile) {
  * Section 2: Business Performance & Strategy
  */
 function addBusinessPerformanceSection(body, data, accountProfile) {
-  addSectionHeading(body, data.identity.name + ' | Business Performance & Strategy');
+  addSectionHeading(body, 'Business Performance & Strategy');
 
   var ap = accountProfile || {};
   var perf = ap.businessPerformance || {};
@@ -543,7 +664,7 @@ function addBusinessPerformanceSection(body, data, accountProfile) {
  * Section 3: Executive Contacts & Technology
  */
 function addExecutivesAndTechSection(body, data, accountProfile) {
-  addSectionHeading(body, data.identity.name + ' | Executive Contacts & Technology');
+  addSectionHeading(body, 'Executive Contacts & Technology');
 
   var ap = accountProfile || {};
 
@@ -595,7 +716,7 @@ function addExecutivesAndTechSection(body, data, accountProfile) {
  * Section 4: Business Map
  */
 function addBusinessMapSection(body, data, businessMap) {
-  addSectionHeading(body, data.identity.name + ' | Business Map');
+  addSectionHeading(body, 'Business Map');
 
   var nodes = (businessMap && businessMap.nodes) || [];
 
@@ -667,7 +788,7 @@ function addBusinessMapSection(body, data, businessMap) {
  * Section 5: Docusign Footprint (was Docusign Today — mostly unchanged)
  */
 function addDocusignTodaySection(body, data, strategy) {
-  addSectionHeading(body, data.identity.name + ' | Docusign Footprint');
+  addSectionHeading(body, 'Docusign Footprint');
 
   // ── Current Use Cases (from LLM synthesis) ──────────────────────
   addSubHeading(body, 'Current Use Cases');
@@ -1053,7 +1174,7 @@ function analyzeAccountHealth(data) {
  * Section 6: Account Health Analysis — data-driven health indicators (unchanged)
  */
 function addAccountHealthSection(body, data) {
-  addSectionHeading(body, data.identity.name + ' | Account Health Analysis');
+  addSectionHeading(body, 'Account Health Analysis');
 
   var health = analyzeAccountHealth(data);
 
@@ -1206,7 +1327,7 @@ function addAccountHealthSection(body, data) {
  * Section 7: Agreement Landscape
  */
 function addAgreementLandscapeSection(body, data, agreementLandscape) {
-  addSectionHeading(body, data.identity.name + ' | Agreement Landscape');
+  addSectionHeading(body, 'Agreement Landscape');
 
   var agreements = (agreementLandscape && agreementLandscape.agreements) || [];
 
@@ -1343,7 +1464,7 @@ function addAgreementLandscapeSection(body, data, agreementLandscape) {
  * Section 8: Contract Commerce Estimate
  */
 function addContractCommerceSection(body, data, contractCommerce) {
-  addSectionHeading(body, data.identity.name + ' | Contract Commerce Estimate');
+  addSectionHeading(body, 'Contract Commerce Estimate');
 
   var cc = contractCommerce || {};
 
@@ -1440,15 +1561,200 @@ function addContractCommerceSection(body, data, contractCommerce) {
 }
 
 /**
+ * Match an opportunity product name to a signal entry.
+ * Tries exact match (case-insensitive), then substring in either direction.
+ * @param {string} product  Opportunity product name (e.g. "Docusign Navigator")
+ * @param {Array}  signals  productSignals.signals array
+ * @returns {Object|null}   Matched signal or null
+ */
+function findSignalForProduct(product, signals) {
+  if (!product || !signals || !signals.length) return null;
+  var pLower = product.toLowerCase().trim();
+
+  // Exact match (case-insensitive)
+  for (var i = 0; i < signals.length; i++) {
+    if ((signals[i].product || '').toLowerCase().trim() === pLower) return signals[i];
+  }
+
+  // Substring match: opportunity product contains signal product, or vice-versa
+  for (var j = 0; j < signals.length; j++) {
+    var sLower = (signals[j].product || '').toLowerCase().trim();
+    if (sLower && (pLower.indexOf(sLower) !== -1 || sLower.indexOf(pLower) !== -1)) {
+      return signals[j];
+    }
+  }
+
+  return null;
+}
+
+/**
  * Section 9: Priority Map
  */
 function addPriorityMapSection(body, data, priorityMap, productSignals) {
-  addSectionHeading(body, data.identity.name + ' | Priority Map');
+  addSectionHeading(body, 'Priority Map');
 
   var pm = priorityMap || {};
 
   // Accept both field names: priorityMapping (new) or priorities (old/LLM variant)
   var mappings = pm.priorityMapping || pm.priorities || [];
+
+  // ── Top Opportunities table ────────────────────────────────────────
+  var opportunities = pm.expansionOpportunities || [];
+  var ps = productSignals || {};
+  var signals = ps.signals || [];
+
+  if (opportunities.length > 0 && signals.length > 0) {
+    // Score each opportunity
+    var scored = opportunities.map(function(opp) {
+      // 1. Initiative alignment (0 or 1)
+      var aligned = 0;
+      var matchedPriority = '';
+      var oppProductLower = (opp.product || '').toLowerCase();
+      for (var mi = 0; mi < mappings.length; mi++) {
+        var capLower = (mappings[mi].docusignCapability || '').toLowerCase();
+        if (capLower.indexOf(oppProductLower) !== -1 || oppProductLower.indexOf(capLower) !== -1) {
+          aligned = 1;
+          matchedPriority = mappings[mi].companyPriority || '';
+          break;
+        }
+      }
+
+      // 2. White space (1–3)
+      var signal = findSignalForProduct(opp.product, signals);
+      var whiteSpace = 3; // default: "White" (LLM recommending something not in their stack)
+      var whiteSpaceLabel = 'White';
+      if (signal) {
+        if (signal.status === 'in_use') {
+          whiteSpace = 1;
+          whiteSpaceLabel = 'Dark Grey';
+        } else if (signal.status === 'recommended' && signal.strength === 'moderate') {
+          whiteSpace = 2;
+          whiteSpaceLabel = 'Grey';
+        } else if (signal.status === 'recommended' && signal.strength === 'strong') {
+          whiteSpace = 3;
+          whiteSpaceLabel = 'White';
+        } else {
+          // recommended with no strength, or not_relevant → treat as white
+          whiteSpace = 3;
+          whiteSpaceLabel = 'White';
+        }
+      }
+
+      // 3. Combined score
+      var score = (aligned * 3) + whiteSpace;
+
+      return {
+        product: opp.product || '',
+        useCase: opp.useCase || '',
+        department: opp.department || '',
+        businessValue: opp.businessValue || '',
+        aligned: aligned,
+        matchedPriority: matchedPriority,
+        whiteSpaceLabel: whiteSpaceLabel,
+        score: score
+      };
+    });
+
+    // Sort descending by score, take top 3
+    scored.sort(function(a, b) { return b.score - a.score; });
+    var top3 = scored.slice(0, 3);
+
+    // Build table data
+    var topRows = [['#', 'Opportunity', 'White Space', 'Initiative Alignment', 'Business Value']];
+    top3.forEach(function(item, idx) {
+      var oppLabel = item.product + '\n' + item.useCase + ' — ' + item.department;
+      topRows.push([
+        String(idx + 1),
+        oppLabel,
+        item.whiteSpaceLabel,
+        item.matchedPriority || '\u2014',
+        item.businessValue
+      ]);
+    });
+
+    // Render custom table
+    addSubHeading(body, 'Top Opportunities');
+    var topTable = body.appendTable(topRows);
+    topTable.setBorderColor('#CCCCCC');
+    topTable.setBorderWidth(1);
+
+    var topColWidths = [20, 130, 60, 140, 166];
+    for (var tw = 0; tw < topColWidths.length; tw++) {
+      topTable.setColumnWidth(tw, topColWidths[tw]);
+    }
+
+    var topNumCols = topRows[0].length;
+
+    // Style header row
+    var topHeaderRow = topTable.getRow(0);
+    for (var thc = 0; thc < topNumCols; thc++) {
+      var thCell = topHeaderRow.getCell(thc);
+      thCell.setBackgroundColor(HEADER_BG);
+      thCell.editAsText().setForegroundColor(HEADER_FG);
+      thCell.editAsText().setBold(true);
+      thCell.editAsText().setFontSize(10);
+      thCell.setPaddingTop(6);
+      thCell.setPaddingBottom(6);
+      thCell.setPaddingLeft(8);
+      thCell.setPaddingRight(8);
+    }
+
+    // White space color map
+    var wsColors = {
+      'White':     { bg: '#FFFFFF', fg: '#1E8E3E' },
+      'Grey':      { bg: '#E8EAED', fg: '#5F6368' },
+      'Dark Grey': { bg: '#DADCE0', fg: '#3C4043' }
+    };
+
+    // Style data rows
+    for (var tr = 1; tr < topTable.getNumRows(); tr++) {
+      var topRow = topTable.getRow(tr);
+      var topBg = (tr % 2 === 0) ? TABLE_ALT_BG : '#FFFFFF';
+      for (var tc = 0; tc < topNumCols; tc++) {
+        var tCell = topRow.getCell(tc);
+        tCell.setBackgroundColor(topBg);
+        tCell.editAsText().setFontSize(10);
+        tCell.editAsText().setBold(false);
+        tCell.editAsText().setForegroundColor('#333333');
+        tCell.setPaddingTop(4);
+        tCell.setPaddingBottom(4);
+        tCell.setPaddingLeft(8);
+        tCell.setPaddingRight(8);
+      }
+
+      // # column (col 0): bold, centered
+      var rankCell = topRow.getCell(0);
+      rankCell.editAsText().setBold(true);
+
+      // Opportunity column (col 1): bold product name, normal use case
+      var oppCell = topRow.getCell(1);
+      var oppText = oppCell.getText();
+      var oppNewline = oppText.indexOf('\n');
+      if (oppNewline > 0) {
+        oppCell.editAsText().setBold(0, oppNewline - 1, true);
+        oppCell.editAsText().setItalic(false);
+        // Italicize the department portion (after " — ")
+        var dashIdx = oppText.indexOf(' \u2014 ', oppNewline);
+        if (dashIdx !== -1 && dashIdx + 3 < oppText.length) {
+          oppCell.editAsText().setItalic(dashIdx + 3, oppText.length - 1, true);
+        }
+      } else {
+        oppCell.editAsText().setBold(true);
+      }
+
+      // White Space column (col 2): color-coded background
+      var wsCell = topRow.getCell(2);
+      var wsValue = wsCell.getText().trim();
+      var wsStyle = wsColors[wsValue];
+      if (wsStyle) {
+        wsCell.setBackgroundColor(wsStyle.bg);
+        wsCell.editAsText().setForegroundColor(wsStyle.fg);
+        wsCell.editAsText().setBold(true);
+      }
+    }
+
+    addSpacer(body);
+  }
 
   // Priority Mapping table
   if (mappings.length > 0) {
@@ -1468,7 +1774,6 @@ function addPriorityMapSection(body, data, priorityMap, productSignals) {
   }
 
   // Recommended Bundles table (deterministic, from productSignals.bundleSignals)
-  var ps = productSignals || {};
   var bundleSignals = ps.bundleSignals || [];
   if (bundleSignals.length > 0) {
     // Build a catalog lookup by bundle name
@@ -1562,7 +1867,6 @@ function addPriorityMapSection(body, data, priorityMap, productSignals) {
   }
 
   // Expansion Opportunities table
-  var opportunities = pm.expansionOpportunities || [];
   if (opportunities.length > 0) {
     addSubHeading(body, 'Expansion Opportunities');
     var oppRows = [['Product', 'Use Case', 'Business Value', 'Target Department']];

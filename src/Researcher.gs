@@ -685,3 +685,66 @@ function synthesizePriorityMap(companyName, internalSummary, externalResearch, p
 
   return callLLMJson(systemPrompt, userPrompt);
 }
+
+/**
+ * Call 6: Executive Meeting Briefing — concise narrative summary with Docusign mapping.
+ * Uses data already gathered (no additional web research).
+ * @param {string} companyName
+ * @param {Object} accountProfile  Result from Call 1
+ * @param {Object} priorityMap     Result from Call 5
+ * @param {Object} productSignals  Output of generateProductSignals()
+ * @returns {Object} { introText, priorities: [{ title, body }] }
+ */
+function generateExecutiveBriefing(companyName, accountProfile, priorityMap, productSignals) {
+  var systemPrompt =
+    'You are writing an executive meeting briefing for a Docusign account team.\n' +
+    'Write in a concise, professional tone suitable for an executive audience.\n' +
+    'Use **bold** for key data points, company names, and Docusign product names.\n' +
+    'Use *italic* for emphasis on specific terms.\n' +
+    'Do NOT include source citations or URLs.\n' +
+    'Return your response as valid JSON only. No markdown fences, no extra text.';
+
+  var initiatives = '';
+  if (accountProfile && accountProfile.businessPerformance &&
+      accountProfile.businessPerformance.strategicInitiatives) {
+    initiatives = JSON.stringify(accountProfile.businessPerformance.strategicInitiatives);
+  }
+
+  var priorities = '';
+  if (priorityMap && priorityMap.priorityMapping) {
+    priorities = JSON.stringify(priorityMap.priorityMapping);
+  }
+
+  var expansions = '';
+  if (priorityMap && priorityMap.expansionOpportunities) {
+    expansions = JSON.stringify(priorityMap.expansionOpportunities);
+  }
+
+  var signalSummary = (productSignals && productSignals.summary) || '';
+
+  var userPrompt =
+    'Create an executive meeting briefing for "' + companyName + '".\n\n' +
+    '--- STRATEGIC INITIATIVES ---\n' + initiatives + '\n\n' +
+    '--- DOCUSIGN PRIORITY MAPPINGS ---\n' + priorities + '\n\n' +
+    '--- EXPANSION OPPORTUNITIES ---\n' + expansions + '\n\n' +
+    '--- PRODUCT SIGNALS ---\n' + signalSummary + '\n\n' +
+    'Return a JSON object with exactly this structure:\n' +
+    '{\n' +
+    '  "introText": "1-2 sentences setting context about the company\'s current strategic focus. No source citations.",\n' +
+    '  "priorities": [\n' +
+    '    {\n' +
+    '      "title": "Priority title (with parenthetical context if relevant)",\n' +
+    '      "body": "A 3-4 sentence paragraph that provides context on the company initiative and naturally weaves in how Docusign capabilities map to this priority. Use **bold** for key data points and Docusign product names. Use *italic* for emphasis."\n' +
+    '    }\n' +
+    '  ]\n' +
+    '}\n\n' +
+    'Rules:\n' +
+    '- Provide exactly 3 priorities\n' +
+    '- Each priority should connect a real company initiative to relevant Docusign capabilities\n' +
+    '- The body should read as natural prose, not bullet points\n' +
+    '- Bold company names, dollar figures, product names (e.g. **Docusign CLM**, **$2.5B**)\n' +
+    '- Italic for emphasis on specific terms (e.g. *digital transformation*, *compliance*)';
+
+  Logger.log('[Research] Call 6: Generating executive briefing for "' + companyName + '"');
+  return callLLMJson(systemPrompt, userPrompt);
+}
