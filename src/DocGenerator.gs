@@ -17,6 +17,13 @@ var QUADRANT_COLORS = {
   'Regulatory':     '#F5A623'   // Orange
 };
 
+var CONTRACT_TYPE_COLORS = {
+  'Negotiated':     { bg: '#E8E0F0', fg: '#1B0B3B' },
+  'Non-negotiated': { bg: '#E0F5EF', fg: '#00875A' },
+  'Form-based':     { bg: '#E0EDF7', fg: '#2D6CB4' },
+  'Regulatory':     { bg: '#FEF3E0', fg: '#C77D00' }
+};
+
 /**
  * Compute quadrant label from volume and complexity (both 1-10, baseline 5).
  * @param {number} volume
@@ -30,6 +37,15 @@ function getQuadrant(volume, complexity) {
   if (v >= 5 && c < 5)  return 'High Volume / Low Complexity';
   if (v < 5 && c >= 5)  return 'Low Volume / High Complexity';
   return 'Low Volume / Low Complexity';
+}
+
+function getQuadrantAbbrev(volume, complexity) {
+  var v = Math.max(1, Math.min(10, Number(volume) || 5));
+  var c = Math.max(1, Math.min(10, Number(complexity) || 5));
+  if (v >= 5 && c >= 5) return 'HV/HC';
+  if (v >= 5 && c < 5)  return 'HV/LC';
+  if (v < 5 && c >= 5)  return 'LV/HC';
+  return 'LV/LC';
 }
 
 
@@ -823,13 +839,15 @@ function addDocusignTodaySection(body, data, strategy) {
 var HEALTH_GREEN  = '#E6F4EA';
 var HEALTH_YELLOW = '#FFF8E1';
 var HEALTH_RED    = '#FCE8E6';
+var HEALTH_GRAY   = '#F5F5F5';
 var LABEL_GREEN   = '#1E8E3E';
 var LABEL_YELLOW  = '#F9AB00';
 var LABEL_RED     = '#D93025';
+var LABEL_GRAY    = '#757575';
 
 /**
  * Assess a metric and return { status, label, detail }.
- * status: 'green' | 'yellow' | 'red'
+ * status: 'green' | 'yellow' | 'red' | 'gray' (no data)
  */
 function assessHealth(status, label, detail) {
   return { status: status, label: label, detail: detail };
@@ -862,6 +880,9 @@ function analyzeAccountHealth(data) {
       results.consumptionPacing = assessHealth('red', 'Significantly Behind',
         'Consumption at ' + consumptionPct.toFixed(0) + '% vs ' + termPct.toFixed(0) + '% through term (' + pacingRatio.toFixed(2) + 'x ratio). Risk of over-purchase or dormant use cases.');
     }
+  } else {
+    results.consumptionPacing = assessHealth('gray', 'No Data',
+      'No envelope consumption data yet. Account is ' + (data.contract.daysUsed || 0) + ' days into term.');
   }
 
   // ── 2. Usage Trend ──────────────────────────────────────────────
@@ -875,6 +896,9 @@ function analyzeAccountHealth(data) {
   } else if (trend.indexOf('under') !== -1) {
     results.usageTrend = assessHealth('red', 'Under Trending',
       data.consumption.usageTrend + '. Investigate dormant use cases or onboarding gaps.');
+  } else {
+    results.usageTrend = assessHealth('gray', 'No Data',
+      'No usage trend data available yet.');
   }
 
   // ── 3. Send Velocity MoM ───────────────────────────────────────
@@ -890,6 +914,9 @@ function analyzeAccountHealth(data) {
       results.sendVelocity = assessHealth('red', 'Decelerating',
         'Send volume down ' + velMom + '% month-over-month. Declining engagement.');
     }
+  } else {
+    results.sendVelocity = assessHealth('gray', 'No Data',
+      'No send velocity data available yet.');
   }
 
   // ── 4. Seat Activation ─────────────────────────────────────────
@@ -910,6 +937,9 @@ function analyzeAccountHealth(data) {
   } else if (seatsA > 0) {
     results.seatActivation = assessHealth('yellow', 'Unmetered',
       seatsA + ' active seats with no purchased limit. Likely API-driven or unlimited plan.');
+  } else {
+    results.seatActivation = assessHealth('gray', 'No Data',
+      'No seat data available yet.');
   }
 
   // ── 5. Active Seats MoM ────────────────────────────────────────
@@ -925,6 +955,9 @@ function analyzeAccountHealth(data) {
       results.seatGrowth = assessHealth('red', 'Contracting',
         'Active seats down ' + seatMom + '% month-over-month. Users leaving the platform.');
     }
+  } else {
+    results.seatGrowth = assessHealth('gray', 'No Data',
+      'No seat growth trend data available yet.');
   }
 
   // ── 6. Integration Depth ───────────────────────────────────────
@@ -960,6 +993,9 @@ function analyzeAccountHealth(data) {
       results.transactionHealth = assessHealth('red', 'High Failure Rate',
         compRate.toFixed(0) + '% completion rate. ' + failPct.toFixed(1) + '% of transactions fail — workflow friction needs attention.');
     }
+  } else {
+    results.transactionHealth = assessHealth('gray', 'No Data',
+      'No transaction completion data available yet.');
   }
 
   // ── 8. Product Breadth ─────────────────────────────────────────
@@ -989,6 +1025,9 @@ function analyzeAccountHealth(data) {
       results.renewalProximity = assessHealth('green', 'Runway',
         monthsLeft + ' months until renewal (' + data.contract.termEndFyq + '). Time to build expansion case.');
     }
+  } else {
+    results.renewalProximity = assessHealth('gray', 'No Data',
+      'No renewal date available.');
   }
 
   // ── 10. Charge Model Context ───────────────────────────────────
@@ -1028,7 +1067,7 @@ function addAccountHealthSection(body, data) {
   ];
 
   var scorecardRows = [['Indicator', 'Status', 'Assessment']];
-  var greenCount = 0, yellowCount = 0, redCount = 0;
+  var greenCount = 0, yellowCount = 0, redCount = 0, grayCount = 0;
 
   indicatorOrder.forEach(function(ind) {
     var h = health[ind.key];
@@ -1037,6 +1076,7 @@ function addAccountHealthSection(body, data) {
       if (h.status === 'green') greenCount++;
       else if (h.status === 'yellow') yellowCount++;
       else if (h.status === 'red') redCount++;
+      else if (h.status === 'gray') grayCount++;
     }
   });
 
@@ -1068,9 +1108,11 @@ function addAccountHealthSection(body, data) {
     var row = table.getRow(dataIdx);
 
     var bgColor = h.status === 'green' ? HEALTH_GREEN :
-                  h.status === 'yellow' ? HEALTH_YELLOW : HEALTH_RED;
+                  h.status === 'yellow' ? HEALTH_YELLOW :
+                  h.status === 'gray' ? HEALTH_GRAY : HEALTH_RED;
     var labelColor = h.status === 'green' ? LABEL_GREEN :
-                     h.status === 'yellow' ? LABEL_YELLOW : LABEL_RED;
+                     h.status === 'yellow' ? LABEL_YELLOW :
+                     h.status === 'gray' ? LABEL_GRAY : LABEL_RED;
 
     // Indicator name column
     var nameCell = row.getCell(0);
@@ -1106,10 +1148,13 @@ function addAccountHealthSection(body, data) {
   // ── Overall Assessment ─────────────────────────────────────────
   addSubHeading(body, 'Overall Assessment');
 
-  var total = greenCount + yellowCount + redCount;
-  var overallPara = addBodyText(body,
-    greenCount + ' healthy, ' + yellowCount + ' watch, ' + redCount + ' concern — out of ' + total + ' indicators evaluated.'
-  );
+  var total = greenCount + yellowCount + redCount + grayCount;
+  var summaryText = greenCount + ' healthy, ' + yellowCount + ' watch, ' + redCount + ' concern';
+  if (grayCount > 0) {
+    summaryText += ', ' + grayCount + ' no data';
+  }
+  summaryText += ' — out of ' + total + ' indicators evaluated.';
+  var overallPara = addBodyText(body, summaryText);
   overallPara.editAsText().setBold(true);
 
   // Build narrative
@@ -1177,10 +1222,10 @@ function addAgreementLandscapeSection(body, data, agreementLandscape) {
   addSubHeading(body, 'Quadrant Guide');
   var guideRows = [
     ['Quadrant', 'Description'],
-    ['High Volume / High Complexity', 'Strategic agreements — highest Docusign value. CLM, Navigator, Maestro opportunities.'],
-    ['High Volume / Low Complexity', 'Transactional agreements — eSignature, Clickwraps, Bulk Send, automation.'],
-    ['Low Volume / High Complexity', 'Specialized agreements — CLM, Document Generation, ID Verification.'],
-    ['Low Volume / Low Complexity', 'Standard agreements — eSignature, templates, PowerForms.']
+    ['HV/HC \u2014 High Vol / High Cx', 'Strategic agreements \u2014 highest Docusign value. CLM, Navigator, Maestro opportunities.'],
+    ['HV/LC \u2014 High Vol / Low Cx', 'Transactional agreements \u2014 eSignature, Clickwraps, Bulk Send, automation.'],
+    ['LV/HC \u2014 Low Vol / High Cx', 'Specialized agreements \u2014 CLM, Document Generation, ID Verification.'],
+    ['LV/LC \u2014 Low Vol / Low Cx', 'Standard agreements \u2014 eSignature, templates, PowerForms.']
   ];
   addStyledTable(body, guideRows);
 
@@ -1196,10 +1241,82 @@ function addAgreementLandscapeSection(body, data, agreementLandscape) {
       String(a.volume || ''),
       String(a.complexity || ''),
       a.contractType || '',
-      getQuadrant(a.volume, a.complexity)
+      getQuadrantAbbrev(a.volume, a.complexity)
     ]);
   });
-  addStyledTable(body, aggRows);
+
+  // Custom table rendering with color-coded Type column and explicit widths
+  var table = body.appendTable(aggRows);
+  table.setBorderColor('#CCCCCC');
+  table.setBorderWidth(1);
+
+  var colWidths = [24, 135, 60, 115, 28, 28, 80, 46];
+  for (var w = 0; w < colWidths.length; w++) {
+    table.setColumnWidth(w, colWidths[w]);
+  }
+
+  var numCols = aggRows[0].length;
+
+  // Style header row
+  var headerRow = table.getRow(0);
+  for (var hc = 0; hc < numCols; hc++) {
+    var hCell = headerRow.getCell(hc);
+    hCell.setBackgroundColor(HEADER_BG);
+    hCell.editAsText().setForegroundColor(HEADER_FG);
+    hCell.editAsText().setBold(true);
+    hCell.editAsText().setFontSize(10);
+    hCell.setPaddingTop(6);
+    hCell.setPaddingBottom(6);
+    hCell.setPaddingLeft(8);
+    hCell.setPaddingRight(8);
+  }
+
+  // Style data rows
+  for (var r = 1; r < table.getNumRows(); r++) {
+    var row = table.getRow(r);
+    var bg = (r % 2 === 0) ? TABLE_ALT_BG : '#FFFFFF';
+    for (var c = 0; c < numCols; c++) {
+      var dataCell = row.getCell(c);
+      dataCell.setBackgroundColor(bg);
+      dataCell.editAsText().setFontSize(10);
+      dataCell.editAsText().setBold(false);
+      dataCell.editAsText().setForegroundColor('#333333');
+      dataCell.setPaddingTop(4);
+      dataCell.setPaddingBottom(4);
+      dataCell.setPaddingLeft(8);
+      dataCell.setPaddingRight(8);
+    }
+
+    // Color-code the Type column (index 6)
+    var typeCell = row.getCell(6);
+    var typeValue = typeCell.getText().trim();
+    var typeColor = CONTRACT_TYPE_COLORS[typeValue];
+    if (typeColor) {
+      typeCell.setBackgroundColor(typeColor.bg);
+      typeCell.editAsText().setForegroundColor(typeColor.fg);
+      typeCell.editAsText().setBold(true);
+    }
+  }
+
+  addSpacer(body);
+
+  // Contract type legend
+  var legendText = '\u25a0 Negotiated    \u25a0 Non-negotiated    \u25a0 Form-based    \u25a0 Regulatory';
+  var legend = addBodyText(body, legendText);
+  legend.editAsText().setFontSize(9);
+  legend.editAsText().setBold(false);
+  legend.editAsText().setForegroundColor('#666666');
+  // Color each legend swatch
+  var legendStr = legendText;
+  var pos = 0;
+  var types = ['Negotiated', 'Non-negotiated', 'Form-based', 'Regulatory'];
+  for (var t = 0; t < types.length; t++) {
+    var idx = legendStr.indexOf('\u25a0', pos);
+    if (idx >= 0) {
+      legend.editAsText().setForegroundColor(idx, idx, CONTRACT_TYPE_COLORS[types[t]].fg);
+      pos = idx + 1;
+    }
+  }
 
   // Descriptions
   addSubHeading(body, 'Agreement Descriptions');
