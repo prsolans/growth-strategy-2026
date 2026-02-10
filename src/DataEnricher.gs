@@ -3,9 +3,9 @@
  * to anchor LLM research with consistent, authoritative facts.
  *
  * APIs used:
- *   - SEC EDGAR (XBRL)  — financials, employee count, SIC code, ticker
- *   - Wikipedia          — stable company overview text
- *   - Wikidata           — CEO, headquarters, founding date, ticker
+ *   - Financial Modeling Prep (FMP) — financials, employee count, industry
+ *   - Wikipedia                     — stable company overview text
+ *   - Wikidata                      — CEO, headquarters, founding date, ticker
  *
  * All functions degrade gracefully: if an API is unreachable or the company
  * is not found, the corresponding fields are simply omitted.
@@ -16,29 +16,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Fetch JSON from SEC EDGAR (requires User-Agent header per SEC policy).
- * @param {string} url
- * @returns {Object|null}
- */
-function fetchSecJson(url) {
-  try {
-    var response = UrlFetchApp.fetch(url, {
-      muteHttpExceptions: true,
-      headers: { 'User-Agent': SEC_USER_AGENT, 'Accept': 'application/json' }
-    });
-    if (response.getResponseCode() !== 200) {
-      Logger.log('[Enrich/SEC] HTTP ' + response.getResponseCode() + ' for ' + url);
-      return null;
-    }
-    return JSON.parse(response.getContentText());
-  } catch (e) {
-    Logger.log('[Enrich/SEC] Fetch failed: ' + e.message);
-    return null;
-  }
-}
-
-/**
- * Fetch JSON from a public API (Wikipedia, Wikidata).
+ * Fetch JSON from a public API (Wikipedia, Wikidata, FMP).
  * @param {string} url
  * @returns {Object|null}
  */
@@ -55,6 +33,19 @@ function fetchPublicJson(url) {
     return JSON.parse(response.getContentText());
   } catch (e) {
     Logger.log('[Enrich] Fetch failed: ' + e.message);
+    return null;
+  }
+}
+
+/**
+ * Get the FMP API key from script properties.
+ * @returns {string|null}
+ */
+function getFmpApiKey() {
+  try {
+    var key = PropertiesService.getScriptProperties().getProperty(PROP_FMP_API_KEY);
+    return key || null;
+  } catch (e) {
     return null;
   }
 }
@@ -90,188 +81,106 @@ function cleanCompanyNameForSearch(name) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// SEC EDGAR — CIK Resolution (via EFTS search API)
+// Financial Modeling Prep (FMP) — Financials & Company Profile
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Search EDGAR EFTS for a company and extract CIK from results.
- * Uses the full-text search system at efts.sec.gov which is designed
- * for API access (avoids 403 issues with www.sec.gov static files).
- * @param {string} query  Company name or ticker to search
- * @returns {string|null} CIK zero-padded to 10 digits
+ * Fetch company profile from FMP (employee count, industry, description, etc.).
+ * @param {string} ticker  Stock ticker symbol (e.g., "WFC")
+ * @param {string} apiKey  FMP API key
+ * @returns {Object|null}  First profile result
  */
-function searchEftsByCik(query) {
-  var url = SEC_EFTS_URL + '/search-index?q=%22' + encodeURIComponent(query) +
-    '%22&forms=10-K&dateRange=custom&startdt=2023-01-01&enddt=2026-12-31';
-  Logger.log('[Enrich/SEC] EFTS search: ' + url);
-
-  var data = fetchSecJson(url);
-  if (!data) {
-    Logger.log('[Enrich/SEC] EFTS returned no data');
+function fetchFmpProfile(ticker, apiKey) {
+  var url = FMP_BASE_URL + '/profile/' + encodeURIComponent(ticker) + '?apikey=' + apiKey;
+  Logger.log('[Enrich/FMP] Fetching profile for ' + ticker);
+  var data = fetchPublicJson(url);
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    Logger.log('[Enrich/FMP] No profile data for ' + ticker);
     return null;
   }
+  Logger.log('[Enrich/FMP] Profile: ' + data[0].companyName + ' | employees: ' +
+    data[0].fullTimeEmployees + ' | industry: ' + data[0].industry);
+  return data[0];
+}
 
-  // Log response structure for debugging
-  Logger.log('[Enrich/SEC] EFTS response keys: ' + Object.keys(data).join(', '));
-
-  var hits = data.hits && data.hits.hits;
-  if (!hits || hits.length === 0) {
-    Logger.log('[Enrich/SEC] EFTS returned 0 hits');
+/**
+ * Fetch income statement from FMP (revenue, net income, OpEx, etc.).
+ * Returns the most recent annual statement.
+ * @param {string} ticker  Stock ticker symbol
+ * @param {string} apiKey  FMP API key
+ * @returns {Object|null}  Most recent annual income statement
+ */
+function fetchFmpIncomeStatement(ticker, apiKey) {
+  var url = FMP_BASE_URL + '/income-statement/' + encodeURIComponent(ticker) +
+    '?period=annual&limit=1&apikey=' + apiKey;
+  Logger.log('[Enrich/FMP] Fetching income statement for ' + ticker);
+  var data = fetchPublicJson(url);
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    Logger.log('[Enrich/FMP] No income statement data for ' + ticker);
     return null;
   }
-
-  // Extract CIK from first hit
-  var source = hits[0]._source || {};
-  Logger.log('[Enrich/SEC] EFTS first hit: entity_name=' + (source.entity_name || 'N/A') +
-    ', entity_id=' + (source.entity_id || 'N/A') + ', _id=' + (hits[0]._id || 'N/A'));
-
-  // entity_id is the CIK in EFTS results
-  if (source.entity_id) {
-    var cik = padCik(source.entity_id);
-    Logger.log('[Enrich/SEC] CIK from EFTS entity_id: ' + cik + ' (' + (source.entity_name || '') + ')');
-    return cik;
-  }
-
-  // Fallback: parse CIK from _id (format: "{CIK}:{accession}")
-  if (hits[0]._id) {
-    var idParts = String(hits[0]._id).split(':');
-    if (idParts[0] && /^\d+$/.test(idParts[0])) {
-      var cikFromId = padCik(idParts[0]);
-      Logger.log('[Enrich/SEC] CIK from EFTS _id parse: ' + cikFromId);
-      return cikFromId;
-    }
-  }
-
-  Logger.log('[Enrich/SEC] Could not extract CIK from EFTS response');
-  return null;
+  var stmt = data[0];
+  Logger.log('[Enrich/FMP] Income statement (' + stmt.calendarYear + '): revenue=' +
+    stmt.revenue + ', netIncome=' + stmt.netIncome + ', opEx=' + stmt.operatingExpenses);
+  return stmt;
 }
 
 /**
- * Resolve a company name to an SEC CIK number.
- * Strategy:
- *   1. If wikidataTicker is provided, search EFTS by ticker
- *   2. Search EFTS by cleaned company name
- * @param {string} companyName  Already cleaned for search
- * @param {string} [wikidataTicker]
- * @returns {string|null} CIK zero-padded to 10 digits
+ * Fetch cash flow statement from FMP (CapEx).
+ * @param {string} ticker  Stock ticker symbol
+ * @param {string} apiKey  FMP API key
+ * @returns {Object|null}  Most recent annual cash flow statement
  */
-function resolveCompanyToCik(companyName, wikidataTicker) {
-  Logger.log('[Enrich/SEC] Resolving CIK for "' + companyName + '"' +
-    (wikidataTicker ? ' (ticker hint: ' + wikidataTicker + ')' : ''));
-
-  // Strategy 1: Search by ticker (most precise)
-  if (wikidataTicker) {
-    var cik = searchEftsByCik(wikidataTicker);
-    if (cik) return cik;
+function fetchFmpCashFlow(ticker, apiKey) {
+  var url = FMP_BASE_URL + '/cash-flow-statement/' + encodeURIComponent(ticker) +
+    '?period=annual&limit=1&apikey=' + apiKey;
+  Logger.log('[Enrich/FMP] Fetching cash flow for ' + ticker);
+  var data = fetchPublicJson(url);
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    Logger.log('[Enrich/FMP] No cash flow data for ' + ticker);
+    return null;
   }
-
-  // Strategy 2: Search by company name
-  var cikByName = searchEftsByCik(companyName);
-  if (cikByName) return cikByName;
-
-  Logger.log('[Enrich/SEC] Could not resolve CIK for "' + companyName + '"');
-  return null;
+  Logger.log('[Enrich/FMP] Cash flow (' + data[0].calendarYear + '): capEx=' +
+    data[0].capitalExpenditure);
+  return data[0];
 }
 
 /**
- * Zero-pad a CIK to 10 digits (SEC API requirement).
- * @param {string|number} cik
- * @returns {string}
+ * Fetch all financial data from FMP for a given ticker.
+ * Consolidates profile, income statement, and cash flow into one result.
+ * @param {string} ticker  Stock ticker symbol
+ * @param {string} apiKey  FMP API key
+ * @returns {Object}  Consolidated financial data
  */
-function padCik(cik) {
-  var s = String(cik);
-  while (s.length < 10) s = '0' + s;
-  return s;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// SEC EDGAR — Financials (XBRL CompanyConcept API)
-// ═══════════════════════════════════════════════════════════════════════
-
-/**
- * Fetch the most recent annual value for a given XBRL concept.
- * Tries each concept name in the fallback array until one has data.
- * @param {string} cik        Zero-padded CIK
- * @param {Array}  concepts   Array of US-GAAP concept names to try
- * @returns {number|null}     Raw numeric value (e.g., 45300000000)
- */
-function fetchXbrlConcept(cik, concepts) {
-  for (var i = 0; i < concepts.length; i++) {
-    var url = SEC_BASE_URL + '/api/xbrl/companyconcept/CIK' + cik +
-      '/us-gaap/' + concepts[i] + '.json';
-    var data = fetchSecJson(url);
-    if (!data || !data.units) continue;
-
-    // Find USD values (or pure numbers for employee count)
-    var units = data.units.USD || data.units.pure || data.units['shares'];
-    if (!units || units.length === 0) continue;
-
-    // Filter to annual filings (10-K, 10-K/A) and pick the most recent
-    var annuals = units.filter(function(entry) {
-      return entry.form === '10-K' || entry.form === '10-K/A';
-    });
-    if (annuals.length === 0) continue;
-
-    // Sort by end date descending, pick most recent
-    annuals.sort(function(a, b) {
-      return (b.end || '').localeCompare(a.end || '');
-    });
-
-    Logger.log('[Enrich/SEC] Found ' + concepts[i] + ' = ' + annuals[0].val +
-      ' (filed: ' + annuals[0].end + ', form: ' + annuals[0].form + ')');
-    return { value: annuals[0].val, period: annuals[0].end, concept: concepts[i] };
-  }
-  return null;
-}
-
-/**
- * Fetch full financial data from SEC EDGAR for a company.
- * @param {string} cik  Zero-padded CIK
- * @returns {Object}    { revenue, cogs, opex, capex, netIncome, employees, filingPeriod }
- */
-function fetchSecFinancials(cik) {
-  Logger.log('[Enrich/SEC] Fetching financials for CIK ' + cik);
+function fetchFmpFinancials(ticker, apiKey) {
   var result = {};
 
-  var revenue = fetchXbrlConcept(cik, XBRL_REVENUE_CONCEPTS);
-  if (revenue) { result.revenue = revenue.value; result.filingPeriod = revenue.period; }
+  // Profile: employee count, industry, description
+  var profile = fetchFmpProfile(ticker, apiKey);
+  if (profile) {
+    if (profile.fullTimeEmployees) result.employees = profile.fullTimeEmployees;
+    if (profile.industry) result.fmpIndustry = profile.industry;
+    if (profile.sector) result.fmpSector = profile.sector;
+  }
 
-  var cogs = fetchXbrlConcept(cik, XBRL_COGS_CONCEPTS);
-  if (cogs) result.cogs = cogs.value;
+  // Income statement: revenue, COGS, OpEx, net income
+  var income = fetchFmpIncomeStatement(ticker, apiKey);
+  if (income) {
+    if (income.revenue) result.revenue = income.revenue;
+    if (income.costOfRevenue) result.cogs = income.costOfRevenue;
+    if (income.operatingExpenses) result.opex = income.operatingExpenses;
+    if (income.netIncome) result.netIncome = income.netIncome;
+    if (income.calendarYear) result.filingPeriod = income.calendarYear;
+  }
 
-  var opex = fetchXbrlConcept(cik, XBRL_OPEX_CONCEPTS);
-  if (opex) result.opex = opex.value;
+  // Cash flow: CapEx
+  var cashFlow = fetchFmpCashFlow(ticker, apiKey);
+  if (cashFlow) {
+    // FMP reports CapEx as negative; take absolute value
+    if (cashFlow.capitalExpenditure) result.capex = Math.abs(cashFlow.capitalExpenditure);
+  }
 
-  var capex = fetchXbrlConcept(cik, XBRL_CAPEX_CONCEPTS);
-  if (capex) result.capex = capex.value;
-
-  var netIncome = fetchXbrlConcept(cik, XBRL_NET_INCOME_CONCEPTS);
-  if (netIncome) result.netIncome = netIncome.value;
-
-  var employees = fetchXbrlConcept(cik, XBRL_EMPLOYEE_CONCEPTS);
-  if (employees) result.employees = employees.value;
-
-  Logger.log('[Enrich/SEC] Financials result: ' + JSON.stringify(result));
   return result;
-}
-
-/**
- * Fetch company metadata from SEC EDGAR submissions endpoint.
- * @param {string} cik  Zero-padded CIK
- * @returns {Object|null}  { name, tickers, sic, sicDescription, stateOfIncorporation }
- */
-function fetchSecSubmissions(cik) {
-  var url = SEC_BASE_URL + '/submissions/CIK' + cik + '.json';
-  var data = fetchSecJson(url);
-  if (!data) return null;
-
-  return {
-    name: data.name || null,
-    tickers: data.tickers || [],
-    sic: data.sic || null,
-    sicDescription: data.sicDescription || null,
-    stateOfIncorporation: data.stateOfIncorporation || null
-  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -350,7 +259,7 @@ function searchWikidata(companyName) {
 /**
  * Fetch structured facts from a Wikidata entity.
  * @param {string} qid  Wikidata entity ID (e.g., "Q312")
- * @returns {Object}  { ceo, headquarters, foundingDate, ticker }
+ * @returns {Object}  { ceo, headquarters, foundingDate, ticker, secCik, industry }
  */
 function fetchWikidataFacts(qid) {
   var url = WIKIDATA_API_URL + '?action=wbgetentities' +
@@ -382,7 +291,7 @@ function fetchWikidataFacts(qid) {
     result.ticker = getWikidataQualifierString(claims, 'P414', 'P249');
   }
 
-  // P5531 = SEC Central Index Key (CIK) — direct CIK without needing SEC search
+  // P5531 = SEC Central Index Key (CIK)
   result.secCik = getWikidataStringValue(claims, 'P5531');
 
   // P452 = industry
@@ -531,7 +440,7 @@ function enrichCompanyData(companyName, industry) {
   var searchName = cleanCompanyNameForSearch(companyName);
   Logger.log('[Enrich] Cleaned search name: "' + searchName + '"');
 
-  // ── Wikidata: structured facts (also gives us ticker for SEC) ──────
+  // ── Wikidata: structured facts (also gives us ticker for FMP) ──────
   var wikidataFacts = {};
   try {
     var qid = searchWikidata(searchName);
@@ -555,37 +464,18 @@ function enrichCompanyData(companyName, industry) {
     Logger.log('[Enrich] Wikipedia failed: ' + e.message);
   }
 
-  // ── SEC EDGAR: financials and company metadata ─────────────────────
-  // NOTE: SEC EDGAR blocks Google Cloud IPs (Apps Script), so all data.sec.gov
-  // calls return 403. We still attempt a single probe — if it fails, skip all
-  // remaining SEC calls to avoid wasting ~11 seconds on doomed requests.
+  // ── FMP: financials, employee count, industry ─────────────────────
   try {
-    // Prefer CIK from Wikidata (avoids SEC search API which also 403s)
-    var cik = wikidataFacts.secCik ? padCik(wikidataFacts.secCik) : null;
-    if (cik) {
-      Logger.log('[Enrich/SEC] CIK from Wikidata: ' + cik);
+    var fmpKey = getFmpApiKey();
+    var ticker = enrichment.ticker || null;
+
+    if (!fmpKey) {
+      Logger.log('[Enrich/FMP] No FMP API key configured. Set script property "' + PROP_FMP_API_KEY + '" to enable financial enrichment.');
+    } else if (!ticker) {
+      Logger.log('[Enrich/FMP] No ticker available — cannot fetch financials (company may be private)');
     } else {
-      cik = resolveCompanyToCik(searchName, wikidataFacts.ticker || null);
-    }
-    if (cik) {
-      enrichment.cik = cik;
+      var financials = fetchFmpFinancials(ticker, fmpKey);
 
-      // Probe: try one SEC call to check connectivity before making ~20 more
-      var submissions = fetchSecSubmissions(cik);
-      if (!submissions) {
-        Logger.log('[Enrich/SEC] SEC probe failed (likely IP-blocked). Skipping all SEC financial calls.');
-        throw new Error('SEC not reachable');
-      }
-      if (submissions) {
-        if (submissions.sic) enrichment.sicCode = submissions.sic;
-        if (submissions.sicDescription) enrichment.sicDescription = submissions.sicDescription;
-        if (submissions.tickers && submissions.tickers.length > 0) {
-          enrichment.ticker = enrichment.ticker || submissions.tickers[0];
-        }
-      }
-
-      // Financial data from XBRL
-      var financials = fetchSecFinancials(cik);
       if (financials.revenue != null)   { enrichment.revenue = financials.revenue; enrichment.revenueFormatted = formatDollars(financials.revenue); }
       if (financials.cogs != null)      { enrichment.cogs = financials.cogs; enrichment.cogsFormatted = formatDollars(financials.cogs); }
       if (financials.opex != null)      { enrichment.opex = financials.opex; enrichment.opexFormatted = formatDollars(financials.opex); }
@@ -593,9 +483,11 @@ function enrichCompanyData(companyName, industry) {
       if (financials.netIncome != null) { enrichment.netIncome = financials.netIncome; enrichment.netIncomeFormatted = formatDollars(financials.netIncome); }
       if (financials.employees != null) { enrichment.employees = financials.employees; enrichment.employeesFormatted = formatNumber(financials.employees); }
       if (financials.filingPeriod)      enrichment.filingPeriod = financials.filingPeriod;
+      if (financials.fmpIndustry)       enrichment.fmpIndustry = financials.fmpIndustry;
+      if (financials.fmpSector)         enrichment.fmpSector = financials.fmpSector;
     }
   } catch (e) {
-    Logger.log('[Enrich] SEC EDGAR failed: ' + e.message);
+    Logger.log('[Enrich] FMP failed: ' + e.message);
   }
 
   // Summary of what was enriched

@@ -13,47 +13,10 @@ var LLM_MODEL    = '4o';
 // ── Data Enrichment Configuration ────────────────────────────────────
 var ENRICHMENT_ENABLED = true;   // Master on/off switch for public API enrichment
 
-var SEC_USER_AGENT = 'GrowthStrategyGenerator growth-strategy-tool@docusign.com';
-var SEC_BASE_URL   = 'https://data.sec.gov';
-var SEC_EFTS_URL   = 'https://efts.sec.gov/LATEST';
+var PROP_FMP_API_KEY = 'FMP_API_KEY';   // Script property key for Financial Modeling Prep API key
+var FMP_BASE_URL     = 'https://financialmodelingprep.com/api/v3';
 var WIKI_API_URL     = 'https://en.wikipedia.org/api/rest_v1';
 var WIKIDATA_API_URL = 'https://www.wikidata.org/w/api.php';
-
-// XBRL US-GAAP concept fallback arrays (companies use different concept names)
-var XBRL_REVENUE_CONCEPTS = [
-  'Revenues',
-  'RevenueFromContractWithCustomerExcludingAssessedTax',
-  'RevenueFromContractWithCustomerIncludingAssessedTax',
-  'SalesRevenueNet',
-  'SalesRevenueGoodsNet',
-  'SalesRevenueServicesNet'
-];
-var XBRL_COGS_CONCEPTS = [
-  'CostOfGoodsAndServicesSold',
-  'CostOfGoodsSold',
-  'CostOfRevenue',
-  'CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization'
-];
-var XBRL_OPEX_CONCEPTS = [
-  'OperatingExpenses',
-  'CostsAndExpenses',
-  'OperatingCostsAndExpenses',
-  'SellingGeneralAndAdministrativeExpense'
-];
-var XBRL_CAPEX_CONCEPTS = [
-  'PaymentsToAcquirePropertyPlantAndEquipment',
-  'CapitalExpenditureDiscontinuedOperations',
-  'PaymentsToAcquireProductiveAssets'
-];
-var XBRL_NET_INCOME_CONCEPTS = [
-  'NetIncomeLoss',
-  'ProfitLoss',
-  'NetIncomeLossAvailableToCommonStockholdersBasic'
-];
-var XBRL_EMPLOYEE_CONCEPTS = [
-  'EntityNumberOfEmployees',
-  'NumberOfEmployees'
-];
 
 // ── Helpers to read Script Properties ─────────────────────────────────
 
