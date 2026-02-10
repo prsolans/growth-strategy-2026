@@ -73,9 +73,9 @@ function fetchPublicJson(url) {
 function cleanCompanyNameForSearch(name) {
   return (name || '')
     .replace(/\s*\([^)]*\)\s*/g, ' ')                     // strip (Parent), (US), etc.
-    .replace(/\b(bank|n\.?\s*a\.?)\b/gi, '')               // strip "Bank", "N.A."
-    .replace(/[,.]?\s*\b(inc|corp|corporation|ltd|llc|co|company|group|plc|& co|the|holdings?|l\.?p\.?)\b\.?/gi, '')
-    .replace(/[,.\-]+$/, '')                                // trailing punctuation
+    .replace(/,?\s*\bN\.?\s*A\.?\b/gi, '')                 // strip "N.A." and preceding comma
+    .replace(/\b(bank|inc|corp|corporation|ltd|llc|co|company|group|plc|the|holdings?|l\.?p\.?)\b\.?/gi, '')
+    .replace(/[,.\-;&]+/g, ' ')                            // replace leftover punctuation with space
     .replace(/\s+/g, ' ')
     .trim();
 }

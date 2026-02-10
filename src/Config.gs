@@ -13,7 +13,7 @@ var LLM_MODEL    = '4o';
 // ── Data Enrichment Configuration ────────────────────────────────────
 var ENRICHMENT_ENABLED = true;   // Master on/off switch for public API enrichment
 
-var SEC_USER_AGENT = 'GrowthStrategyGenerator support@example.com';
+var SEC_USER_AGENT = 'GrowthStrategyGenerator growth-strategy-tool@docusign.com';
 var SEC_BASE_URL   = 'https://data.sec.gov';
 var SEC_EFTS_URL   = 'https://efts.sec.gov/LATEST';
 var WIKI_API_URL     = 'https://en.wikipedia.org/api/rest_v1';
