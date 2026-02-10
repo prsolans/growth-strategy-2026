@@ -71,13 +71,22 @@ function fetchPublicJson(url) {
  * @returns {string}
  */
 function cleanCompanyNameForSearch(name) {
-  return (name || '')
-    .replace(/\s*\([^)]*\)\s*/g, ' ')                     // strip (Parent), (US), etc.
-    .replace(/,?\s*\bN\.?\s*A\.?\b/gi, '')                 // strip "N.A." and preceding comma
-    .replace(/\b(bank|inc|corp|corporation|ltd|llc|co|company|group|plc|the|holdings?|l\.?p\.?)\b\.?/gi, '')
-    .replace(/[,.\-;&]+/g, ' ')                            // replace leftover punctuation with space
-    .replace(/\s+/g, ' ')
+  var cleaned = (name || '')
+    .replace(/\s*\([^)]*\)\s*/g, ' ')                     // strip all parenthetical content: (Parent), (US), etc.
     .trim();
+
+  // Strip trailing legal suffixes only — multiple passes for stacked suffixes
+  // like "Bank, N.A." → strip "N.A." then strip "Bank"
+  for (var i = 0; i < 3; i++) {
+    cleaned = cleaned
+      .replace(/,?\s*N\.?\s*A\.?\s*$/gi, '')               // trailing ", N.A."
+      .replace(/,?\s*(Inc|Corp|Corporation|Ltd|LLC|Company|Group|PLC|Holdings|Incorporated|L\.?P\.?)\.?\s*$/gi, '')
+      .replace(/,?\s*Bank\s*$/gi, '')                      // trailing "Bank" only (not "Bank of America")
+      .replace(/[,.\-;]+\s*$/g, '')                        // trailing punctuation
+      .trim();
+  }
+
+  return cleaned.replace(/\s+/g, ' ');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -365,8 +374,16 @@ function fetchWikidataFacts(qid) {
   // P571 = inception / founding date
   result.foundingDate = getWikidataDate(claims, 'P571');
 
-  // P249 = ticker symbol
+  // P249 = ticker symbol (standalone)
   result.ticker = getWikidataStringValue(claims, 'P249');
+
+  // If no standalone ticker, try extracting from P414 (stock exchange) qualifiers
+  if (!result.ticker) {
+    result.ticker = getWikidataQualifierString(claims, 'P414', 'P249');
+  }
+
+  // P5531 = SEC Central Index Key (CIK) — direct CIK without needing SEC search
+  result.secCik = getWikidataStringValue(claims, 'P5531');
 
   // P452 = industry
   result.industry = getWikidataLabel(claims, 'P452');
@@ -432,6 +449,27 @@ function getWikidataStringValue(claims, property) {
   var mainsnak = claims[property][0].mainsnak;
   if (!mainsnak || !mainsnak.datavalue) return null;
   return mainsnak.datavalue.value || null;
+}
+
+/**
+ * Extract a string value from a qualifier on a Wikidata claim.
+ * e.g., P414 (stock exchange) has qualifier P249 (ticker symbol) = "WFC"
+ * @param {Object} claims
+ * @param {string} property     The main property (e.g., "P414")
+ * @param {string} qualifierId  The qualifier property (e.g., "P249")
+ * @returns {string|null}
+ */
+function getWikidataQualifierString(claims, property, qualifierId) {
+  if (!claims[property]) return null;
+  for (var i = 0; i < claims[property].length; i++) {
+    var qualifiers = claims[property][i].qualifiers;
+    if (!qualifiers || !qualifiers[qualifierId]) continue;
+    for (var j = 0; j < qualifiers[qualifierId].length; j++) {
+      var dv = qualifiers[qualifierId][j].datavalue;
+      if (dv && dv.value) return dv.value;
+    }
+  }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -519,7 +557,13 @@ function enrichCompanyData(companyName, industry) {
 
   // ── SEC EDGAR: financials and company metadata ─────────────────────
   try {
-    var cik = resolveCompanyToCik(searchName, wikidataFacts.ticker || null);
+    // Prefer CIK from Wikidata (avoids SEC search API which 403s from Apps Script)
+    var cik = wikidataFacts.secCik ? padCik(wikidataFacts.secCik) : null;
+    if (cik) {
+      Logger.log('[Enrich/SEC] CIK from Wikidata: ' + cik);
+    } else {
+      cik = resolveCompanyToCik(searchName, wikidataFacts.ticker || null);
+    }
     if (cik) {
       enrichment.cik = cik;
 
