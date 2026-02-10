@@ -90,12 +90,67 @@ function buildHeaderIndex(sheet) {
  */
 function findCompanyRow(data, companyName, nameCol) {
   var target = companyName.replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
+
+  // Pass 1: exact match
   for (var r = 0; r < data.length; r++) {
     var cell = String(data[r][nameCol]).replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
     if (cell === target) {
       return r;
     }
   }
+
+  // Pass 2: substring match (either direction)
+  var bestRow = -1;
+  var bestLen = 0;
+  for (var r2 = 0; r2 < data.length; r2++) {
+    var cell2 = String(data[r2][nameCol]).replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
+    if (!cell2) continue;
+    if (cell2.indexOf(target) !== -1 || target.indexOf(cell2) !== -1) {
+      // Prefer the match whose lengths are closest (most specific)
+      var matchLen = Math.min(cell2.length, target.length);
+      if (matchLen > bestLen) {
+        bestLen = matchLen;
+        bestRow = r2;
+      }
+    }
+  }
+  if (bestRow !== -1) {
+    Logger.log('[DataExtractor] Fuzzy match (substring): "' + companyName + '" → "' +
+      String(data[bestRow][nameCol]).trim() + '"');
+    return bestRow;
+  }
+
+  // Pass 3: normalized token match — strip Inc/Corp/LLC/N.A./Bank/& Co etc.
+  var normalize = function(s) {
+    return s.replace(/[,.()\-]/g, ' ')
+      .replace(/\b(inc|corp|corporation|ltd|llc|co|company|group|plc|n\s*a|the|holdings?|bank|&)\b/gi, '')
+      .replace(/\s+/g, ' ').trim();
+  };
+  var normalizedTarget = normalize(target);
+  if (normalizedTarget.length < 3) return -1;
+
+  for (var r3 = 0; r3 < data.length; r3++) {
+    var cell3 = String(data[r3][nameCol]).replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
+    var normalizedCell = normalize(cell3);
+    if (normalizedCell === normalizedTarget) {
+      Logger.log('[DataExtractor] Fuzzy match (normalized): "' + companyName + '" → "' +
+        String(data[r3][nameCol]).trim() + '"');
+      return r3;
+    }
+    // Token containment: all tokens of shorter name present in longer name
+    var targetTokens = normalizedTarget.split(' ').filter(function(t) { return t.length > 1; });
+    var cellTokens = normalizedCell.split(' ').filter(function(t) { return t.length > 1; });
+    if (targetTokens.length >= 2 && cellTokens.length >= 2) {
+      var allTargetInCell = targetTokens.every(function(t) { return normalizedCell.indexOf(t) !== -1; });
+      var allCellInTarget = cellTokens.every(function(t) { return normalizedTarget.indexOf(t) !== -1; });
+      if (allTargetInCell || allCellInTarget) {
+        Logger.log('[DataExtractor] Fuzzy match (tokens): "' + companyName + '" → "' +
+          String(data[r3][nameCol]).trim() + '"');
+        return r3;
+      }
+    }
+  }
+
   return -1;
 }
 
