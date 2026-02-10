@@ -60,47 +60,89 @@ function fetchPublicJson(url) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// SEC EDGAR — CIK Resolution
+// Company Name Cleaning
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Load the SEC company_tickers.json lookup table.
- * Returns array of { cik_str, ticker, title }.
- * @returns {Array|null}
- */
-function loadSecTickers() {
-  var data = fetchSecJson('https://www.sec.gov/files/company_tickers.json');
-  if (!data) return null;
-  // company_tickers.json is keyed by index: { "0": { cik_str, ticker, title }, "1": ... }
-  var entries = [];
-  var keys = Object.keys(data);
-  for (var i = 0; i < keys.length; i++) {
-    entries.push(data[keys[i]]);
-  }
-  return entries;
-}
-
-/**
- * Normalize a company name for fuzzy matching:
- * lowercase, strip Inc/Corp/Ltd/LLC/Co/Group/PLC/N.A./& Co suffixes, trim punctuation.
+ * Clean a company name for API searches.
+ * Strips parenthetical suffixes like "(Parent)", legal entity markers like
+ * "Bank, N.A.", "Inc.", "Corp.", etc. to get a clean, searchable name.
  * @param {string} name
  * @returns {string}
  */
-function normalizeCompanyName(name) {
+function cleanCompanyNameForSearch(name) {
   return (name || '')
-    .toLowerCase()
-    .replace(/[,.]*/g, '')
-    .replace(/\b(inc|corp|corporation|ltd|llc|co|company|group|plc|n\.?a\.?|& co|the|holdings?)\b/gi, '')
+    .replace(/\s*\([^)]*\)\s*/g, ' ')                     // strip (Parent), (US), etc.
+    .replace(/\b(bank|n\.?\s*a\.?)\b/gi, '')               // strip "Bank", "N.A."
+    .replace(/[,.]?\s*\b(inc|corp|corporation|ltd|llc|co|company|group|plc|& co|the|holdings?|l\.?p\.?)\b\.?/gi, '')
+    .replace(/[,.\-]+$/, '')                                // trailing punctuation
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SEC EDGAR — CIK Resolution (via EFTS search API)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Search EDGAR EFTS for a company and extract CIK from results.
+ * Uses the full-text search system at efts.sec.gov which is designed
+ * for API access (avoids 403 issues with www.sec.gov static files).
+ * @param {string} query  Company name or ticker to search
+ * @returns {string|null} CIK zero-padded to 10 digits
+ */
+function searchEftsByCik(query) {
+  var url = SEC_EFTS_URL + '/search-index?q=%22' + encodeURIComponent(query) +
+    '%22&forms=10-K&dateRange=custom&startdt=2023-01-01&enddt=2026-12-31';
+  Logger.log('[Enrich/SEC] EFTS search: ' + url);
+
+  var data = fetchSecJson(url);
+  if (!data) {
+    Logger.log('[Enrich/SEC] EFTS returned no data');
+    return null;
+  }
+
+  // Log response structure for debugging
+  Logger.log('[Enrich/SEC] EFTS response keys: ' + Object.keys(data).join(', '));
+
+  var hits = data.hits && data.hits.hits;
+  if (!hits || hits.length === 0) {
+    Logger.log('[Enrich/SEC] EFTS returned 0 hits');
+    return null;
+  }
+
+  // Extract CIK from first hit
+  var source = hits[0]._source || {};
+  Logger.log('[Enrich/SEC] EFTS first hit: entity_name=' + (source.entity_name || 'N/A') +
+    ', entity_id=' + (source.entity_id || 'N/A') + ', _id=' + (hits[0]._id || 'N/A'));
+
+  // entity_id is the CIK in EFTS results
+  if (source.entity_id) {
+    var cik = padCik(source.entity_id);
+    Logger.log('[Enrich/SEC] CIK from EFTS entity_id: ' + cik + ' (' + (source.entity_name || '') + ')');
+    return cik;
+  }
+
+  // Fallback: parse CIK from _id (format: "{CIK}:{accession}")
+  if (hits[0]._id) {
+    var idParts = String(hits[0]._id).split(':');
+    if (idParts[0] && /^\d+$/.test(idParts[0])) {
+      var cikFromId = padCik(idParts[0]);
+      Logger.log('[Enrich/SEC] CIK from EFTS _id parse: ' + cikFromId);
+      return cikFromId;
+    }
+  }
+
+  Logger.log('[Enrich/SEC] Could not extract CIK from EFTS response');
+  return null;
 }
 
 /**
  * Resolve a company name to an SEC CIK number.
  * Strategy:
- *   1. If wikidataTicker is provided, look up by ticker (exact match)
- *   2. Fuzzy name match against SEC company titles
- * @param {string} companyName
+ *   1. If wikidataTicker is provided, search EFTS by ticker
+ *   2. Search EFTS by cleaned company name
+ * @param {string} companyName  Already cleaned for search
  * @param {string} [wikidataTicker]
  * @returns {string|null} CIK zero-padded to 10 digits
  */
@@ -108,55 +150,15 @@ function resolveCompanyToCik(companyName, wikidataTicker) {
   Logger.log('[Enrich/SEC] Resolving CIK for "' + companyName + '"' +
     (wikidataTicker ? ' (ticker hint: ' + wikidataTicker + ')' : ''));
 
-  var tickers = loadSecTickers();
-  if (!tickers || tickers.length === 0) {
-    Logger.log('[Enrich/SEC] Failed to load company_tickers.json');
-    return null;
-  }
-
-  // Strategy 1: Exact ticker match
+  // Strategy 1: Search by ticker (most precise)
   if (wikidataTicker) {
-    var tickerUpper = wikidataTicker.toUpperCase();
-    for (var i = 0; i < tickers.length; i++) {
-      if ((tickers[i].ticker || '').toUpperCase() === tickerUpper) {
-        var cik = padCik(tickers[i].cik_str);
-        Logger.log('[Enrich/SEC] CIK resolved via ticker: ' + cik);
-        return cik;
-      }
-    }
+    var cik = searchEftsByCik(wikidataTicker);
+    if (cik) return cik;
   }
 
-  // Strategy 2: Fuzzy name match
-  var normalized = normalizeCompanyName(companyName);
-  var bestMatch = null;
-  var bestScore = 0;
-
-  for (var j = 0; j < tickers.length; j++) {
-    var secNormalized = normalizeCompanyName(tickers[j].title || '');
-    if (secNormalized === normalized) {
-      // Exact match after normalization
-      var cikExact = padCik(tickers[j].cik_str);
-      Logger.log('[Enrich/SEC] CIK resolved via exact name match: ' + cikExact + ' (' + tickers[j].title + ')');
-      return cikExact;
-    }
-    // Check if one contains the other
-    if (normalized.length >= 3 && secNormalized.length >= 3) {
-      if (secNormalized.indexOf(normalized) !== -1 || normalized.indexOf(secNormalized) !== -1) {
-        var score = Math.min(normalized.length, secNormalized.length) / Math.max(normalized.length, secNormalized.length);
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = tickers[j];
-        }
-      }
-    }
-  }
-
-  if (bestMatch && bestScore > 0.4) {
-    var cikFuzzy = padCik(bestMatch.cik_str);
-    Logger.log('[Enrich/SEC] CIK resolved via fuzzy match (score: ' + bestScore.toFixed(2) + '): ' +
-      cikFuzzy + ' (' + bestMatch.title + ')');
-    return cikFuzzy;
-  }
+  // Strategy 2: Search by company name
+  var cikByName = searchEftsByCik(companyName);
+  if (cikByName) return cikByName;
 
   Logger.log('[Enrich/SEC] Could not resolve CIK for "' + companyName + '"');
   return null;
@@ -487,10 +489,14 @@ function enrichCompanyData(companyName, industry) {
   Logger.log('[Enrich] ═══ Starting enrichment for "' + companyName + '" ═══');
   var enrichment = { _source: 'DataEnricher', _timestamp: new Date().toISOString() };
 
+  // Clean the name for API searches (strip "Bank, N.A.", "(Parent)", etc.)
+  var searchName = cleanCompanyNameForSearch(companyName);
+  Logger.log('[Enrich] Cleaned search name: "' + searchName + '"');
+
   // ── Wikidata: structured facts (also gives us ticker for SEC) ──────
   var wikidataFacts = {};
   try {
-    var qid = searchWikidata(companyName);
+    var qid = searchWikidata(searchName);
     if (qid) {
       wikidataFacts = fetchWikidataFacts(qid);
       if (wikidataFacts.ceo) enrichment.ceo = wikidataFacts.ceo;
@@ -505,7 +511,7 @@ function enrichCompanyData(companyName, industry) {
 
   // ── Wikipedia: stable overview text ────────────────────────────────
   try {
-    var overview = fetchWikipediaOverview(companyName);
+    var overview = fetchWikipediaOverview(searchName);
     if (overview) enrichment.overview = overview;
   } catch (e) {
     Logger.log('[Enrich] Wikipedia failed: ' + e.message);
@@ -513,7 +519,7 @@ function enrichCompanyData(companyName, industry) {
 
   // ── SEC EDGAR: financials and company metadata ─────────────────────
   try {
-    var cik = resolveCompanyToCik(companyName, wikidataFacts.ticker || null);
+    var cik = resolveCompanyToCik(searchName, wikidataFacts.ticker || null);
     if (cik) {
       enrichment.cik = cik;
 
