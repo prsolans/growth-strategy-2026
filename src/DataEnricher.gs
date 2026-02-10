@@ -556,8 +556,11 @@ function enrichCompanyData(companyName, industry) {
   }
 
   // ── SEC EDGAR: financials and company metadata ─────────────────────
+  // NOTE: SEC EDGAR blocks Google Cloud IPs (Apps Script), so all data.sec.gov
+  // calls return 403. We still attempt a single probe — if it fails, skip all
+  // remaining SEC calls to avoid wasting ~11 seconds on doomed requests.
   try {
-    // Prefer CIK from Wikidata (avoids SEC search API which 403s from Apps Script)
+    // Prefer CIK from Wikidata (avoids SEC search API which also 403s)
     var cik = wikidataFacts.secCik ? padCik(wikidataFacts.secCik) : null;
     if (cik) {
       Logger.log('[Enrich/SEC] CIK from Wikidata: ' + cik);
@@ -567,8 +570,12 @@ function enrichCompanyData(companyName, industry) {
     if (cik) {
       enrichment.cik = cik;
 
-      // Company metadata (name, tickers, SIC)
+      // Probe: try one SEC call to check connectivity before making ~20 more
       var submissions = fetchSecSubmissions(cik);
+      if (!submissions) {
+        Logger.log('[Enrich/SEC] SEC probe failed (likely IP-blocked). Skipping all SEC financial calls.');
+        throw new Error('SEC not reachable');
+      }
       if (submissions) {
         if (submissions.sic) enrichment.sicCode = submissions.sic;
         if (submissions.sicDescription) enrichment.sicDescription = submissions.sicDescription;
@@ -579,23 +586,13 @@ function enrichCompanyData(companyName, industry) {
 
       // Financial data from XBRL
       var financials = fetchSecFinancials(cik);
-      if (financials) {
-        if (financials.revenue != null)   enrichment.revenue = financials.revenue;
-        if (financials.cogs != null)      enrichment.cogs = financials.cogs;
-        if (financials.opex != null)      enrichment.opex = financials.opex;
-        if (financials.capex != null)     enrichment.capex = financials.capex;
-        if (financials.netIncome != null) enrichment.netIncome = financials.netIncome;
-        if (financials.employees != null) enrichment.employees = financials.employees;
-        if (financials.filingPeriod)      enrichment.filingPeriod = financials.filingPeriod;
-
-        // Pre-format for prompt injection
-        enrichment.revenueFormatted   = formatDollars(financials.revenue);
-        enrichment.cogsFormatted      = formatDollars(financials.cogs);
-        enrichment.opexFormatted      = formatDollars(financials.opex);
-        enrichment.capexFormatted     = formatDollars(financials.capex);
-        enrichment.netIncomeFormatted = formatDollars(financials.netIncome);
-        enrichment.employeesFormatted = formatNumber(financials.employees);
-      }
+      if (financials.revenue != null)   { enrichment.revenue = financials.revenue; enrichment.revenueFormatted = formatDollars(financials.revenue); }
+      if (financials.cogs != null)      { enrichment.cogs = financials.cogs; enrichment.cogsFormatted = formatDollars(financials.cogs); }
+      if (financials.opex != null)      { enrichment.opex = financials.opex; enrichment.opexFormatted = formatDollars(financials.opex); }
+      if (financials.capex != null)     { enrichment.capex = financials.capex; enrichment.capexFormatted = formatDollars(financials.capex); }
+      if (financials.netIncome != null) { enrichment.netIncome = financials.netIncome; enrichment.netIncomeFormatted = formatDollars(financials.netIncome); }
+      if (financials.employees != null) { enrichment.employees = financials.employees; enrichment.employeesFormatted = formatNumber(financials.employees); }
+      if (financials.filingPeriod)      enrichment.filingPeriod = financials.filingPeriod;
     }
   } catch (e) {
     Logger.log('[Enrich] SEC EDGAR failed: ' + e.message);
