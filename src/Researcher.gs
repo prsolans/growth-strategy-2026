@@ -618,9 +618,9 @@ function researchContractCommerce(companyName, industry, accountProfile, agreeme
   }
   var agreementContext = '';
   if (agreements && agreements.agreements) {
-    agreementContext = '\nTop agreement types: ' +
+    agreementContext = '\nTop agreement types (with relative volume/complexity scores on 1-10 scale — these are NOT actual counts): ' +
       agreements.agreements.slice(0, 10).map(function(a) {
-        return a.agreementType + ' (vol:' + a.volume + ', cx:' + a.complexity + ')';
+        return a.agreementType + ' (volume score:' + a.volume + '/10, complexity score:' + a.complexity + '/10)';
       }).join(', ');
   }
 
@@ -657,7 +657,9 @@ function researchContractCommerce(companyName, industry, accountProfile, agreeme
     'Provide 3-5 pain points related to agreement management.\n' +
     'If department-level data is not available, provide your best estimates based on industry benchmarks.\n' +
     'Use realistic dollar figures based on the company\'s known revenue and industry norms.\n' +
-    'IMPORTANT: For commercialRelationships, use the employee and customer counts provided above. Do not invent different numbers.';
+    'IMPORTANT: For commercialRelationships, use the employee and customer counts provided above. Do not invent different numbers.\n' +
+    'IMPORTANT: For commerceByAgreementType volume, estimate realistic ANNUAL TRANSACTION COUNTS for a company of this size (e.g. "~50,000 per year", "~2 million per year"). ' +
+    'Do NOT use the 1-10 relative scores from the agreement types above — those are relative rankings, not actual counts.';
 
   Logger.log('[Research] Call 4: Researching contract commerce for "' + companyName + '"');
   return callLLMJson(systemPrompt, userPrompt);
