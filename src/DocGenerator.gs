@@ -223,6 +223,20 @@ function generateGrowthStrategyDoc(companyName) {
   Logger.log('[DocGen] Internal data extracted. Industry: ' + data.context.industry +
     ' | Plan: ' + data.contract.plan + ' | Envelopes: ' + data.consumption.envelopesSent + '/' + data.consumption.envelopesPurchased);
 
+  // ── Step 1.5: Enrich with public API data (SEC, Wikipedia, Wikidata) ──
+  Logger.log('[DocGen] === DATA ENRICHMENT ===');
+  var enrichment = {};
+  try {
+    enrichment = enrichCompanyData(data.identity.name, data.context.industry);
+    var enrichedFields = Object.keys(enrichment).filter(function(k) {
+      return k.charAt(0) !== '_' && enrichment[k] != null;
+    });
+    Logger.log('[DocGen] Enrichment succeeded. Fields: ' + enrichedFields.join(', '));
+  } catch (e) {
+    Logger.log('[DocGen] Enrichment failed (continuing without): ' + e.message);
+    enrichment = {};
+  }
+
   // ── Step 2: Run 6 LLM research calls (sequential) ─────────────────
   // OPTIMIZATION NOTE: Calls 2, 3, 4 only use Call 1's accountProfile for
   // enrichment context — the cross-call dependencies (3→businessMap, 4→agreements)
@@ -232,15 +246,22 @@ function generateGrowthStrategyDoc(companyName) {
   // param from researchAgreementLandscape, and the agreements param from
   // researchContractCommerce. See git log for full analysis.
 
-  // Call 1: Account Profile
+  // Call 1: Account Profile (with enrichment anchoring)
   Logger.log('[DocGen] === LLM CALL 1/6: Account Profile ===');
   var accountProfile;
   try {
-    accountProfile = researchAccountProfile(data.identity.name, data.context.industry);
+    accountProfile = researchAccountProfile(data.identity.name, data.context.industry, enrichment);
     Logger.log('[DocGen] Call 1 succeeded. Keys: ' + (accountProfile ? Object.keys(accountProfile).join(', ') : 'null'));
   } catch (e) {
     Logger.log('[DocGen] Call 1 FAILED: ' + e.message);
     accountProfile = {};
+  }
+
+  // Post-LLM enforcement: overwrite any values the LLM got wrong
+  try {
+    accountProfile = enforceEnrichedData(accountProfile, enrichment);
+  } catch (e) {
+    Logger.log('[DocGen] Enrichment enforcement failed (non-fatal): ' + e.message);
   }
 
   // Call 2: Business Map

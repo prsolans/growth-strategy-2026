@@ -10,6 +10,51 @@ var PROP_OUTPUT_FOLDER = 'OUTPUT_FOLDER_ID';
 var LLM_ENDPOINT = 'https://infra.agreementsdemo.com/openai?gb=1';
 var LLM_MODEL    = '4o';
 
+// ── Data Enrichment Configuration ────────────────────────────────────
+var ENRICHMENT_ENABLED = true;   // Master on/off switch for public API enrichment
+
+var SEC_USER_AGENT = 'GrowthStrategyGenerator support@example.com';
+var SEC_BASE_URL   = 'https://data.sec.gov';
+var SEC_EFTS_URL   = 'https://efts.sec.gov/LATEST';
+var WIKI_API_URL     = 'https://en.wikipedia.org/api/rest_v1';
+var WIKIDATA_API_URL = 'https://www.wikidata.org/w/api.php';
+
+// XBRL US-GAAP concept fallback arrays (companies use different concept names)
+var XBRL_REVENUE_CONCEPTS = [
+  'Revenues',
+  'RevenueFromContractWithCustomerExcludingAssessedTax',
+  'RevenueFromContractWithCustomerIncludingAssessedTax',
+  'SalesRevenueNet',
+  'SalesRevenueGoodsNet',
+  'SalesRevenueServicesNet'
+];
+var XBRL_COGS_CONCEPTS = [
+  'CostOfGoodsAndServicesSold',
+  'CostOfGoodsSold',
+  'CostOfRevenue',
+  'CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization'
+];
+var XBRL_OPEX_CONCEPTS = [
+  'OperatingExpenses',
+  'CostsAndExpenses',
+  'OperatingCostsAndExpenses',
+  'SellingGeneralAndAdministrativeExpense'
+];
+var XBRL_CAPEX_CONCEPTS = [
+  'PaymentsToAcquirePropertyPlantAndEquipment',
+  'CapitalExpenditureDiscontinuedOperations',
+  'PaymentsToAcquireProductiveAssets'
+];
+var XBRL_NET_INCOME_CONCEPTS = [
+  'NetIncomeLoss',
+  'ProfitLoss',
+  'NetIncomeLossAvailableToCommonStockholdersBasic'
+];
+var XBRL_EMPLOYEE_CONCEPTS = [
+  'EntityNumberOfEmployees',
+  'NumberOfEmployees'
+];
+
 // ── Helpers to read Script Properties ─────────────────────────────────
 
 function getConfig(key) {

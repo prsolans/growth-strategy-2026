@@ -257,6 +257,134 @@ function buildCatalogContext() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Enrichment Helpers (Layer 2 & 3)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Build a verified-data text block to inject into the Call 1 prompt.
+ * Only includes fields that were actually enriched.
+ * @param {Object} enrichment  Output of enrichCompanyData()
+ * @returns {string}  Empty string if no enrichment data available
+ */
+function buildEnrichmentContext(enrichment) {
+  if (!enrichment || Object.keys(enrichment).length === 0) return '';
+
+  var lines = [];
+  lines.push('=== VERIFIED DATA (from public APIs — use these exact values) ===');
+
+  if (enrichment.overview) {
+    lines.push('Company Overview (Wikipedia): ' + enrichment.overview);
+  }
+
+  // SEC financials
+  var hasFinancials = enrichment.revenueFormatted || enrichment.cogsFormatted ||
+    enrichment.opexFormatted || enrichment.capexFormatted || enrichment.netIncomeFormatted;
+  if (hasFinancials) {
+    var period = enrichment.filingPeriod ? ' FY ending ' + enrichment.filingPeriod : '';
+    var parts = [];
+    if (enrichment.revenueFormatted)   parts.push('Revenue: ' + enrichment.revenueFormatted);
+    if (enrichment.cogsFormatted)      parts.push('COGS: ' + enrichment.cogsFormatted);
+    if (enrichment.opexFormatted)      parts.push('OpEx: ' + enrichment.opexFormatted);
+    if (enrichment.capexFormatted)     parts.push('CapEx: ' + enrichment.capexFormatted);
+    if (enrichment.netIncomeFormatted) parts.push('Net Income: ' + enrichment.netIncomeFormatted);
+    lines.push('Financials (SEC EDGAR 10-K' + period + '): ' + parts.join(', '));
+  }
+
+  if (enrichment.employeesFormatted) {
+    lines.push('Employees (SEC 10-K): ' + enrichment.employeesFormatted);
+  }
+
+  if (enrichment.ceo) {
+    lines.push('CEO: ' + enrichment.ceo);
+  }
+
+  if (enrichment.headquarters) {
+    lines.push('Headquarters: ' + enrichment.headquarters);
+  }
+
+  if (enrichment.foundingDate) {
+    lines.push('Founded: ' + enrichment.foundingDate);
+  }
+
+  if (enrichment.ticker) {
+    lines.push('Stock Ticker: ' + enrichment.ticker);
+  }
+
+  if (enrichment.sicDescription) {
+    lines.push('SIC Industry: ' + enrichment.sicDescription);
+  }
+
+  lines.push('=== END VERIFIED DATA ===');
+  lines.push('');
+  lines.push('IMPORTANT: Use the provided verified values exactly as given. Do NOT override them with web search numbers.');
+  lines.push('Your job: add business units, SWOT, strategic initiatives, executives, tech stack, and other analytical content.');
+
+  return lines.join('\n');
+}
+
+/**
+ * Post-LLM enforcement: overwrite any LLM-generated values that differ
+ * from verified API data. Safety net for when the LLM ignores anchoring.
+ * @param {Object} accountProfile  The parsed LLM response from Call 1
+ * @param {Object} enrichment      Output of enrichCompanyData()
+ * @returns {Object} accountProfile with verified fields overwritten
+ */
+function enforceEnrichedData(accountProfile, enrichment) {
+  if (!enrichment || !accountProfile) return accountProfile;
+
+  // Override company overview if we have Wikipedia text
+  if (enrichment.overview && accountProfile.companyOverview) {
+    accountProfile.companyOverview = enrichment.overview;
+    Logger.log('[Enrich/Enforce] Overwrote companyOverview with Wikipedia text');
+  }
+
+  // Override financials
+  if (accountProfile.financials) {
+    if (enrichment.revenueFormatted) {
+      accountProfile.financials.revenue = enrichment.revenueFormatted;
+    }
+    if (enrichment.cogsFormatted) {
+      accountProfile.financials.cogs = enrichment.cogsFormatted;
+    }
+    if (enrichment.opexFormatted) {
+      accountProfile.financials.opex = enrichment.opexFormatted;
+    }
+    if (enrichment.capexFormatted) {
+      accountProfile.financials.capex = enrichment.capexFormatted;
+    }
+    if (enrichment.netIncomeFormatted) {
+      accountProfile.financials.netIncome = enrichment.netIncomeFormatted;
+    }
+    if (enrichment.revenueFormatted || enrichment.cogsFormatted) {
+      Logger.log('[Enrich/Enforce] Overwrote financials with SEC EDGAR data');
+    }
+  }
+
+  // Override employee count
+  if (enrichment.employeesFormatted && accountProfile.employeeCount) {
+    accountProfile.employeeCount.total = enrichment.employeesFormatted;
+    Logger.log('[Enrich/Enforce] Overwrote employeeCount with SEC EDGAR data');
+  }
+
+  // Ensure CEO is in executive contacts if we have it from Wikidata
+  if (enrichment.ceo && accountProfile.executiveContacts) {
+    var hasCeo = accountProfile.executiveContacts.some(function(exec) {
+      return exec.name && exec.name.toLowerCase().indexOf(enrichment.ceo.toLowerCase()) !== -1;
+    });
+    if (!hasCeo) {
+      accountProfile.executiveContacts.unshift({
+        name: enrichment.ceo,
+        title: 'Chief Executive Officer',
+        relevance: 'Key decision-maker for enterprise-wide agreement management strategy'
+      });
+      Logger.log('[Enrich/Enforce] Added CEO from Wikidata to executiveContacts');
+    }
+  }
+
+  return accountProfile;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Research Prompts (5 sequential LLM calls)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -269,13 +397,19 @@ var RESEARCH_SYSTEM_BASE =
  * Call 1: Comprehensive account profile (replaces old calls 1+2).
  * @param {string} companyName
  * @param {string} industry
+ * @param {Object} [enrichment]  Optional enrichment data from DataEnricher
  * @returns {Object}
  */
-function researchAccountProfile(companyName, industry) {
+function researchAccountProfile(companyName, industry, enrichment) {
   var systemPrompt =
     'You are an expert business analyst with deep knowledge of enterprise companies. ' + RESEARCH_SYSTEM_BASE;
 
+  // Build enrichment context block (empty string if no enrichment)
+  var enrichmentBlock = buildEnrichmentContext(enrichment || {});
+  var enrichmentPrefix = enrichmentBlock ? enrichmentBlock + '\n\n' : '';
+
   var userPrompt =
+    enrichmentPrefix +
     'Research "' + companyName + '" in the "' + industry + '" industry.\n\n' +
     'Return a JSON object with exactly this structure:\n' +
     '{\n' +
@@ -316,6 +450,9 @@ function researchAccountProfile(companyName, industry) {
     'For businessPerformance.highlights, provide 5-7 specific financial or operational highlights with real numbers where available.';
 
   Logger.log('[Research] Call 1: Researching account profile for "' + companyName + '" in "' + industry + '"');
+  if (enrichmentBlock) {
+    Logger.log('[Research] Call 1: Enrichment context injected (' + enrichmentBlock.length + ' chars)');
+  }
   return callLLMJson(systemPrompt, userPrompt);
 }
 
