@@ -3,9 +3,9 @@
  * to anchor LLM research with consistent, authoritative facts.
  *
  * APIs used:
- *   - Financial Modeling Prep (FMP) — financials, employee count, industry
- *   - Wikipedia                     — stable company overview text
- *   - Wikidata                      — CEO, headquarters, founding date, ticker
+ *   - SEC EDGAR (via Cloudflare Worker proxy) — financials from 10-K XBRL
+ *   - Wikipedia                               — stable company overview text
+ *   - Wikidata                                — CEO, headquarters, founding date, ticker, CIK
  *
  * All functions degrade gracefully: if an API is unreachable or the company
  * is not found, the corresponding fields are simply omitted.
@@ -16,7 +16,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Fetch JSON from a public API (Wikipedia, Wikidata, FMP).
+ * Fetch JSON from a public API (Wikipedia, Wikidata, SEC proxy).
  * @param {string} url
  * @returns {Object|null}
  */
@@ -33,19 +33,6 @@ function fetchPublicJson(url) {
     return JSON.parse(response.getContentText());
   } catch (e) {
     Logger.log('[Enrich] Fetch failed: ' + e.message);
-    return null;
-  }
-}
-
-/**
- * Get the FMP API key from script properties.
- * @returns {string|null}
- */
-function getFmpApiKey() {
-  try {
-    var key = PropertiesService.getScriptProperties().getProperty(PROP_FMP_API_KEY);
-    return key || null;
-  } catch (e) {
     return null;
   }
 }
@@ -81,104 +68,68 @@ function cleanCompanyNameForSearch(name) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Financial Modeling Prep (FMP) — Financials & Company Profile
+// SEC EDGAR Proxy — Financials via Cloudflare Worker
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Fetch company profile from FMP (employee count, industry, description, etc.).
- * @param {string} ticker  Stock ticker symbol (e.g., "WFC")
- * @param {string} apiKey  FMP API key
- * @returns {Object|null}  First profile result
+ * Get the SEC proxy Worker URL from script properties.
+ * @returns {string|null}
  */
-function fetchFmpProfile(ticker, apiKey) {
-  var url = FMP_BASE_URL + '/profile/' + encodeURIComponent(ticker) + '?apikey=' + apiKey;
-  Logger.log('[Enrich/FMP] Fetching profile for ' + ticker);
-  var data = fetchPublicJson(url);
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    Logger.log('[Enrich/FMP] No profile data for ' + ticker);
+function getSecProxyUrl() {
+  try {
+    var url = PropertiesService.getScriptProperties().getProperty(PROP_SEC_PROXY_URL);
+    return url || null;
+  } catch (e) {
     return null;
   }
-  Logger.log('[Enrich/FMP] Profile: ' + data[0].companyName + ' | employees: ' +
-    data[0].fullTimeEmployees + ' | industry: ' + data[0].industry);
-  return data[0];
 }
 
 /**
- * Fetch income statement from FMP (revenue, net income, OpEx, etc.).
- * Returns the most recent annual statement.
- * @param {string} ticker  Stock ticker symbol
- * @param {string} apiKey  FMP API key
- * @returns {Object|null}  Most recent annual income statement
+ * Fetch financials from the SEC EDGAR proxy Worker.
+ * Accepts CIK and/or ticker — the proxy resolves ticker→CIK if needed.
+ *
+ * @param {string|null} cik     SEC CIK number (e.g., "0000072971")
+ * @param {string|null} ticker  Stock ticker (e.g., "WFC")
+ * @returns {Object}  { revenue, cogs, opex, capex, netIncome, employees, filingPeriod, secIndustry }
  */
-function fetchFmpIncomeStatement(ticker, apiKey) {
-  var url = FMP_BASE_URL + '/income-statement/' + encodeURIComponent(ticker) +
-    '?period=annual&limit=1&apikey=' + apiKey;
-  Logger.log('[Enrich/FMP] Fetching income statement for ' + ticker);
-  var data = fetchPublicJson(url);
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    Logger.log('[Enrich/FMP] No income statement data for ' + ticker);
-    return null;
+function fetchSecProxyFinancials(cik, ticker) {
+  var proxyUrl = getSecProxyUrl();
+  if (!proxyUrl) {
+    Logger.log('[Enrich/SEC] No SEC_PROXY_URL configured. Set script property "' + PROP_SEC_PROXY_URL + '".');
+    return {};
   }
-  var stmt = data[0];
-  Logger.log('[Enrich/FMP] Income statement (' + stmt.calendarYear + '): revenue=' +
-    stmt.revenue + ', netIncome=' + stmt.netIncome + ', opEx=' + stmt.operatingExpenses);
-  return stmt;
-}
 
-/**
- * Fetch cash flow statement from FMP (CapEx).
- * @param {string} ticker  Stock ticker symbol
- * @param {string} apiKey  FMP API key
- * @returns {Object|null}  Most recent annual cash flow statement
- */
-function fetchFmpCashFlow(ticker, apiKey) {
-  var url = FMP_BASE_URL + '/cash-flow-statement/' + encodeURIComponent(ticker) +
-    '?period=annual&limit=1&apikey=' + apiKey;
-  Logger.log('[Enrich/FMP] Fetching cash flow for ' + ticker);
-  var data = fetchPublicJson(url);
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    Logger.log('[Enrich/FMP] No cash flow data for ' + ticker);
-    return null;
+  // Build query string — prefer CIK, fall back to ticker
+  var params = [];
+  if (cik) params.push('cik=' + encodeURIComponent(cik));
+  if (ticker) params.push('ticker=' + encodeURIComponent(ticker));
+  if (params.length === 0) {
+    Logger.log('[Enrich/SEC] No CIK or ticker available — cannot fetch SEC financials');
+    return {};
   }
-  Logger.log('[Enrich/FMP] Cash flow (' + data[0].calendarYear + '): capEx=' +
-    data[0].capitalExpenditure);
-  return data[0];
-}
 
-/**
- * Fetch all financial data from FMP for a given ticker.
- * Consolidates profile, income statement, and cash flow into one result.
- * @param {string} ticker  Stock ticker symbol
- * @param {string} apiKey  FMP API key
- * @returns {Object}  Consolidated financial data
- */
-function fetchFmpFinancials(ticker, apiKey) {
+  var url = proxyUrl + '?' + params.join('&');
+  Logger.log('[Enrich/SEC] Fetching: ' + url);
+
+  var data = fetchPublicJson(url);
+  if (!data || data.error) {
+    Logger.log('[Enrich/SEC] Proxy returned error: ' + (data ? data.error : 'null response'));
+    return {};
+  }
+
+  Logger.log('[Enrich/SEC] Response: ' + data.entityName + ' (' + data.filingPeriod + ')');
+
   var result = {};
+  var fin = data.financials || {};
 
-  // Profile: employee count, industry, description
-  var profile = fetchFmpProfile(ticker, apiKey);
-  if (profile) {
-    if (profile.fullTimeEmployees) result.employees = profile.fullTimeEmployees;
-    if (profile.industry) result.fmpIndustry = profile.industry;
-    if (profile.sector) result.fmpSector = profile.sector;
-  }
-
-  // Income statement: revenue, COGS, OpEx, net income
-  var income = fetchFmpIncomeStatement(ticker, apiKey);
-  if (income) {
-    if (income.revenue) result.revenue = income.revenue;
-    if (income.costOfRevenue) result.cogs = income.costOfRevenue;
-    if (income.operatingExpenses) result.opex = income.operatingExpenses;
-    if (income.netIncome) result.netIncome = income.netIncome;
-    if (income.calendarYear) result.filingPeriod = income.calendarYear;
-  }
-
-  // Cash flow: CapEx
-  var cashFlow = fetchFmpCashFlow(ticker, apiKey);
-  if (cashFlow) {
-    // FMP reports CapEx as negative; take absolute value
-    if (cashFlow.capitalExpenditure) result.capex = Math.abs(cashFlow.capitalExpenditure);
-  }
+  if (fin.revenue != null)   result.revenue = fin.revenue;
+  if (fin.cogs != null)      result.cogs = fin.cogs;
+  if (fin.opex != null)      result.opex = fin.opex;
+  if (fin.capex != null)     result.capex = fin.capex;
+  if (fin.netIncome != null) result.netIncome = fin.netIncome;
+  if (fin.employees != null) result.employees = fin.employees;
+  if (data.filingPeriod)     result.filingPeriod = data.filingPeriod;
+  if (data.sicDescription)   result.secIndustry = data.sicDescription;
 
   return result;
 }
@@ -440,7 +391,7 @@ function enrichCompanyData(companyName, industry) {
   var searchName = cleanCompanyNameForSearch(companyName);
   Logger.log('[Enrich] Cleaned search name: "' + searchName + '"');
 
-  // ── Wikidata: structured facts (also gives us ticker for FMP) ──────
+  // ── Wikidata: structured facts (also gives us ticker + CIK for SEC) ─
   var wikidataFacts = {};
   try {
     var qid = searchWikidata(searchName);
@@ -464,30 +415,28 @@ function enrichCompanyData(companyName, industry) {
     Logger.log('[Enrich] Wikipedia failed: ' + e.message);
   }
 
-  // ── FMP: financials, employee count, industry ─────────────────────
+  // ── SEC EDGAR: financials from 10-K filings ─────────────────────
   try {
-    var fmpKey = getFmpApiKey();
     var ticker = enrichment.ticker || null;
+    var secCik = wikidataFacts.secCik || null;
+    var financials = {};
 
-    if (!fmpKey) {
-      Logger.log('[Enrich/FMP] No FMP API key configured. Set script property "' + PROP_FMP_API_KEY + '" to enable financial enrichment.');
-    } else if (!ticker) {
-      Logger.log('[Enrich/FMP] No ticker available — cannot fetch financials (company may be private)');
+    if (!secCik && !ticker) {
+      Logger.log('[Enrich/SEC] No CIK or ticker available — cannot fetch SEC financials (company may be private)');
     } else {
-      var financials = fetchFmpFinancials(ticker, fmpKey);
-
-      if (financials.revenue != null)   { enrichment.revenue = financials.revenue; enrichment.revenueFormatted = formatDollars(financials.revenue); }
-      if (financials.cogs != null)      { enrichment.cogs = financials.cogs; enrichment.cogsFormatted = formatDollars(financials.cogs); }
-      if (financials.opex != null)      { enrichment.opex = financials.opex; enrichment.opexFormatted = formatDollars(financials.opex); }
-      if (financials.capex != null)     { enrichment.capex = financials.capex; enrichment.capexFormatted = formatDollars(financials.capex); }
-      if (financials.netIncome != null) { enrichment.netIncome = financials.netIncome; enrichment.netIncomeFormatted = formatDollars(financials.netIncome); }
-      if (financials.employees != null) { enrichment.employees = financials.employees; enrichment.employeesFormatted = formatNumber(financials.employees); }
-      if (financials.filingPeriod)      enrichment.filingPeriod = financials.filingPeriod;
-      if (financials.fmpIndustry)       enrichment.fmpIndustry = financials.fmpIndustry;
-      if (financials.fmpSector)         enrichment.fmpSector = financials.fmpSector;
+      financials = fetchSecProxyFinancials(secCik, ticker);
+      if (financials.secIndustry) enrichment.secIndustry = financials.secIndustry;
     }
+
+    if (financials.revenue != null)   { enrichment.revenue = financials.revenue; enrichment.revenueFormatted = formatDollars(financials.revenue); }
+    if (financials.cogs != null)      { enrichment.cogs = financials.cogs; enrichment.cogsFormatted = formatDollars(financials.cogs); }
+    if (financials.opex != null)      { enrichment.opex = financials.opex; enrichment.opexFormatted = formatDollars(financials.opex); }
+    if (financials.capex != null)     { enrichment.capex = financials.capex; enrichment.capexFormatted = formatDollars(financials.capex); }
+    if (financials.netIncome != null) { enrichment.netIncome = financials.netIncome; enrichment.netIncomeFormatted = formatDollars(financials.netIncome); }
+    if (financials.employees != null) { enrichment.employees = financials.employees; enrichment.employeesFormatted = formatNumber(financials.employees); }
+    if (financials.filingPeriod)      enrichment.filingPeriod = financials.filingPeriod;
   } catch (e) {
-    Logger.log('[Enrich] FMP failed: ' + e.message);
+    Logger.log('[Enrich] SEC financial data failed: ' + e.message);
   }
 
   // Summary of what was enriched

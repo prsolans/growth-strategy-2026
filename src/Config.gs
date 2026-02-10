@@ -13,8 +13,7 @@ var LLM_MODEL    = '4o';
 // ── Data Enrichment Configuration ────────────────────────────────────
 var ENRICHMENT_ENABLED = true;   // Master on/off switch for public API enrichment
 
-var PROP_FMP_API_KEY = 'FMP_API_KEY';   // Script property key for Financial Modeling Prep API key
-var FMP_BASE_URL     = 'https://financialmodelingprep.com/api/v3';
+var PROP_SEC_PROXY_URL = 'SEC_PROXY_URL';     // Script property for SEC EDGAR proxy URL
 var WIKI_API_URL     = 'https://en.wikipedia.org/api/rest_v1';
 var WIKIDATA_API_URL = 'https://www.wikidata.org/w/api.php';
 
