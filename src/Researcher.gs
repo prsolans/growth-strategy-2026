@@ -60,7 +60,6 @@ function callLLMJson(systemPrompt, userPrompt) {
   var parsed = tryParseJson(raw);
   if (parsed) {
     Logger.log('[LLM-JSON] Parse succeeded. Top-level keys: ' + Object.keys(parsed).join(', '));
-    mergeBingCitations(parsed);
     return parsed;
   }
 
@@ -73,52 +72,11 @@ function callLLMJson(systemPrompt, userPrompt) {
   parsed = tryParseJson(raw);
   if (parsed) {
     Logger.log('[LLM-JSON] Parse succeeded on retry. Top-level keys: ' + Object.keys(parsed).join(', '));
-    mergeBingCitations(parsed);
     return parsed;
   }
 
   Logger.log('[LLM-JSON] Parse FAILED on retry. Raw: ' + raw.substring(0, 500));
   throw new Error('Failed to parse LLM response as JSON after retry. Raw response: ' + raw.substring(0, 500));
-}
-
-/**
- * Replace the LLM-generated sources with real Bing grounding citations when available.
- * The LLM tends to hallucinate URLs in its self-reported sources array, while the
- * endpoint envelope contains actual Bing search citations with verified URLs.
- * @param {Object} parsed - The parsed LLM response object (modified in place)
- */
-function mergeBingCitations(parsed) {
-  var bingCitations = getLastCitations();
-  if (!bingCitations || bingCitations.length === 0) return;
-
-  var sources = [];
-  var seen = {};
-  bingCitations.forEach(function(c) {
-    if (typeof c !== 'object' || !c) return;
-
-    var url = '';
-    var title = '';
-
-    // Handle nested url_citation format from Azure Bing grounding:
-    // { type: "url_citation", url_citation: { url: "...", title: "..." } }
-    if (c.url_citation && typeof c.url_citation === 'object') {
-      url = c.url_citation.url || '';
-      title = c.url_citation.title || '';
-    } else {
-      url = c.url || c.uri || c.link || '';
-      title = c.title || c.name || '';
-    }
-
-    if (url && !seen[url]) {
-      seen[url] = true;
-      sources.push({ title: title || url, url: url });
-    }
-  });
-
-  if (sources.length > 0) {
-    Logger.log('[LLM-JSON] Replacing LLM sources with ' + sources.length + ' Bing grounding citations');
-    parsed.sources = sources;
-  }
 }
 
 /**
@@ -233,6 +191,74 @@ function tryParseJson(text) {
 
 
 // ═══════════════════════════════════════════════════════════════════════
+// Parallel LLM Infrastructure
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Build an HTTP request object for the LLM endpoint (without sending it).
+ * Suitable for use with UrlFetchApp.fetchAll().
+ * @param {string} systemPrompt  The system role content
+ * @param {string} userPrompt    The user role content
+ * @returns {Object} { url, options } ready for fetchAll
+ */
+function buildLLMRequest(systemPrompt, userPrompt) {
+  var payload = {
+    v:  LLM_MODEL,
+    sr: systemPrompt,
+    ur: userPrompt
+  };
+
+  return {
+    url: LLM_ENDPOINT,
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'DOCU-INFRA-IC-KEY':  getApiKey(),
+      'DOCU-INFRA-IC-USER': getApiUser()
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+}
+
+/**
+ * Send multiple LLM requests in parallel via UrlFetchApp.fetchAll().
+ * Parses each response as JSON using tryParseJson().
+ * @param {Array<Object>} requests  Array of { url, method, ... } from buildLLMRequest()
+ * @returns {Array<Object|null>} Parsed JSON responses (null for failures)
+ */
+function callLLMJsonParallel(requests) {
+  Logger.log('[LLM-Parallel] Sending ' + requests.length + ' requests in parallel');
+
+  var responses = UrlFetchApp.fetchAll(requests);
+  var results = [];
+
+  for (var i = 0; i < responses.length; i++) {
+    var response = responses[i];
+    var code = response.getResponseCode();
+    var body = response.getContentText();
+
+    Logger.log('[LLM-Parallel] Response ' + i + ': HTTP ' + code + ' | ' + body.length + ' chars');
+
+    if (code !== 200) {
+      Logger.log('[LLM-Parallel] ERROR response ' + i + ': ' + body.substring(0, 500));
+      results.push(null);
+      continue;
+    }
+
+    var parsed = tryParseJson(body);
+    if (parsed) {
+      Logger.log('[LLM-Parallel] Response ' + i + ' parsed. Keys: ' + Object.keys(parsed).join(', '));
+    } else {
+      Logger.log('[LLM-Parallel] Response ' + i + ' parse FAILED. Raw: ' + body.substring(0, 300));
+    }
+    results.push(parsed);
+  }
+
+  return results;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Catalog Helper
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -276,18 +302,33 @@ function buildEnrichmentContext(enrichment) {
     lines.push('Company Overview (Wikipedia): ' + enrichment.overview);
   }
 
-  // SEC financials
+  // SEC financials — per-metric with definitions
   var hasFinancials = enrichment.revenueFormatted || enrichment.cogsFormatted ||
     enrichment.opexFormatted || enrichment.capexFormatted || enrichment.netIncomeFormatted;
   if (hasFinancials) {
     var period = enrichment.filingPeriod ? ' FY ending ' + enrichment.filingPeriod : '';
-    var parts = [];
-    if (enrichment.revenueFormatted)   parts.push('Revenue: ' + enrichment.revenueFormatted);
-    if (enrichment.cogsFormatted)      parts.push('COGS: ' + enrichment.cogsFormatted);
-    if (enrichment.opexFormatted)      parts.push('OpEx: ' + enrichment.opexFormatted);
-    if (enrichment.capexFormatted)     parts.push('CapEx: ' + enrichment.capexFormatted);
-    if (enrichment.netIncomeFormatted) parts.push('Net Income: ' + enrichment.netIncomeFormatted);
-    lines.push('Financials (SEC EDGAR 10-K' + period + '): ' + parts.join(', '));
+    lines.push('=== VERIFIED FINANCIALS (SEC EDGAR 10-K' + period + ') ===');
+    if (enrichment.revenueFormatted)   lines.push('Revenue: ' + enrichment.revenueFormatted + ' — Total top-line income from all business activities');
+    if (enrichment.cogsFormatted)      lines.push('COGS: ' + enrichment.cogsFormatted + ' — Direct costs of producing goods/services sold');
+    if (enrichment.opexFormatted)      lines.push('OpEx: ' + enrichment.opexFormatted + ' — Day-to-day operating costs (salaries, rent, R&D, SG&A)');
+    if (enrichment.capexFormatted)     lines.push('CapEx: ' + enrichment.capexFormatted + ' — Investments in property, equipment, and infrastructure');
+    if (enrichment.netIncomeFormatted) lines.push('Net Income: ' + enrichment.netIncomeFormatted + ' — Bottom-line profit after all expenses and taxes');
+    lines.push('');
+    lines.push('When analyzing these financials, include a "context" field in the financials JSON that explains what these numbers reveal about the company\'s financial health, margins, and growth trajectory.');
+  }
+
+  // Segment revenue from 10-K XBRL
+  if (enrichment.segmentsFormatted && enrichment.segmentsFormatted.length > 0) {
+    lines.push('=== VERIFIED SEGMENT REVENUE (SEC EDGAR 10-K) ===');
+    enrichment.segmentsFormatted.forEach(function(seg) {
+      lines.push('  ' + seg);
+    });
+    if (enrichment.segmentType === 'geographic') {
+      lines.push('NOTE: These are geographic segments (not product-line BUs). Use for regional revenue context but do not force-map to businessUnits.');
+    } else {
+      lines.push('IMPORTANT: Use these values for the segmentRevenue field in businessUnits.');
+    }
+    lines.push('');
   }
 
   if (enrichment.employeesFormatted) {
@@ -366,6 +407,50 @@ function enforceEnrichedData(accountProfile, enrichment) {
     Logger.log('[Enrich/Enforce] Overwrote employeeCount with SEC EDGAR data');
   }
 
+  // Override segment revenue on business units via fuzzy matching (business-line segments only)
+  if (enrichment.segments && enrichment.segments.length > 0 &&
+      enrichment.segmentType !== 'geographic' &&
+      accountProfile.businessUnits && accountProfile.businessUnits.length > 0) {
+
+    // Build lookup map: lowercased segment name → formatted revenue string
+    var segLookup = {};
+    for (var si = 0; si < enrichment.segments.length; si++) {
+      var seg = enrichment.segments[si];
+      var formatted = enrichment.segmentsFormatted ? enrichment.segmentsFormatted[si] : null;
+      var revStr = formatted ? formatted.split(': ').slice(1).join(': ') : null;
+      if (revStr) {
+        segLookup[seg.name.toLowerCase()] = revStr;
+      }
+    }
+
+    var segNames = Object.keys(segLookup);
+
+    for (var bi = 0; bi < accountProfile.businessUnits.length; bi++) {
+      var bu = accountProfile.businessUnits[bi];
+      var buLower = (bu.name || '').toLowerCase();
+      var matched = null;
+
+      // Try exact match first
+      if (segLookup[buLower]) {
+        matched = segLookup[buLower];
+      } else {
+        // Try substring match: segment name in BU name or vice versa
+        for (var sn = 0; sn < segNames.length; sn++) {
+          var segName = segNames[sn];
+          if (buLower.indexOf(segName) !== -1 || segName.indexOf(buLower) !== -1) {
+            matched = segLookup[segName];
+            break;
+          }
+        }
+      }
+
+      if (matched) {
+        bu.segmentRevenue = matched;
+        Logger.log('[Enrich/Enforce] Matched segment revenue for BU "' + bu.name + '": ' + matched);
+      }
+    }
+  }
+
   // Ensure CEO is in executive contacts if we have it from Wikidata
   if (enrichment.ceo && accountProfile.executiveContacts) {
     var hasCeo = accountProfile.executiveContacts.some(function(exec) {
@@ -390,7 +475,6 @@ function enforceEnrichedData(accountProfile, enrichment) {
 
 var RESEARCH_SYSTEM_BASE =
   'Use current web data via Bing to research the company. ' +
-  'For every claim that uses a specific fact, figure, or quote, include the source URL in the sources array. ' +
   'Return your response as valid JSON only. No markdown, no extra text. Do NOT include citation markers like 【†source】 in text.';
 
 /**
@@ -415,12 +499,12 @@ function researchAccountProfile(companyName, industry, enrichment) {
     '{\n' +
     '  "companyOverview": "2-3 sentence overview of the company, what it does, and its market position",\n' +
     '  "businessUnits": [\n' +
-    '    { "name": "Unit name", "offering": "What this unit provides", "targetSegment": "Who they serve", "pricingRevenueModel": "How they make money", "customerCount": "Approximate customers or scale" }\n' +
+    '    { "name": "Unit name", "offering": "What this unit provides", "targetSegment": "Who they serve", "pricingRevenueModel": "How they make money", "segmentRevenue": "Estimated annual revenue for this BU (e.g. $1.2B)", "customerCount": "Approximate customers or scale" }\n' +
     '  ],\n' +
     '  "customerBase": { "total": "Total customer count or description", "context": "Additional context about customer segments" },\n' +
     '  "employeeCount": { "total": "Employee count", "context": "Global footprint, offices, hiring trends" },\n' +
     '  "supplyChain": { "majorCategories": ["category 1", "category 2"], "context": "Key supplier relationships and procurement focus" },\n' +
-    '  "financials": { "revenue": "Annual revenue", "cogs": "Cost of goods sold if available", "opex": "Operating expenses", "capex": "Capital expenditures", "context": "Additional financial context" },\n' +
+    '  "financials": { "revenue": "Annual revenue", "cogs": "Cost of goods sold if available", "opex": "Operating expenses", "capex": "Capital expenditures", "netIncome": "Net income", "context": "2-3 sentences analyzing what these numbers reveal about the company\'s financial health, margins, and investment posture" },\n' +
     '  "businessPerformance": {\n' +
     '    "threeYearTrend": "2-3 sentence narrative of the company\'s trajectory over 3 years",\n' +
     '    "highlights": ["financial or operational highlight 1", "highlight 2", "highlight 3"],\n' +
@@ -438,10 +522,7 @@ function researchAccountProfile(companyName, industry, enrichment) {
     '    { "name": "Executive name", "title": "Their title", "relevance": "Why Docusign should connect with this person" }\n' +
     '  ],\n' +
     '  "technologyStack": { "crm": "CRM platform", "hr": "HR/HCM platform", "procurement": "Procurement platform", "other": ["Other system 1", "Other system 2"] },\n' +
-    '  "systemsIntegrators": ["SI partner 1", "SI partner 2"],\n' +
-    '  "sources": [\n' +
-    '    { "title": "Page or document title", "url": "https://..." }\n' +
-    '  ]\n' +
+    '  "systemsIntegrators": ["SI partner 1", "SI partner 2"]\n' +
     '}\n\n' +
     'Provide approximately 5 business units. For executiveContacts, focus on CIO, CTO, CLO, CPO, CFO, ' +
     'VP of Procurement, VP of Legal, and similar roles relevant to agreement management. ' +
@@ -461,7 +542,7 @@ function researchAccountProfile(companyName, industry, enrichment) {
  * @param {string} companyName
  * @param {string} industry
  * @param {Object} accountProfile  Full result from Call 1
- * @returns {Object} { nodes: [...], sources: [...] }
+ * @returns {Object} { nodes: [...] }
  */
 function researchBusinessMap(companyName, industry, accountProfile) {
   var systemPrompt =
@@ -487,9 +568,6 @@ function researchBusinessMap(companyName, industry, accountProfile) {
     '{\n' +
     '  "nodes": [\n' +
     '    { "name": "Node name", "parent": "Parent node name or null for root", "level": "bu|department|function", "agreementIntensity": "high|medium|low" }\n' +
-    '  ],\n' +
-    '  "sources": [\n' +
-    '    { "title": "Page or document title", "url": "https://..." }\n' +
     '  ]\n' +
     '}\n\n' +
     'Build a tree: Company (root, parent=null) → Business Units (level="bu") → Departments (level="department") → Functions (level="function").\n' +
@@ -552,9 +630,6 @@ function researchAgreementLandscape(companyName, industry, accountProfile, busin
     '      "contractType": "Negotiated|Non-negotiated|Form-based|Regulatory",\n' +
     '      "description": "Brief description of this agreement type and its business purpose"\n' +
     '    }\n' +
-    '  ],\n' +
-    '  "sources": [\n' +
-    '    { "title": "Page or document title", "url": "https://..." }\n' +
     '  ]\n' +
     '}\n\n' +
     'Rules:\n' +
@@ -580,7 +655,7 @@ function researchAgreementLandscape(companyName, industry, accountProfile, busin
       'For "' + companyName + '" in the "' + industry + '" industry, list 15 agreement types the company likely manages.\n\n' +
       'Return JSON: { "agreements": [{ "number": 1, "agreementType": "...", "category": "Internal|External", ' +
       '"primaryBusinessUnit": "...", "volume": 5, "complexity": 5, "contractType": "Negotiated|Non-negotiated|Form-based|Regulatory", ' +
-      '"description": "..." }], "sources": [{ "title": "...", "url": "https://..." }] }\n\n' +
+      '"description": "..." }] }\n\n' +
       'volume and complexity are 1-10 scales. Number them 1-15. Return ONLY valid JSON.';
 
     try {
@@ -648,9 +723,6 @@ function researchContractCommerce(companyName, industry, accountProfile, agreeme
     '  ],\n' +
     '  "painPoints": [\n' +
     '    { "title": "Pain point name", "description": "How this affects the business and why agreements matter" }\n' +
-    '  ],\n' +
-    '  "sources": [\n' +
-    '    { "title": "Page or document title", "url": "https://..." }\n' +
     '  ]\n' +
     '}\n\n' +
     'Provide at least 5 departments in commerceByDepartment and 5 agreement types in commerceByAgreementType.\n' +
@@ -663,6 +735,177 @@ function researchContractCommerce(companyName, industry, accountProfile, agreeme
 
   Logger.log('[Research] Call 4: Researching contract commerce for "' + companyName + '"');
   return callLLMJson(systemPrompt, userPrompt);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Request Builders for Parallel Execution
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Build Call 2 request (Business Map) without sending it.
+ * Same prompt as researchBusinessMap() — uses only Call 1 data.
+ * @param {string} companyName
+ * @param {string} industry
+ * @param {Object} accountProfile  Full result from Call 1
+ * @returns {Object} request object for callLLMJsonParallel
+ */
+function buildCall2Request(companyName, industry, accountProfile) {
+  var systemPrompt =
+    'You are an expert in enterprise organizational structures and agreement workflows. ' + RESEARCH_SYSTEM_BASE;
+
+  var businessUnits = (accountProfile && accountProfile.businessUnits) || [];
+  var buContext = '';
+  if (businessUnits.length > 0) {
+    buContext = '\n\nKnown business units:\n' +
+      businessUnits.map(function(bu) { return '- ' + bu.name + ': ' + (bu.offering || ''); }).join('\n');
+  }
+  if (accountProfile && accountProfile.employeeCount) {
+    buContext += '\nEmployee count: ' + (accountProfile.employeeCount.total || 'unknown');
+  }
+  if (accountProfile && accountProfile.supplyChain) {
+    buContext += '\nSupply chain: ' + ((accountProfile.supplyChain.majorCategories || []).join(', ') || 'N/A');
+  }
+
+  var userPrompt =
+    'For "' + companyName + '" in the "' + industry + '" industry, map the organizational hierarchy.\n' +
+    buContext + '\n\n' +
+    'Return a JSON object with exactly this structure:\n' +
+    '{\n' +
+    '  "nodes": [\n' +
+    '    { "name": "Node name", "parent": "Parent node name or null for root", "level": "bu|department|function", "agreementIntensity": "high|medium|low" }\n' +
+    '  ]\n' +
+    '}\n\n' +
+    'Build a tree: Company (root, parent=null) → Business Units (level="bu") → Departments (level="department") → Functions (level="function").\n' +
+    'The root node should be the company name with parent=null.\n' +
+    'Each BU should have parent=company name. Each department should have parent=BU name.\n' +
+    'Each function should have parent=department name.\n' +
+    'agreementIntensity indicates how many agreements/contracts that node handles (high, medium, or low).\n\n' +
+    'IMPORTANT: The tree must be comprehensive. Requirements:\n' +
+    '- Provide ALL major business units (minimum 4-5 BUs for large enterprises)\n' +
+    '- Each BU MUST have 3-5 departments beneath it\n' +
+    '- Each department MUST have 2-3 functions beneath it\n' +
+    '- The total tree should have at least 40 nodes for a large company, 25+ for mid-size\n' +
+    '- Include shared services departments (Legal, Finance, HR, IT, Procurement) under a Corporate/Shared Services BU\n' +
+    '- Do NOT return a sparse tree with only 1 department per BU';
+
+  Logger.log('[Research] buildCall2Request: Business Map for "' + companyName + '"');
+  return buildLLMRequest(systemPrompt, userPrompt);
+}
+
+/**
+ * Build Call 3 request (Agreement Landscape) without sending it.
+ * Drops businessMap dependency — uses BU names from accountProfile instead.
+ * @param {string} companyName
+ * @param {string} industry
+ * @param {Object} accountProfile  Full result from Call 1
+ * @returns {Object} request object for callLLMJsonParallel
+ */
+function buildCall3Request(companyName, industry, accountProfile) {
+  var systemPrompt =
+    'You are an expert in enterprise contract management and agreement workflows. ' + RESEARCH_SYSTEM_BASE;
+
+  var context = '';
+  if (accountProfile && accountProfile.businessUnits) {
+    context += '\nBusiness units: ' + accountProfile.businessUnits.map(function(bu) { return bu.name; }).join(', ');
+  }
+  if (accountProfile && accountProfile.financials) {
+    context += '\nCompany financials: Revenue ' + (accountProfile.financials.revenue || 'N/A') +
+      ', Employees ' + ((accountProfile.employeeCount || {}).total || 'N/A');
+  }
+
+  var userPrompt =
+    'For "' + companyName + '" in the "' + industry + '" industry, identify the top 20 agreement types ' +
+    'across all business units and departments.' + context + '\n\n' +
+    'Return a JSON object with exactly this structure:\n' +
+    '{\n' +
+    '  "agreements": [\n' +
+    '    {\n' +
+    '      "number": 1,\n' +
+    '      "agreementType": "Name of the agreement type",\n' +
+    '      "category": "Internal|External",\n' +
+    '      "primaryBusinessUnit": "Which BU primarily uses this",\n' +
+    '      "volume": 7,\n' +
+    '      "complexity": 8,\n' +
+    '      "contractType": "Negotiated|Non-negotiated|Form-based|Regulatory",\n' +
+    '      "description": "Brief description of this agreement type and its business purpose"\n' +
+    '    }\n' +
+    '  ]\n' +
+    '}\n\n' +
+    'Rules:\n' +
+    '- Provide exactly 20 agreement types, numbered 1-20\n' +
+    '- volume: scale 1-10, how many of this agreement type are executed annually\n' +
+    '- complexity: scale 1-10, how complex the negotiation/management process is\n' +
+    '- Sort by combined score (volume + complexity) descending\n' +
+    '- category: "Internal" for employee/inter-company agreements, "External" for customer/vendor/partner\n' +
+    '- contractType: "Negotiated" (custom terms), "Non-negotiated" (standard/click), "Form-based" (templates), "Regulatory" (compliance-driven)\n' +
+    '- Include a mix of internal and external agreements across multiple BUs';
+
+  Logger.log('[Research] buildCall3Request: Agreement Landscape for "' + companyName + '"');
+  return buildLLMRequest(systemPrompt, userPrompt);
+}
+
+/**
+ * Build Call 4 request (Contract Commerce) without sending it.
+ * Drops agreements dependency — uses industry-aware instruction instead.
+ * @param {string} companyName
+ * @param {string} industry
+ * @param {Object} accountProfile  Full result from Call 1
+ * @returns {Object} request object for callLLMJsonParallel
+ */
+function buildCall4Request(companyName, industry, accountProfile) {
+  var systemPrompt =
+    'You are an expert in enterprise financial analysis and contract management. ' + RESEARCH_SYSTEM_BASE;
+
+  var financialContext = '';
+  if (accountProfile && accountProfile.financials) {
+    financialContext = '\nKnown financials: ' + JSON.stringify(accountProfile.financials);
+  }
+  if (accountProfile && accountProfile.employeeCount) {
+    financialContext += '\nEmployees: ' + (accountProfile.employeeCount.total || 'unknown') +
+      (accountProfile.employeeCount.context ? ' (' + accountProfile.employeeCount.context + ')' : '');
+  }
+  if (accountProfile && accountProfile.customerBase) {
+    financialContext += '\nCustomers: ' + (accountProfile.customerBase.total || 'unknown') +
+      (accountProfile.customerBase.context ? ' (' + accountProfile.customerBase.context + ')' : '');
+  }
+
+  var userPrompt =
+    'For "' + companyName + '" in the "' + industry + '" industry, estimate the commerce flowing through agreements.' +
+    financialContext + '\n\n' +
+    'Based on typical agreement types for a ' + industry + ' company of this size, estimate the commerce flowing through each agreement category.\n\n' +
+    'Return a JSON object with exactly this structure:\n' +
+    '{\n' +
+    '  "estimatedCommerce": {\n' +
+    '    "totalRevenue": "$X",\n' +
+    '    "spendManaged": "$X",\n' +
+    '    "opex": "$X"\n' +
+    '  },\n' +
+    '  "commercialRelationships": {\n' +
+    '    "employees": "X",\n' +
+    '    "suppliers": "X",\n' +
+    '    "customers": "X",\n' +
+    '    "partners": "X"\n' +
+    '  },\n' +
+    '  "commerceByDepartment": [\n' +
+    '    { "department": "Dept name", "estimatedAnnualValue": "$X", "primaryAgreementTypes": ["type 1", "type 2"] }\n' +
+    '  ],\n' +
+    '  "commerceByAgreementType": [\n' +
+    '    { "agreementType": "Type name", "estimatedAnnualValue": "$X", "volume": "X per year" }\n' +
+    '  ],\n' +
+    '  "painPoints": [\n' +
+    '    { "title": "Pain point name", "description": "How this affects the business and why agreements matter" }\n' +
+    '  ]\n' +
+    '}\n\n' +
+    'Provide at least 5 departments in commerceByDepartment and 5 agreement types in commerceByAgreementType.\n' +
+    'Provide 3-5 pain points related to agreement management.\n' +
+    'If department-level data is not available, provide your best estimates based on industry benchmarks.\n' +
+    'Use realistic dollar figures based on the company\'s known revenue and industry norms.\n' +
+    'IMPORTANT: For commercialRelationships, use the employee and customer counts provided above. Do not invent different numbers.\n' +
+    'IMPORTANT: For commerceByAgreementType volume, estimate realistic ANNUAL TRANSACTION COUNTS for a company of this size (e.g. "~50,000 per year", "~2 million per year"). ' +
+    'Do NOT use relative scores — provide actual estimated counts.';
+
+  Logger.log('[Research] buildCall4Request: Contract Commerce for "' + companyName + '"');
+  return buildLLMRequest(systemPrompt, userPrompt);
 }
 
 /**
@@ -813,9 +1056,6 @@ function synthesizePriorityMap(companyName, internalSummary, externalResearch, p
     '      "owner": "Account team role responsible (AE, CSM, SA, etc.)",\n' +
     '      "rationale": "Why this action matters now"\n' +
     '    }\n' +
-    '  ],\n' +
-    '  "sources": [\n' +
-    '    { "title": "Page or document title", "url": "https://..." }\n' +
     '  ]\n' +
     '}\n\n' +
     'Provide 5-7 priority mappings, 5+ expansion opportunities, and 5+ action items.\n' +
@@ -836,10 +1076,11 @@ function synthesizePriorityMap(companyName, internalSummary, externalResearch, p
  */
 function generateExecutiveBriefing(companyName, accountProfile, priorityMap, productSignals) {
   var systemPrompt =
-    'You are writing an executive meeting briefing for a Docusign account team.\n' +
+    'You are writing an executive meeting briefing focused entirely on the customer.\n' +
     'Write in a concise, professional tone suitable for an executive audience.\n' +
-    'Use **bold** for key data points, company names, and Docusign product names.\n' +
+    'Use **bold** for key data points, company names, and dollar figures.\n' +
     'Use *italic* for emphasis on specific terms.\n' +
+    'Do NOT mention Docusign, any Docusign products, or any vendor solutions.\n' +
     'Do NOT include source citations or URLs.\n' +
     'Return your response as valid JSON only. No markdown fences, no extra text.';
 
@@ -859,31 +1100,225 @@ function generateExecutiveBriefing(companyName, accountProfile, priorityMap, pro
     expansions = JSON.stringify(priorityMap.expansionOpportunities);
   }
 
-  var signalSummary = (productSignals && productSignals.summary) || '';
-
   var userPrompt =
-    'Create an executive meeting briefing for "' + companyName + '".\n\n' +
+    'Create an executive meeting briefing about "' + companyName + '".\n' +
+    'Focus 100% on the customer — their strategic priorities, business challenges, and market context.\n\n' +
     '--- STRATEGIC INITIATIVES ---\n' + initiatives + '\n\n' +
-    '--- DOCUSIGN PRIORITY MAPPINGS ---\n' + priorities + '\n\n' +
-    '--- EXPANSION OPPORTUNITIES ---\n' + expansions + '\n\n' +
-    '--- PRODUCT SIGNALS ---\n' + signalSummary + '\n\n' +
+    '--- PRIORITY MAPPINGS ---\n' + priorities + '\n\n' +
+    '--- EXPANSION CONTEXT ---\n' + expansions + '\n\n' +
     'Return a JSON object with exactly this structure:\n' +
     '{\n' +
-    '  "introText": "1-2 sentences setting context about the company\'s current strategic focus. No source citations.",\n' +
+    '  "introText": "1-2 sentences setting context about the company\'s current strategic focus and market position. No source citations.",\n' +
     '  "priorities": [\n' +
     '    {\n' +
     '      "title": "Priority title (with parenthetical context if relevant)",\n' +
-    '      "body": "A 3-4 sentence paragraph that provides context on the company initiative and naturally weaves in how Docusign capabilities map to this priority. Use **bold** for key data points and Docusign product names. Use *italic* for emphasis."\n' +
+    '      "body": "A 3-4 sentence paragraph describing the customer\'s strategic initiative, why it matters to their business, and what challenges or opportunities it presents. Use **bold** for key data points. Use *italic* for emphasis."\n' +
     '    }\n' +
     '  ]\n' +
     '}\n\n' +
     'Rules:\n' +
     '- Provide exactly 3 priorities\n' +
-    '- Each priority should connect a real company initiative to relevant Docusign capabilities\n' +
+    '- Each priority must focus on the customer\'s business initiative, challenge, or opportunity\n' +
+    '- Do NOT mention Docusign or any vendor products/solutions\n' +
     '- The body should read as natural prose, not bullet points\n' +
-    '- Bold company names, dollar figures, product names (e.g. **Docusign CLM**, **$2.5B**)\n' +
+    '- Bold company names and dollar figures (e.g. **$2.5B**, **Wells Fargo**)\n' +
     '- Italic for emphasis on specific terms (e.g. *digital transformation*, *compliance*)';
 
   Logger.log('[Research] Call 6: Generating executive briefing for "' + companyName + '"');
   return callLLMJson(systemPrompt, userPrompt);
+}
+
+/**
+ * Build Call 6 request (Executive Briefing) without sending it.
+ * Same prompt as generateExecutiveBriefing().
+ * @param {string} companyName
+ * @param {Object} accountProfile  Result from Call 1
+ * @param {Object} priorityMap     Result from Call 5
+ * @param {Object} productSignals  Output of generateProductSignals()
+ * @returns {Object} request object for callLLMJsonParallel
+ */
+function buildCall6Request(companyName, accountProfile, priorityMap, productSignals) {
+  var systemPrompt =
+    'You are writing an executive meeting briefing focused entirely on the customer.\n' +
+    'Write in a concise, professional tone suitable for an executive audience.\n' +
+    'Use **bold** for key data points, company names, and dollar figures.\n' +
+    'Use *italic* for emphasis on specific terms.\n' +
+    'Do NOT mention Docusign, any Docusign products, or any vendor solutions.\n' +
+    'Do NOT include source citations or URLs.\n' +
+    'Return your response as valid JSON only. No markdown fences, no extra text.';
+
+  var initiatives = '';
+  if (accountProfile && accountProfile.businessPerformance &&
+      accountProfile.businessPerformance.strategicInitiatives) {
+    initiatives = JSON.stringify(accountProfile.businessPerformance.strategicInitiatives);
+  }
+
+  var priorities = '';
+  if (priorityMap && priorityMap.priorityMapping) {
+    priorities = JSON.stringify(priorityMap.priorityMapping);
+  }
+
+  var expansions = '';
+  if (priorityMap && priorityMap.expansionOpportunities) {
+    expansions = JSON.stringify(priorityMap.expansionOpportunities);
+  }
+
+  var userPrompt =
+    'Create an executive meeting briefing about "' + companyName + '".\n' +
+    'Focus 100% on the customer — their strategic priorities, business challenges, and market context.\n\n' +
+    '--- STRATEGIC INITIATIVES ---\n' + initiatives + '\n\n' +
+    '--- PRIORITY MAPPINGS ---\n' + priorities + '\n\n' +
+    '--- EXPANSION CONTEXT ---\n' + expansions + '\n\n' +
+    'Return a JSON object with exactly this structure:\n' +
+    '{\n' +
+    '  "introText": "1-2 sentences setting context about the company\'s current strategic focus and market position. No source citations.",\n' +
+    '  "priorities": [\n' +
+    '    {\n' +
+    '      "title": "Priority title (with parenthetical context if relevant)",\n' +
+    '      "body": "A 3-4 sentence paragraph describing the customer\'s strategic initiative, why it matters to their business, and what challenges or opportunities it presents. Use **bold** for key data points. Use *italic* for emphasis."\n' +
+    '    }\n' +
+    '  ]\n' +
+    '}\n\n' +
+    'Rules:\n' +
+    '- Provide exactly 3 priorities\n' +
+    '- Each priority must focus on the customer\'s business initiative, challenge, or opportunity\n' +
+    '- Do NOT mention Docusign or any vendor products/solutions\n' +
+    '- The body should read as natural prose, not bullet points\n' +
+    '- Bold company names and dollar figures (e.g. **$2.5B**, **Wells Fargo**)\n' +
+    '- Italic for emphasis on specific terms (e.g. *digital transformation*, *compliance*)';
+
+  Logger.log('[Research] buildCall6Request: Executive Briefing for "' + companyName + '"');
+  return buildLLMRequest(systemPrompt, userPrompt);
+}
+
+/**
+ * Call 7: Big Bet Initiatives — 3 quantified, high-impact IAM transformation projects.
+ * @param {string} companyName
+ * @param {Object} accountProfile  Result from Call 1
+ * @param {Object} priorityMap     Result from Call 5
+ * @param {Object} productSignals  Output of generateProductSignals()
+ * @param {Object} agreementLandscape  Result from Call 3
+ * @param {string} internalSummary  Text summary from summarizeForLLM()
+ * @returns {Object} { bigBets: [...] }
+ */
+function generateBigBetInitiatives(companyName, accountProfile, priorityMap, productSignals, agreementLandscape, internalSummary) {
+  var request = buildCall7Request(companyName, accountProfile, priorityMap, productSignals, agreementLandscape, internalSummary);
+  Logger.log('[Research] Call 7: Generating Big Bet Initiatives for "' + companyName + '"');
+
+  var payload = JSON.parse(request.payload);
+  return callLLMJson(payload.sr, payload.ur);
+}
+
+/**
+ * Build Call 7 request (Big Bet Initiatives) without sending it.
+ * @param {string} companyName
+ * @param {Object} accountProfile  Result from Call 1
+ * @param {Object} priorityMap     Result from Call 5
+ * @param {Object} productSignals  Output of generateProductSignals()
+ * @param {Object} agreementLandscape  Result from Call 3
+ * @param {string} internalSummary  Text summary from summarizeForLLM()
+ * @returns {Object} request object for callLLMJsonParallel
+ */
+function buildCall7Request(companyName, accountProfile, priorityMap, productSignals, agreementLandscape, internalSummary) {
+  var catalogContext = buildCatalogContext();
+  var signalSummary = (productSignals && productSignals.summary) || '';
+
+  var systemPrompt =
+    'You are a senior Docusign solutions architect designing high-impact IAM (Intelligent Agreement Management) transformation projects.\n' +
+    'Your goal is to identify 3 bold, quantified initiatives that would transform how the company manages agreements.\n\n' +
+    '--- DOCUSIGN PRODUCT CATALOG ---\n' + catalogContext + '\n\n' +
+    '--- PRODUCT SIGNALS (from internal data analysis) ---\n' + signalSummary + '\n\n' +
+    'IMPORTANT: Use product signals to ground recommendations. Do NOT recommend products marked "in_use" as the core of a big bet. ' +
+    'Prioritize "strong" signal products. Each bet must use 2+ Docusign products.\n\n' +
+    'Return your response as valid JSON only. No markdown fences, no extra text.';
+
+  // Build context from available data
+  var contextParts = [];
+
+  if (accountProfile) {
+    if (accountProfile.financials) {
+      contextParts.push('Company Financials: ' + JSON.stringify(accountProfile.financials));
+    }
+    if (accountProfile.businessPerformance && accountProfile.businessPerformance.strategicInitiatives) {
+      contextParts.push('Strategic Initiatives: ' + JSON.stringify(accountProfile.businessPerformance.strategicInitiatives));
+    }
+    if (accountProfile.businessUnits) {
+      contextParts.push('Business Units: ' + accountProfile.businessUnits.map(function(bu) {
+        return bu.name + ' (' + (bu.offering || '') + ')';
+      }).join(', '));
+    }
+    if (accountProfile.technologyStack) {
+      contextParts.push('Tech Stack: ' + JSON.stringify(accountProfile.technologyStack));
+    }
+  }
+
+  if (priorityMap) {
+    if (priorityMap.priorityMapping) {
+      contextParts.push('Priority Mappings: ' + JSON.stringify(priorityMap.priorityMapping));
+    }
+    if (priorityMap.expansionOpportunities) {
+      contextParts.push('Expansion Opportunities: ' + JSON.stringify(priorityMap.expansionOpportunities));
+    }
+  }
+
+  if (agreementLandscape && agreementLandscape.agreements) {
+    contextParts.push('Top Agreement Types: ' + agreementLandscape.agreements.slice(0, 10).map(function(a) {
+      return a.agreementType + ' (' + a.category + ', vol:' + a.volume + ', cx:' + a.complexity + ')';
+    }).join(', '));
+  }
+
+  if (internalSummary) {
+    contextParts.push('Internal Docusign Usage Data:\n' + internalSummary);
+  }
+
+  var userPrompt =
+    'Design 3 Big Bet IAM transformation initiatives for "' + companyName + '".\n\n' +
+    '--- COMPANY CONTEXT ---\n' + contextParts.join('\n\n') + '\n\n' +
+    'Return a JSON object with exactly this structure:\n' +
+    '{\n' +
+    '  "bigBets": [\n' +
+    '    {\n' +
+    '      "number": 1,\n' +
+    '      "title": "Short punchy initiative name",\n' +
+    '      "targetBusinessUnit": "Which BU this serves",\n' +
+    '      "painPoint": "The problem it solves (2-3 sentences)",\n' +
+    '      "solution": {\n' +
+    '        "description": "What the IAM solution looks like (3-4 sentences)",\n' +
+    '        "primaryProducts": ["Docusign Product 1", "Docusign Product 2"],\n' +
+    '        "integrations": ["Salesforce", "SAP", "etc."]\n' +
+    '      },\n' +
+    '      "impact": {\n' +
+    '        "estimatedAnnualValue": "$X.XM",\n' +
+    '        "valueDrivers": [\n' +
+    '          { "driver": "Description of value driver", "estimate": "$X" }\n' +
+    '        ],\n' +
+    '        "qualitativeImpact": "Risk reduction, compliance improvement, etc."\n' +
+    '      },\n' +
+    '      "implementation": {\n' +
+    '        "effortLevel": "Low|Medium|High",\n' +
+    '        "timelineWeeks": "X-Y weeks",\n' +
+    '        "phases": [\n' +
+    '          { "phase": "Phase name", "duration": "X weeks", "activities": "Key activities" }\n' +
+    '        ],\n' +
+    '        "prerequisites": ["prerequisite 1", "prerequisite 2"]\n' +
+    '      },\n' +
+    '      "executiveSponsor": "Suggested executive title (e.g. CPO, CLO, CIO)",\n' +
+    '      "rationale": "A 3-4 sentence paragraph explaining WHY this was identified as a big bet. Reference specific evidence from the research: financial data points, strategic initiatives, agreement landscape findings, product signal strengths, internal usage patterns, or pain points that converge to make this a high-impact opportunity. This should read as a persuasive narrative connecting the dots across multiple data sources."\n' +
+    '    }\n' +
+    '  ]\n' +
+    '}\n\n' +
+    'Rules:\n' +
+    '- Exactly 3 big bets, sorted by estimated annual value (highest first)\n' +
+    '- Each must use 2+ Docusign products from the catalog\n' +
+    '- Prioritize strong-signal products from the product signals data\n' +
+    '- Do NOT recommend products already in use as the core of a big bet (they can be supporting)\n' +
+    '- At least one bet must be revenue-side (sales, customer-facing agreements)\n' +
+    '- At least one bet must be spend-side (procurement, vendor, supply chain agreements)\n' +
+    '- Value estimates should be realistic and grounded in the company\'s financials\n' +
+    '- Implementation phases should be specific and actionable (typically 3 phases each)\n' +
+    '- Each bet should target a different business unit where possible\n' +
+    '- The rationale field is critical: it must cite specific data points from the company context above (e.g. revenue figures, strategic initiative names, agreement types, product signals) to substantiate why this bet was chosen';
+
+  Logger.log('[Research] buildCall7Request: Big Bet Initiatives for "' + companyName + '"');
+  return buildLLMRequest(systemPrompt, userPrompt);
 }

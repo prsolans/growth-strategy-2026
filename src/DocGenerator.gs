@@ -237,17 +237,11 @@ function generateGrowthStrategyDoc(companyName) {
     enrichment = {};
   }
 
-  // ── Step 2: Run 6 LLM research calls (sequential) ─────────────────
-  // OPTIMIZATION NOTE: Calls 2, 3, 4 only use Call 1's accountProfile for
-  // enrichment context — the cross-call dependencies (3→businessMap, 4→agreements)
-  // are not essential. These three could run in parallel via UrlFetchApp.fetchAll()
-  // after Call 1 completes, cutting the sequence from 1→2→3→4→5 to 1→(2‖3‖4)→5.
-  // Requires: extracting request-building from callLLM(), dropping the businessMap
-  // param from researchAgreementLandscape, and the agreements param from
-  // researchContractCommerce. See git log for full analysis.
+  // ── Step 2: Run 7 LLM research calls ──────────────────────────────
+  // Call 1 (sequential) → Calls 2+3+4 (parallel) → Call 5 (sequential) → Calls 6+7 (parallel)
 
   // Call 1: Account Profile (with enrichment anchoring)
-  Logger.log('[DocGen] === LLM CALL 1/6: Account Profile ===');
+  Logger.log('[DocGen] === LLM CALL 1/7: Account Profile ===');
   var accountProfile;
   try {
     accountProfile = researchAccountProfile(data.identity.name, data.context.industry, enrichment);
@@ -264,28 +258,72 @@ function generateGrowthStrategyDoc(companyName) {
     Logger.log('[DocGen] Enrichment enforcement failed (non-fatal): ' + e.message);
   }
 
-  // Call 2: Business Map
-  Logger.log('[DocGen] === LLM CALL 2/6: Business Map ===');
-  var businessMap;
-  try {
-    businessMap = researchBusinessMap(data.identity.name, data.context.industry,
-      accountProfile);
-    Logger.log('[DocGen] Call 2 succeeded. Nodes: ' + (businessMap && businessMap.nodes ? businessMap.nodes.length : 0));
-  } catch (e) {
-    Logger.log('[DocGen] Call 2 FAILED: ' + e.message);
-    businessMap = {};
-  }
+  // Calls 2+3+4: Business Map, Agreement Landscape, Contract Commerce (PARALLEL)
+  Logger.log('[DocGen] === LLM CALLS 2+3+4/7: Business Map + Agreement Landscape + Contract Commerce (parallel) ===');
+  var businessMap = {};
+  var agreementLandscape = {};
+  var contractCommerce = {};
 
-  // Call 3: Agreement Landscape
-  Logger.log('[DocGen] === LLM CALL 3/6: Agreement Landscape ===');
-  var agreementLandscape;
   try {
-    agreementLandscape = researchAgreementLandscape(data.identity.name, data.context.industry,
-      accountProfile, businessMap);
-    Logger.log('[DocGen] Call 3 succeeded. Agreements: ' + (agreementLandscape && agreementLandscape.agreements ? agreementLandscape.agreements.length : 0));
+    var req2 = buildCall2Request(data.identity.name, data.context.industry, accountProfile);
+    var req3 = buildCall3Request(data.identity.name, data.context.industry, accountProfile);
+    var req4 = buildCall4Request(data.identity.name, data.context.industry, accountProfile);
+
+    var parallelResults = callLLMJsonParallel([req2, req3, req4]);
+
+    // Process results — retry individually on failure
+    if (parallelResults[0]) {
+      businessMap = parallelResults[0];
+      Logger.log('[DocGen] Call 2 (parallel) succeeded. Nodes: ' + (businessMap.nodes ? businessMap.nodes.length : 0));
+    } else {
+      Logger.log('[DocGen] Call 2 (parallel) failed. Retrying individually...');
+      try {
+        businessMap = researchBusinessMap(data.identity.name, data.context.industry, accountProfile);
+        Logger.log('[DocGen] Call 2 retry succeeded. Nodes: ' + (businessMap.nodes ? businessMap.nodes.length : 0));
+      } catch (e2) {
+        Logger.log('[DocGen] Call 2 retry FAILED: ' + e2.message);
+        businessMap = {};
+      }
+    }
+
+    if (parallelResults[1]) {
+      agreementLandscape = parallelResults[1];
+      Logger.log('[DocGen] Call 3 (parallel) succeeded. Agreements: ' + (agreementLandscape.agreements ? agreementLandscape.agreements.length : 0));
+    } else {
+      Logger.log('[DocGen] Call 3 (parallel) failed. Retrying individually...');
+      try {
+        agreementLandscape = researchAgreementLandscape(data.identity.name, data.context.industry, accountProfile, businessMap);
+        Logger.log('[DocGen] Call 3 retry succeeded. Agreements: ' + (agreementLandscape.agreements ? agreementLandscape.agreements.length : 0));
+      } catch (e3) {
+        Logger.log('[DocGen] Call 3 retry FAILED: ' + e3.message);
+        agreementLandscape = {};
+      }
+    }
+
+    if (parallelResults[2]) {
+      contractCommerce = parallelResults[2];
+      Logger.log('[DocGen] Call 4 (parallel) succeeded. Keys: ' + Object.keys(contractCommerce).join(', '));
+    } else {
+      Logger.log('[DocGen] Call 4 (parallel) failed. Retrying individually...');
+      try {
+        contractCommerce = researchContractCommerce(data.identity.name, data.context.industry, accountProfile, agreementLandscape);
+        Logger.log('[DocGen] Call 4 retry succeeded. Keys: ' + Object.keys(contractCommerce).join(', '));
+      } catch (e4) {
+        Logger.log('[DocGen] Call 4 retry FAILED: ' + e4.message);
+        contractCommerce = {};
+      }
+    }
   } catch (e) {
-    Logger.log('[DocGen] Call 3 FAILED: ' + e.message);
-    agreementLandscape = {};
+    Logger.log('[DocGen] Parallel calls 2+3+4 FAILED: ' + e.message + '. Falling back to sequential...');
+    try {
+      businessMap = researchBusinessMap(data.identity.name, data.context.industry, accountProfile);
+    } catch (e2) { Logger.log('[DocGen] Call 2 fallback FAILED: ' + e2.message); businessMap = {}; }
+    try {
+      agreementLandscape = researchAgreementLandscape(data.identity.name, data.context.industry, accountProfile, businessMap);
+    } catch (e3) { Logger.log('[DocGen] Call 3 fallback FAILED: ' + e3.message); agreementLandscape = {}; }
+    try {
+      contractCommerce = researchContractCommerce(data.identity.name, data.context.industry, accountProfile, agreementLandscape);
+    } catch (e4) { Logger.log('[DocGen] Call 4 fallback FAILED: ' + e4.message); contractCommerce = {}; }
   }
 
   // If Call 3 returned empty or failed, use deterministic fallback
@@ -295,20 +333,8 @@ function generateGrowthStrategyDoc(companyName) {
     Logger.log('[DocGen] Fallback generated ' + agreementLandscape.agreements.length + ' agreements');
   }
 
-  // Call 4: Contract Commerce
-  Logger.log('[DocGen] === LLM CALL 4/6: Contract Commerce ===');
-  var contractCommerce;
-  try {
-    contractCommerce = researchContractCommerce(data.identity.name, data.context.industry,
-      accountProfile, agreementLandscape);
-    Logger.log('[DocGen] Call 4 succeeded. Keys: ' + (contractCommerce ? Object.keys(contractCommerce).join(', ') : 'null'));
-  } catch (e) {
-    Logger.log('[DocGen] Call 4 FAILED: ' + e.message);
-    contractCommerce = {};
-  }
-
   // Call 5: Priority Map
-  Logger.log('[DocGen] === LLM CALL 5/6: Priority Map ===');
+  Logger.log('[DocGen] === LLM CALL 5/7: Priority Map ===');
   var externalResearch = {
     accountProfile: accountProfile,
     businessMap: businessMap,
@@ -325,16 +351,52 @@ function generateGrowthStrategyDoc(companyName) {
     priorityMap = {};
   }
 
-  // Call 6: Executive Briefing
-  Logger.log('[DocGen] === LLM CALL 6/6: Executive Briefing ===');
-  var briefing;
+  // Calls 6+7: Executive Briefing + Big Bet Initiatives (PARALLEL)
+  Logger.log('[DocGen] === LLM CALLS 6+7/7: Executive Briefing + Big Bet Initiatives (parallel) ===');
+  var briefing = {};
+  var bigBets = {};
+
   try {
-    briefing = generateExecutiveBriefing(data.identity.name, accountProfile, priorityMap, productSignals);
-    Logger.log('[DocGen] Call 6 succeeded. Priorities: ' +
-      (briefing && briefing.priorities ? briefing.priorities.length : 0));
+    var req6 = buildCall6Request(data.identity.name, accountProfile, priorityMap, productSignals);
+    var req7 = buildCall7Request(data.identity.name, accountProfile, priorityMap, productSignals, agreementLandscape, internalSummary);
+
+    var parallelResults67 = callLLMJsonParallel([req6, req7]);
+
+    if (parallelResults67[0]) {
+      briefing = parallelResults67[0];
+      Logger.log('[DocGen] Call 6 (parallel) succeeded. Priorities: ' + (briefing.priorities ? briefing.priorities.length : 0));
+    } else {
+      Logger.log('[DocGen] Call 6 (parallel) failed. Retrying individually...');
+      try {
+        briefing = generateExecutiveBriefing(data.identity.name, accountProfile, priorityMap, productSignals);
+        Logger.log('[DocGen] Call 6 retry succeeded. Priorities: ' + (briefing.priorities ? briefing.priorities.length : 0));
+      } catch (e6) {
+        Logger.log('[DocGen] Call 6 retry FAILED: ' + e6.message);
+        briefing = {};
+      }
+    }
+
+    if (parallelResults67[1]) {
+      bigBets = parallelResults67[1];
+      Logger.log('[DocGen] Call 7 (parallel) succeeded. Big Bets: ' + (bigBets.bigBets ? bigBets.bigBets.length : 0));
+    } else {
+      Logger.log('[DocGen] Call 7 (parallel) failed. Retrying individually...');
+      try {
+        bigBets = generateBigBetInitiatives(data.identity.name, accountProfile, priorityMap, productSignals, agreementLandscape, internalSummary);
+        Logger.log('[DocGen] Call 7 retry succeeded. Big Bets: ' + (bigBets.bigBets ? bigBets.bigBets.length : 0));
+      } catch (e7) {
+        Logger.log('[DocGen] Call 7 retry FAILED: ' + e7.message);
+        bigBets = {};
+      }
+    }
   } catch (e) {
-    Logger.log('[DocGen] Call 6 FAILED: ' + e.message);
-    briefing = {};
+    Logger.log('[DocGen] Parallel calls 6+7 FAILED: ' + e.message + '. Falling back to sequential...');
+    try {
+      briefing = generateExecutiveBriefing(data.identity.name, accountProfile, priorityMap, productSignals);
+    } catch (e6) { Logger.log('[DocGen] Call 6 fallback FAILED: ' + e6.message); briefing = {}; }
+    try {
+      bigBets = generateBigBetInitiatives(data.identity.name, accountProfile, priorityMap, productSignals, agreementLandscape, internalSummary);
+    } catch (e7) { Logger.log('[DocGen] Call 7 fallback FAILED: ' + e7.message); bigBets = {}; }
   }
 
   // ── Step 3: Create the Google Doc ─────────────────────────────────
@@ -358,62 +420,59 @@ function generateGrowthStrategyDoc(companyName) {
   body.setMarginLeft(48);
   body.setMarginRight(48);
 
-  // ── Build 10 sections ─────────────────────────────────────────────
-  // Order: executive briefing first, then analysis & recommendations, then supporting detail.
+  // ── Build 11 sections ─────────────────────────────────────────────
+  // Order: executive briefing first, big bets, then analysis & recommendations, then supporting detail.
 
-  Logger.log('[DocGen] Building Section 0/10: Executive Meeting Briefing');
+  Logger.log('[DocGen] Building Section 0/11: Executive Meeting Briefing');
   addExecutiveBriefingSection(body, data, briefing);
   if (briefing && briefing.priorities) {
     body.appendPageBreak();
   }
 
-  Logger.log('[DocGen] Building Section 1/10: Company Profile');
-  addCompanyProfileSection(body, data, accountProfile);
-  addInlineSources(body, accountProfile);
+  Logger.log('[DocGen] Building Section 1/11: Big Bet Initiatives');
+  addBigBetInitiativesSection(body, data, bigBets);
+  if (bigBets && bigBets.bigBets && bigBets.bigBets.length > 0) {
+    body.appendPageBreak();
+  }
+
+  Logger.log('[DocGen] Building Section 2/11: Company Profile');
+  addCompanyProfileSection(body, data, accountProfile, enrichment);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 2/10: Account Health Analysis');
+  Logger.log('[DocGen] Building Section 3/11: Account Health Analysis');
   addAccountHealthSection(body, data);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 3/10: Priority Map');
+  Logger.log('[DocGen] Building Section 4/11: Priority Map');
   addPriorityMapSection(body, data, priorityMap, productSignals);
-  addInlineSources(body, priorityMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 4/10: Docusign Footprint');
+  Logger.log('[DocGen] Building Section 5/11: Docusign Footprint');
   addDocusignTodaySection(body, data, priorityMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 5/10: Business Performance & Strategy');
+  Logger.log('[DocGen] Building Section 6/11: Business Performance & Strategy');
   addBusinessPerformanceSection(body, data, accountProfile);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 6/10: Executive Contacts & Technology');
+  Logger.log('[DocGen] Building Section 7/11: Executive Contacts & Technology');
   addExecutivesAndTechSection(body, data, accountProfile);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 7/10: Business Map');
+  Logger.log('[DocGen] Building Section 8/11: Business Map');
   addBusinessMapSection(body, data, businessMap);
-  addInlineSources(body, businessMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 8/10: Agreement Landscape');
+  Logger.log('[DocGen] Building Section 9/11: Agreement Landscape');
   addAgreementLandscapeSection(body, data, agreementLandscape);
-  addInlineSources(body, agreementLandscape);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 9/10: Contract Commerce Estimate');
+  Logger.log('[DocGen] Building Section 10/11: Contract Commerce Estimate');
   addContractCommerceSection(body, data, contractCommerce);
-  addInlineSources(body, contractCommerce);
 
-  // ── Collect and render sources ──────────────────────────────────
-  Logger.log('[DocGen] Building Sources section');
-  var allSources = collectSources(accountProfile, businessMap, agreementLandscape, contractCommerce, priorityMap);
-  if (allSources.length > 0) {
-    body.appendPageBreak();
-    addSourcesSection(body, allSources);
-  }
+  body.appendPageBreak();
+  Logger.log('[DocGen] Building appendix: Data Sources & Methodology');
+  addDataSourcesSection(body, enrichment);
 
   Logger.log('[DocGen] Saving and closing doc...');
   doc.saveAndClose();
@@ -504,6 +563,7 @@ function addExecutiveBriefingSection(body, data, briefing) {
   if (!briefing || !briefing.priorities) return;
 
   addSectionHeading(body, data.identity.name + ': Executive Meeting Briefing');
+  addSectionDescription(body, 'Sources: AI-synthesized narrative focused on the customer\'s strategic priorities, business challenges, and market context. No independently verified data in this section; content reflects LLM interpretation. Treat as a conversation starter, not a factual reference.');
 
   // Intro paragraph with rich text
   if (briefing.introText) {
@@ -532,33 +592,142 @@ function addExecutiveBriefingSection(body, data, briefing) {
 }
 
 /**
- * Section 1: Company Profile
+ * Section 1: Big Bet Initiatives — 3 quantified, high-impact IAM transformation projects.
  */
-function addCompanyProfileSection(body, data, accountProfile) {
+function addBigBetInitiativesSection(body, data, bigBets) {
+  if (!bigBets || !bigBets.bigBets || bigBets.bigBets.length === 0) return;
+
+  addSectionHeading(body, 'Big Bet Initiatives');
+  addSectionDescription(body, 'Sources: AI-generated strategic analysis combining SEC EDGAR financials, internal Docusign usage signals, agreement landscape estimates, and strategic initiative research. Dollar figures and ROI projections are LLM estimates grounded in company financials but not independently verified.');
+
+  var bets = bigBets.bigBets;
+  bets.forEach(function(bet) {
+    // ── Title (H2, Docusign purple) ──────────────────────────────
+    var titleText = 'Big Bet #' + (bet.number || '') + ': ' + (bet.title || 'Initiative');
+    var titlePara = body.appendParagraph(titleText);
+    titlePara.setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    titlePara.editAsText().setFontSize(15);
+    titlePara.editAsText().setBold(true);
+    titlePara.editAsText().setForegroundColor(DOCUSIGN_PURPLE);
+    titlePara.setSpacingBefore(12);
+    titlePara.setSpacingAfter(4);
+
+    // ── Metadata line (italic) ───────────────────────────────────
+    var metaParts = [];
+    if (bet.targetBusinessUnit) metaParts.push('Target BU: ' + bet.targetBusinessUnit);
+    if (bet.executiveSponsor) metaParts.push('Executive Sponsor: ' + bet.executiveSponsor);
+    if (metaParts.length > 0) {
+      var metaPara = body.appendParagraph(metaParts.join('  |  '));
+      metaPara.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+      metaPara.editAsText().setFontSize(10);
+      metaPara.editAsText().setItalic(true);
+      metaPara.editAsText().setForegroundColor('#666666');
+      metaPara.setSpacingAfter(6);
+    }
+
+    // ── Why This Big Bet (rationale) ─────────────────────────────
+    if (bet.rationale) {
+      var rationaleLabel = body.appendParagraph('Why This Big Bet');
+      rationaleLabel.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+      rationaleLabel.editAsText().setFontSize(11);
+      rationaleLabel.editAsText().setBold(true);
+      rationaleLabel.editAsText().setForegroundColor('#333333');
+      rationaleLabel.setSpacingBefore(4);
+      rationaleLabel.setSpacingAfter(2);
+      addBodyText(body, bet.rationale);
+    }
+
+    // ── Challenge ────────────────────────────────────────────────
+    if (bet.painPoint) {
+      var challengeLabel = body.appendParagraph('Challenge');
+      challengeLabel.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+      challengeLabel.editAsText().setFontSize(11);
+      challengeLabel.editAsText().setBold(true);
+      challengeLabel.editAsText().setForegroundColor('#333333');
+      challengeLabel.setSpacingBefore(4);
+      challengeLabel.setSpacingAfter(2);
+      addBodyText(body, bet.painPoint);
+    }
+
+    // ── Docusign IAM Solution ────────────────────────────────────
+    var sol = bet.solution || {};
+    var solLabel = body.appendParagraph('Docusign IAM Solution');
+    solLabel.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+    solLabel.editAsText().setFontSize(11);
+    solLabel.editAsText().setBold(true);
+    solLabel.editAsText().setForegroundColor('#333333');
+    solLabel.setSpacingBefore(4);
+    solLabel.setSpacingAfter(2);
+
+    if (sol.description) {
+      addBodyText(body, sol.description);
+    }
+    if (sol.primaryProducts && sol.primaryProducts.length > 0) {
+      var prodText = 'Products: ' + sol.primaryProducts.join(', ');
+      var prodPara = addBodyText(body, prodText);
+      prodPara.editAsText().setBold(0, 'Products:'.length, true);
+    }
+    if (sol.integrations && sol.integrations.length > 0) {
+      var intText = 'Integrations: ' + sol.integrations.join(', ');
+      var intPara = addBodyText(body, intText);
+      intPara.editAsText().setBold(0, 'Integrations:'.length, true);
+    }
+
+    addSpacer(body);
+  });
+}
+
+/**
+ * Section 2: Company Profile
+ */
+function addCompanyProfileSection(body, data, accountProfile, enrichment) {
   addSectionHeading(body, 'Company Profile');
+  addSectionDescription(body, 'Sources: SEC EDGAR 10-K filings (revenue, employees, segment data), Wikipedia (company overview), Wikidata (CEO, HQ, founding date), and AI research via Bing-grounded web search (business units, customer base, supply chain). Verified data is labeled per sub-table; AI-generated fields are marked accordingly.');
 
   var ap = accountProfile || {};
+  var enr = enrichment || {};
 
   // Overview paragraph
   if (ap.companyOverview) {
     addBodyText(body, ap.companyOverview);
+    if (enr.overview) {
+      addSourceNote(body, 'Source: Wikipedia');
+    }
   }
 
   // Business Units table
   var bus = ap.businessUnits || [];
   if (bus.length > 0) {
     addSubHeading(body, 'Business Units');
-    var buRows = [['Name', 'Offering', 'Target Segment', 'Revenue Model', 'Customers']];
+    var buRows = [['Name', 'Offering', 'Target Segment', 'Revenue Model', 'Segment Revenue', 'Customers']];
     bus.forEach(function(bu) {
       buRows.push([
         bu.name || '',
         bu.offering || '',
         bu.targetSegment || '',
         bu.pricingRevenueModel || '',
+        bu.segmentRevenue || '',
         bu.customerCount || ''
       ]);
     });
     addStyledTable(body, buRows);
+    var buSources = ['AI-generated research (Bing-grounded)'];
+    if (enr.segments && enr.segments.length > 0 && enr.segmentType !== 'geographic') {
+      buSources.push('Segment Revenue from SEC EDGAR 10-K XBRL filing');
+    }
+    addSourceNote(body, 'Source: ' + buSources.join(' · '));
+  }
+
+  // Revenue by Geography table (geographic segments only)
+  if (enr.segmentType === 'geographic' && enr.segments && enr.segments.length > 0) {
+    addSubHeading(body, 'Revenue by Geography');
+    var geoRows = [['Region', 'Revenue']];
+    enr.segments.forEach(function(seg) {
+      geoRows.push([seg.name || '', formatDollars(seg.revenue)]);
+    });
+    addStyledTable(body, geoRows);
+    var period = enr.filingPeriod ? ' (FY ' + enr.filingPeriod + ')' : '';
+    addSourceNote(body, 'Source: SEC EDGAR 10-K' + period + ' \u00b7 Geographic segments');
   }
 
   // Key Metrics table
@@ -572,13 +741,38 @@ function addCompanyProfileSection(body, data, accountProfile) {
     ['Metric', 'Value', 'Context'],
     ['Customer Base', custBase.total || 'N/A', custBase.context || ''],
     ['Employees', empCount.total || 'N/A', empCount.context || ''],
-    ['Supply Chain', (supply.majorCategories || []).join(', ') || 'N/A', supply.context || ''],
-    ['Revenue', fin.revenue || 'N/A', fin.context || ''],
-    ['COGS', fin.cogs || 'N/A', ''],
-    ['OpEx', fin.opex || 'N/A', ''],
-    ['CapEx', fin.capex || 'N/A', '']
+    ['Supply Chain', (supply.majorCategories || []).join(', ') || 'N/A', supply.context || '']
   ];
   addStyledTable(body, metricsRows);
+  var metricSources = [];
+  if (enr.employeesFormatted) metricSources.push('Employee count from SEC EDGAR 10-K');
+  if (metricSources.length > 0) {
+    addSourceNote(body, 'Source: ' + metricSources.join(' · '));
+  }
+
+  // Financial metrics table with definitions and insight
+  var filingPeriod = enr.filingPeriod || '';
+  var finLabel = filingPeriod ? 'Financial Metrics (FY ' + filingPeriod + ')' : 'Financial Metrics';
+  addSubHeading(body, finLabel);
+  var METRIC_DEFS = {
+    revenue:   'Total income from all business activities',
+    cogs:      'Direct costs of goods/services sold',
+    opex:      'Day-to-day operating costs',
+    capex:     'Investments in property & equipment',
+    netIncome: 'Profit after all expenses and taxes'
+  };
+  var finRows = [
+    ['Metric', 'Value', 'Definition', 'Insight'],
+    ['Revenue',    fin.revenue   || 'N/A', METRIC_DEFS.revenue,   fin.context || ''],
+    ['COGS',       fin.cogs      || 'N/A', METRIC_DEFS.cogs,      ''],
+    ['OpEx',       fin.opex      || 'N/A', METRIC_DEFS.opex,      ''],
+    ['CapEx',      fin.capex     || 'N/A', METRIC_DEFS.capex,     ''],
+    ['Net Income', fin.netIncome || 'N/A', METRIC_DEFS.netIncome, '']
+  ];
+  addStyledTable(body, finRows);
+  if (enr.revenueFormatted) {
+    addSourceNote(body, 'Source: SEC EDGAR 10-K XBRL filing' + (filingPeriod ? ' (FY ' + filingPeriod + ')' : ''));
+  }
 }
 
 /**
@@ -586,6 +780,7 @@ function addCompanyProfileSection(body, data, accountProfile) {
  */
 function addBusinessPerformanceSection(body, data, accountProfile) {
   addSectionHeading(body, 'Business Performance & Strategy');
+  addSectionDescription(body, 'Sources: AI research via Bing-grounded web search. Three-year trends, highlights, strategic initiatives, and SWOT analysis are LLM-generated based on publicly available information. Financial trend claims should be cross-checked against SEC filings in the Company Profile section.');
 
   var ap = accountProfile || {};
   var perf = ap.businessPerformance || {};
@@ -686,6 +881,7 @@ function addBusinessPerformanceSection(body, data, accountProfile) {
  */
 function addExecutivesAndTechSection(body, data, accountProfile) {
   addSectionHeading(body, 'Executive Contacts & Technology');
+  addSectionDescription(body, 'Sources: AI research via Bing-grounded web search. Executive names, titles, technology stack, and SI partnerships are LLM-identified from public sources. Verify executive contacts and titles before outreach as these may be outdated.');
 
   var ap = accountProfile || {};
 
@@ -738,6 +934,7 @@ function addExecutivesAndTechSection(body, data, accountProfile) {
  */
 function addBusinessMapSection(body, data, businessMap) {
   addSectionHeading(body, 'Business Map');
+  addSectionDescription(body, 'Sources: AI-generated organizational hierarchy based on company profile, public disclosures, and industry patterns. Business units, departments, and functions are LLM estimates. Agreement intensity ratings (High/Medium/Low) reflect expected agreement activity, not measured data.');
 
   var nodes = (businessMap && businessMap.nodes) || [];
 
@@ -810,6 +1007,8 @@ function addBusinessMapSection(body, data, businessMap) {
  */
 function addDocusignTodaySection(body, data, strategy) {
   addSectionHeading(body, 'Docusign Footprint');
+  addSectionDescription(body, 'Sources: Internal Docusign Book of Business (contract terms, consumption metrics, seat usage, integrations). Current use cases are LLM-synthesized from internal product adoption data. All quantitative metrics are verified internal data.');
+  addSourceNote(body, 'Source: Docusign Book of Business · All metrics derived from internal account data');
 
   // ── Current Use Cases (from LLM synthesis) ──────────────────────
   addSubHeading(body, 'Current Use Cases');
@@ -1196,6 +1395,8 @@ function analyzeAccountHealth(data) {
  */
 function addAccountHealthSection(body, data) {
   addSectionHeading(body, 'Account Health Analysis');
+  addSectionDescription(body, 'Sources: Internal Docusign account metrics processed through rule-based scoring. Health indicators (green/yellow/red) are computed deterministically from consumption pacing, usage trends, seat activation, and renewal proximity. No AI estimation involved.');
+  addSourceNote(body, 'Source: Docusign Book of Business · Health indicators computed from internal account metrics');
 
   var health = analyzeAccountHealth(data);
 
@@ -1349,6 +1550,7 @@ function addAccountHealthSection(body, data) {
  */
 function addAgreementLandscapeSection(body, data, agreementLandscape) {
   addSectionHeading(body, 'Agreement Landscape');
+  addSectionDescription(body, 'Sources: AI-estimated agreement types based on company profile, organizational structure, and industry patterns. Volume and complexity scores (1-10 scale) are LLM estimates, not measured counts. Quadrant classifications derive from these estimated scores.');
 
   var agreements = (agreementLandscape && agreementLandscape.agreements) || [];
 
@@ -1486,6 +1688,7 @@ function addAgreementLandscapeSection(body, data, agreementLandscape) {
  */
 function addContractCommerceSection(body, data, contractCommerce) {
   addSectionHeading(body, 'Contract Commerce Estimate');
+  addSectionDescription(body, 'Sources: AI-estimated dollar values for commerce flowing through agreements, grounded in SEC EDGAR financials and company profile. Revenue splits and department-level estimates are LLM projections, not audited figures. Use as directional sizing, not precise forecasts.');
 
   var cc = contractCommerce || {};
 
@@ -1613,6 +1816,7 @@ function findSignalForProduct(product, signals) {
  */
 function addPriorityMapSection(body, data, priorityMap, productSignals) {
   addSectionHeading(body, 'Priority Map');
+  addSectionDescription(body, 'Sources: AI synthesis mapping company strategic priorities to Docusign capabilities, combined with deterministic product signals from internal usage analysis. Top opportunities are scored by initiative alignment and white-space analysis. Bundle recommendations are rule-based from product signals.');
 
   var pm = priorityMap || {};
 
@@ -1924,136 +2128,87 @@ function addPriorityMapSection(body, data, priorityMap, productSignals) {
 
 
 // ═══════════════════════════════════════════════════════════════════════
-// Sources
+// Appendix: Data Sources & Methodology
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Collect sources arrays from all 5 LLM call results and deduplicate by URL.
- */
-function collectSources(accountProfile, businessMap, agreementLandscape, contractCommerce, priorityMap) {
-  var all = [];
-  var seen = {};
-
-  // Known hallucinated or placeholder domains the LLM tends to fabricate
-  var blockedPatterns = [
-    /internal\.docusign/i,
-    /docusigndata\.com/i,
-    /example\.com/i,
-    /placeholder\./i,
-    /localhost/i,
-    /hypothetical/i,
-    /fictional/i,
-    /sampleurl/i,
-    /companywebsite\.com/i,
-    /companydomain\.com/i,
-    /companyname\.com/i,
-    /corporatesite\.com/i,
-    /businesswebsite\.com/i,
-    /genericurl/i,
-    /testsite\.com/i,
-    /fakeurl/i
-  ];
-
-  function isBlockedUrl(url) {
-    for (var i = 0; i < blockedPatterns.length; i++) {
-      if (blockedPatterns[i].test(url)) return true;
-    }
-    // Block bare domain-only URLs (no path) — they don't cite anything specific
-    try {
-      var stripped = url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
-      if (stripped.indexOf('/') === -1) return true;
-    } catch (e) {}
-    return false;
-  }
-
-  function addFrom(obj) {
-    if (!obj || !obj.sources || !Array.isArray(obj.sources)) return;
-    obj.sources.forEach(function(s) {
-      if (s && s.url && !seen[s.url] && !isBlockedUrl(s.url)) {
-        seen[s.url] = true;
-        all.push({ title: s.title || s.url, url: s.url });
-      }
-    });
-  }
-
-  addFrom(accountProfile);
-  addFrom(businessMap);
-  addFrom(agreementLandscape);
-  addFrom(contractCommerce);
-  addFrom(priorityMap);
-
-  Logger.log('[DocGen] Collected ' + all.length + ' unique sources from LLM responses');
-  return all;
-}
-
-/**
- * Render inline parenthetical source references at the end of a section.
- * Shows "(Sources: title1, title2, ...)" with each title hyperlinked.
+ * Appendix section: Data Sources & Methodology.
+ * Lists all data sources used, what they provided, and methodology notes.
  * @param {Body} body
- * @param {Object} llmResult - An LLM result object that may contain a sources array
+ * @param {Object} enrichment  Output of enrichCompanyData()
  */
-function addInlineSources(body, llmResult) {
-  if (!llmResult || !llmResult.sources || !Array.isArray(llmResult.sources) || llmResult.sources.length === 0) return;
+function addDataSourcesSection(body, enrichment) {
+  addSectionHeading(body, 'Data Sources & Methodology');
 
-  // Build the text: "(Sources: title1, title2, ...)"
-  var prefix = '(Sources: ';
-  var suffix = ')';
-  var titles = [];
-  var links = [];  // { start, end, url } for each title
+  var enr = enrichment || {};
 
-  llmResult.sources.forEach(function(s) {
-    if (s && s.url && s.title) {
-      titles.push(s.title);
-      links.push({ title: s.title, url: s.url });
-    }
-  });
+  addBodyText(body, 'This report combines verified data from multiple authoritative sources. ' +
+    'Where data is sourced from public filings or databases, it is used as-is. ' +
+    'AI-generated analysis is grounded with live web search (Bing) and anchored to verified data points.');
 
-  if (titles.length === 0) return;
+  // Build sources table dynamically based on what was actually enriched
+  var rows = [['Source', 'Data Provided', 'Notes']];
 
-  var fullText = prefix + titles.join(', ') + suffix;
-  var para = body.appendParagraph(fullText);
-  para.editAsText().setFontSize(9);
-  para.editAsText().setBold(false);
-  para.editAsText().setItalic(true);
-  para.editAsText().setForegroundColor('#666666');
-  para.setSpacingBefore(2);
-  para.setSpacingAfter(4);
+  // Always present: internal Docusign data
+  rows.push([
+    'Docusign Book of Business',
+    'Contract terms, consumption metrics, seat usage, integrations, product adoption, financial data (ACV/CMRR)',
+    'Internal account data extracted from Docusign systems'
+  ]);
 
-  // Apply hyperlinks to each title
-  var offset = prefix.length;
-  for (var i = 0; i < links.length; i++) {
-    var start = fullText.indexOf(links[i].title, offset);
-    if (start !== -1) {
-      var end = start + links[i].title.length - 1;
-      para.editAsText().setLinkUrl(start, end, links[i].url);
-      para.editAsText().setForegroundColor(start, end, '#1155CC');
-      offset = end + 1;
-    }
+  // SEC EDGAR
+  if (enr.revenueFormatted || enr.segments) {
+    var secData = [];
+    if (enr.revenueFormatted) secData.push('consolidated financials (revenue, COGS, OpEx, CapEx, net income)');
+    if (enr.employeesFormatted) secData.push('employee count');
+    if (enr.segments && enr.segments.length > 0) secData.push('segment revenue (' + enr.segments.length + ' segments)');
+    var period = enr.filingPeriod ? 'From most recent 10-K annual filing (FY ' + enr.filingPeriod + ')' : 'From most recent 10-K annual filing';
+    rows.push([
+      'SEC EDGAR (XBRL)',
+      secData.join(', '),
+      period + '. Parsed from XBRL instance documents via SEC EDGAR API.'
+    ]);
   }
-}
 
-/**
- * Render a Sources section at the end of the document.
- */
-function addSourcesSection(body, sources) {
-  addSectionHeading(body, 'Sources');
-
-  for (var i = 0; i < sources.length; i++) {
-    var s = sources[i];
-    var text = (i + 1) + '. ' + s.title;
-    var para = addBodyText(body, text);
-    para.editAsText().setFontSize(10);
-    para.editAsText().setBold(false);
-    para.setSpacingAfter(0);
-
-    // Add the URL as a clickable link on the next line
-    var urlPara = addBodyText(body, s.url);
-    urlPara.editAsText().setFontSize(9);
-    urlPara.editAsText().setBold(false);
-    urlPara.editAsText().setForegroundColor('#1155CC');
-    urlPara.setLinkUrl(s.url);
-    urlPara.setSpacingAfter(4);
+  // Wikipedia
+  if (enr.overview) {
+    rows.push([
+      'Wikipedia',
+      'Company overview',
+      'Summary extract from English Wikipedia article'
+    ]);
   }
+
+  // Wikidata
+  var wikidataFields = [];
+  if (enr.ceo) wikidataFields.push('CEO');
+  if (enr.headquarters) wikidataFields.push('headquarters');
+  if (enr.foundingDate) wikidataFields.push('founding date');
+  if (enr.ticker) wikidataFields.push('stock ticker');
+  if (wikidataFields.length > 0) {
+    rows.push([
+      'Wikidata',
+      wikidataFields.join(', '),
+      'Structured data from Wikidata knowledge base'
+    ]);
+  }
+
+  // AI research (always present)
+  rows.push([
+    'AI Research (Bing-grounded)',
+    'Business units, SWOT analysis, strategic initiatives, executive contacts, technology stack, agreement landscape, contract commerce estimates, priority mapping',
+    'Generated by LLM with live Bing web search grounding. Verified data from sources above is enforced over AI estimates.'
+  ]);
+
+  addStyledTable(body, rows);
+
+  addSpacer(body);
+  var methodNote = addBodyText(body,
+    'Methodology: Verified data from SEC filings and public databases is fetched first and injected into AI prompts as anchoring context. ' +
+    'After AI generation, a post-processing enforcement step overwrites any AI-generated values that conflict with verified data. ' +
+    'This ensures financial figures, employee counts, and segment revenue reflect actual SEC filings rather than AI estimates.');
+  methodNote.editAsText().setFontSize(9);
+  methodNote.editAsText().setForegroundColor('#666666');
 }
 
 
@@ -2111,6 +2266,42 @@ function addSpacer(body) {
   sp.editAsText().setFontSize(4);
   sp.editAsText().setBold(false);
   sp.setSpacingBefore(0).setSpacingAfter(0);
+}
+
+/**
+ * Add an inline source attribution note — small italic gray text.
+ * e.g. "Source: SEC EDGAR 10-K Filing (FY 2024)"
+ * @param {Body} body
+ * @param {string} text
+ */
+function addSourceNote(body, text) {
+  var para = body.appendParagraph(text);
+  para.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+  para.editAsText().setFontSize(8);
+  para.editAsText().setItalic(true);
+  para.editAsText().setBold(false);
+  para.editAsText().setForegroundColor('#888888');
+  para.setSpacingBefore(2);
+  para.setSpacingAfter(6);
+  return para;
+}
+
+/**
+ * Add a section description paragraph — brief provenance note below section headings.
+ * 9pt italic gray text, tight against heading with small gap before content.
+ * @param {Body} body
+ * @param {string} text
+ */
+function addSectionDescription(body, text) {
+  var para = body.appendParagraph(text);
+  para.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+  para.editAsText().setFontSize(9);
+  para.editAsText().setItalic(true);
+  para.editAsText().setBold(false);
+  para.editAsText().setForegroundColor('#777777');
+  para.setSpacingBefore(0);
+  para.setSpacingAfter(8);
+  return para;
 }
 
 /**
