@@ -25,6 +25,42 @@ var CONTRACT_TYPE_COLORS = {
 };
 
 /**
+ * Extract a plain string from a value that may be a string, object, or nested structure.
+ * LLMs sometimes return { name: "..." } or { agreementType: "..." } instead of a bare string.
+ * @param {*} val  The value to extract a string from
+ * @returns {string}
+ */
+function extractString(val) {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null) {
+    // Try common property names the LLM might nest under
+    var candidate = val.name || val.agreementType || val.type || val.label || val.title || val.value || '';
+    if (typeof candidate === 'string') return candidate;
+    if (typeof candidate === 'object' && candidate !== null) {
+      return candidate.name || candidate.agreementType || candidate.type || candidate.label || '';
+    }
+    return '';
+  }
+  return String(val);
+}
+
+/**
+ * Normalize a contract type string to one of the canonical values.
+ * Handles casing variations and missing/malformed values from LLM output.
+ * @param {string} raw  Raw contract type from LLM
+ * @returns {string} One of 'Negotiated', 'Non-negotiated', 'Form-based', 'Regulatory'
+ */
+function normalizeContractType(raw) {
+  if (!raw || typeof raw !== 'string') return 'Negotiated';
+  var lower = raw.toLowerCase().replace(/[\s_-]+/g, '');
+  if (lower.indexOf('regulat') >= 0) return 'Regulatory';
+  if (lower.indexOf('form') >= 0) return 'Form-based';
+  if (lower.indexOf('non') >= 0) return 'Non-negotiated';
+  return 'Negotiated';
+}
+
+/**
  * Compute quadrant label from volume and complexity (both 1-10, baseline 5).
  * @param {number} volume
  * @param {number} complexity
@@ -199,6 +235,238 @@ function createBarChart(departments) {
     return null;
   } finally {
     cleanupTempSheet(ss);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// QuickChart Quadrant Chart
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Shorten an agreement type name for chart bubble labels.
+ * Extracts parenthetical abbreviation if present, otherwise uses first 2-3 words.
+ * @param {string} name  Full agreement type name
+ * @returns {string} Short label
+ */
+function abbreviateAgreementType(name) {
+  if (!name) return '';
+  // Extract a string from objects (LLM sometimes returns {name:..} or {agreementType:..})
+  if (typeof name === 'object' && name !== null) {
+    name = name.name || name.agreementType || name.type || name.label || '';
+    if (typeof name === 'object') name = '';  // nested object safety
+  }
+  if (typeof name !== 'string') name = '';
+  if (!name) return '';
+  // Extract abbreviation in parentheses, e.g. "Non-Disclosure Agreement (NDA)" → "NDA"
+  var parenMatch = name.match(/\(([A-Z][A-Za-z\/&]{1,8})\)/);
+  if (parenMatch) return parenMatch[1];
+  // Take up to 4 words, allow two lines via \n for readability
+  var words = name.split(/\s+/);
+  var short = words.slice(0, 4).join(' ');
+  if (short.length > 24) short = short.substring(0, 22) + '..';
+  // Wrap to two lines at the nearest space around the midpoint
+  if (short.length > 12) {
+    var mid = Math.floor(short.length / 2);
+    var spaceAfter = short.indexOf(' ', mid);
+    var spaceBefore = short.lastIndexOf(' ', mid);
+    var breakAt = (spaceAfter >= 0 && (spaceAfter - mid) <= (mid - spaceBefore || 999))
+      ? spaceAfter : spaceBefore;
+    if (breakAt > 0) {
+      short = short.substring(0, breakAt) + '\n' + short.substring(breakAt + 1);
+    }
+  }
+  return short;
+}
+
+/**
+ * Build a Chart.js config for a quadrant chart using box annotations (rectangles).
+ * Limits to top 10 agreements by combined volume+complexity score.
+ * Colors match CONTRACT_TYPE_COLORS used in the Agreement Details table.
+ * @param {Array} agreements  Array of agreement objects
+ * @returns {Object} Chart.js configuration
+ */
+function buildQuadrantChartConfig(agreements) {
+  var contractTypes = ['Negotiated', 'Non-negotiated', 'Form-based', 'Regulatory'];
+
+  // Select top 10 agreements by volume + complexity
+  var sorted = agreements.slice().sort(function(a, b) {
+    return ((Number(b.volume) || 0) + (Number(b.complexity) || 0)) -
+           ((Number(a.volume) || 0) + (Number(a.complexity) || 0));
+  });
+  var top = sorted.slice(0, 10);
+
+  // Box dimensions in axis units (half-width / half-height)
+  var boxW = 1.1;
+  var boxH = 0.55;
+
+  // Start with quadrant divider lines
+  var annotations = [
+    {
+      type: 'line', mode: 'horizontal', scaleID: 'y-axis-0',
+      value: 5.5, borderColor: 'rgba(0,0,0,0.25)', borderWidth: 2,
+      borderDash: [6, 4], label: { enabled: false }
+    },
+    {
+      type: 'line', mode: 'vertical', scaleID: 'x-axis-0',
+      value: 5.5, borderColor: 'rgba(0,0,0,0.25)', borderWidth: 2,
+      borderDash: [6, 4], label: { enabled: false }
+    }
+  ];
+
+  // Resolve overlapping positions by nudging on the y-axis.
+  // Build initial positions, then push apart any that collide.
+  var placed = [];
+  top.forEach(function(a) {
+    placed.push({
+      x: Number(a.volume) || 5,
+      y: Number(a.complexity) || 5,
+      ct: normalizeContractType(a.contractType),
+      name: extractString(a.agreementType)
+    });
+  });
+  // Greedy nudge: for each box, if it overlaps any earlier box, shift y.
+  // Limited to 50 iterations per box to prevent infinite loops.
+  var minGapX = boxW * 2 + 0.1;
+  var minGapY = boxH * 2 + 0.1;
+  for (var i = 1; i < placed.length; i++) {
+    var attempts = 0;
+    for (var j = 0; j < i && attempts < 50; j++) {
+      var dx = Math.abs(placed[i].x - placed[j].x);
+      var dy = Math.abs(placed[i].y - placed[j].y);
+      if (dx < minGapX && dy < minGapY) {
+        attempts++;
+        var shift = minGapY - dy + 0.05;
+        placed[i].y += (placed[i].y >= placed[j].y) ? shift : -shift;
+        placed[i].y = Math.max(0.5, Math.min(10.5, placed[i].y));
+        j = -1; // restart inner loop
+      }
+    }
+  }
+
+  // Build box annotations + scatter points from nudged positions
+  var dataByType = {};
+  placed.forEach(function(p) {
+    var colors = CONTRACT_TYPE_COLORS[p.ct] || CONTRACT_TYPE_COLORS['Negotiated'];
+
+    // Box annotation (colored rectangle)
+    annotations.push({
+      type: 'box',
+      xScaleID: 'x-axis-0',
+      yScaleID: 'y-axis-0',
+      xMin: p.x - boxW,
+      xMax: p.x + boxW,
+      yMin: p.y - boxH,
+      yMax: p.y + boxH,
+      backgroundColor: colors.bg,
+      borderColor: colors.fg,
+      borderWidth: 1.5
+    });
+
+    // Scatter point for datalabels text
+    if (!dataByType[p.ct]) dataByType[p.ct] = [];
+    dataByType[p.ct].push({
+      x: p.x,
+      y: p.y,
+      label: abbreviateAgreementType(p.name)
+    });
+  });
+
+  // One dataset per contract type: invisible points that carry datalabels
+  var presentTypes = {};
+  top.forEach(function(a) { presentTypes[normalizeContractType(a.contractType)] = true; });
+  var datasets = contractTypes.filter(function(ct) {
+    return presentTypes[ct];
+  }).map(function(ct) {
+    var colors = CONTRACT_TYPE_COLORS[ct];
+    return {
+      label: ct,
+      data: dataByType[ct] || [],
+      backgroundColor: colors.bg,
+      borderColor: colors.fg,
+      borderWidth: 2,
+      pointStyle: 'rect',
+      pointRadius: 0,
+      datalabels: {
+        display: true,
+        color: colors.fg,
+        font: { size: 11, weight: 'bold' },
+        anchor: 'center',
+        align: 'center',
+        formatter: '__FORMATTER_PLACEHOLDER__'
+      }
+    };
+  });
+
+  return {
+    type: 'scatter',
+    data: { datasets: datasets },
+    options: {
+      animation: false,
+      layout: { padding: { top: 10, right: 20, bottom: 10, left: 10 } },
+      scales: {
+        xAxes: [{
+          id: 'x-axis-0',
+          scaleLabel: { display: true, labelString: 'Agreement Volume', fontSize: 13, fontStyle: 'bold' },
+          ticks: { min: 0, max: 11, stepSize: 1 },
+          gridLines: { color: 'rgba(0,0,0,0.08)' }
+        }],
+        yAxes: [{
+          id: 'y-axis-0',
+          scaleLabel: { display: true, labelString: 'Agreement Complexity', fontSize: 13, fontStyle: 'bold' },
+          ticks: { min: 0, max: 11, stepSize: 1 },
+          gridLines: { color: 'rgba(0,0,0,0.08)' }
+        }]
+      },
+      legend: {
+        position: 'bottom',
+        labels: { fontSize: 11, padding: 15, usePointStyle: true, boxWidth: 12 }
+      },
+      plugins: { datalabels: { display: false } },
+      annotation: { annotations: annotations }
+    }
+  };
+}
+
+/**
+ * Create a quadrant chart PNG via QuickChart.io using box annotations.
+ * @param {Array} agreements  Array of agreement objects
+ * @returns {Blob|null} PNG blob or null on failure
+ */
+function createQuadrantChart(agreements) {
+  if (!agreements || agreements.length === 0) return null;
+  try {
+    var config = buildQuadrantChartConfig(agreements);
+    // Config must be sent as a string so QuickChart can evaluate the JS formatter function
+    var chartStr = JSON.stringify(config).replace(
+      /"__FORMATTER_PLACEHOLDER__"/g,
+      'function(value, context) { return context.dataset.data[context.dataIndex].label; }'
+    );
+    var payload = JSON.stringify({
+      chart: chartStr,
+      width: 1000,
+      height: 500,
+      devicePixelRatio: 2,
+      format: 'png',
+      backgroundColor: '#FFFFFF'
+    });
+    var response = UrlFetchApp.fetch('https://quickchart.io/chart', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: payload,
+      muteHttpExceptions: true
+    });
+    if (response.getResponseCode() !== 200) {
+      Logger.log('[Chart] QuickChart returned HTTP ' + response.getResponseCode() +
+        ': ' + response.getContentText().substring(0, 200));
+      return null;
+    }
+    var blob = response.getBlob().setName('agreement_quadrant.png');
+    Logger.log('[Chart] Quadrant chart blob created: ' + blob.getBytes().length + ' bytes');
+    return blob;
+  } catch (e) {
+    Logger.log('[Chart] Quadrant chart failed: ' + e.message);
+    return null;
   }
 }
 
@@ -1559,6 +1827,19 @@ function addAgreementLandscapeSection(body, data, agreementLandscape) {
     return;
   }
 
+  // Quadrant bubble chart (QuickChart.io)
+  var chartBlob = createQuadrantChart(agreements);
+  if (chartBlob) {
+    try {
+      var chartImage = body.appendImage(chartBlob);
+      chartImage.setWidth(468);
+      chartImage.setHeight(234);
+      addSpacer(body);
+    } catch (e) {
+      Logger.log('[DocGen] Failed to insert quadrant chart: ' + e.message);
+    }
+  }
+
   // Show fallback note if agreements were generated deterministically
   if (agreementLandscape._fallback) {
     var fallbackNote = addBodyText(body, 'Agreement types below are estimated based on industry and organizational structure. Actual agreement landscape may differ.');
@@ -1586,12 +1867,12 @@ function addAgreementLandscapeSection(body, data, agreementLandscape) {
   agreements.forEach(function(a) {
     aggRows.push([
       String(a.number || ''),
-      a.agreementType || '',
+      extractString(a.agreementType),
       a.category || '',
       a.primaryBusinessUnit || '',
       String(a.volume || ''),
       String(a.complexity || ''),
-      a.contractType || '',
+      normalizeContractType(a.contractType),
       getQuadrantAbbrev(a.volume, a.complexity)
     ]);
   });
@@ -1673,9 +1954,10 @@ function addAgreementLandscapeSection(body, data, agreementLandscape) {
   addSubHeading(body, 'Agreement Descriptions');
   agreements.forEach(function(a) {
     if (a.description) {
-      var text = (a.number || '') + '. ' + (a.agreementType || '') + ': ' + a.description;
+      var agType = extractString(a.agreementType);
+      var text = (a.number || '') + '. ' + agType + ': ' + extractString(a.description);
       var para = addBodyText(body, text);
-      var titleEnd = String(a.number || '').length + 2 + (a.agreementType || '').length + 1;
+      var titleEnd = String(a.number || '').length + 2 + agType.length + 1;
       if (titleEnd > 0 && titleEnd < text.length) {
         para.editAsText().setBold(0, titleEnd, true);
       }
