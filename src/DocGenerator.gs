@@ -451,24 +451,24 @@ function generateGrowthStrategyDoc(companyName) {
   addDocusignTodaySection(body, data, priorityMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 6/11: Business Performance & Strategy');
-  addBusinessPerformanceSection(body, data, accountProfile);
-  body.appendPageBreak();
-
-  Logger.log('[DocGen] Building Section 7/11: Executive Contacts & Technology');
-  addExecutivesAndTechSection(body, data, accountProfile);
-  body.appendPageBreak();
-
-  Logger.log('[DocGen] Building Section 8/11: Business Map');
+  Logger.log('[DocGen] Building Section 6/11: Business Map');
   addBusinessMapSection(body, data, businessMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 9/11: Agreement Landscape');
+  Logger.log('[DocGen] Building Section 7/11: Agreement Landscape');
   addAgreementLandscapeSection(body, data, agreementLandscape);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 10/11: Contract Commerce Estimate');
+  Logger.log('[DocGen] Building Section 8/11: Contract Commerce Estimate');
   addContractCommerceSection(body, data, contractCommerce);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Building Section 9/11: Business Performance & Strategy');
+  addBusinessPerformanceSection(body, data, accountProfile);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Building Section 10/11: Executive Contacts & Technology');
+  addExecutivesAndTechSection(body, data, accountProfile);
 
   body.appendPageBreak();
   Logger.log('[DocGen] Building appendix: Data Sources & Methodology');
