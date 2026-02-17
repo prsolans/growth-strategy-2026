@@ -1,4 +1,5 @@
 import { extractAllMetrics } from './xbrl-extractor.js';
+import { fetchSegmentRevenue } from './segment-extractor.js';
 
 const SEC_BASE = 'https://data.sec.gov';
 const SEC_USER_AGENT = 'GrowthStrategy growth-strategy@docusign.com';
@@ -25,6 +26,22 @@ async function fetchSec(url) {
     throw err;
   }
   return res.json();
+}
+
+/**
+ * Fetch text (XML/HTML) from SEC EDGAR with the required User-Agent header.
+ */
+async function fetchSecText(url) {
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': SEC_USER_AGENT,
+      'Accept': 'text/xml, application/xml, text/html, */*',
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`SEC returned ${res.status} for ${url}`);
+  }
+  return res.text();
 }
 
 // Cache ticker→CIK map in memory across warm Worker instances
@@ -120,6 +137,9 @@ export default {
     // Extract metrics from XBRL
     const { financials, filingPeriod } = extractAllMetrics(companyfacts);
 
+    // Extract segment revenue from 10-K XBRL instance document
+    const segmentResult = await fetchSegmentRevenue(paddedCik, submissions, fetchSecText, null);
+
     // Build response
     const result = {
       cik: paddedCik,
@@ -128,6 +148,8 @@ export default {
       sicDescription: submissions.sicDescription || null,
       filingPeriod,
       financials,
+      segments: segmentResult.segments,
+      segmentType: segmentResult.segmentType,
     };
 
     return jsonResponse(result);

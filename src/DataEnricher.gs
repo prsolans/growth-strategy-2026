@@ -131,6 +131,13 @@ function fetchSecProxyFinancials(cik, ticker) {
   if (data.filingPeriod)     result.filingPeriod = data.filingPeriod;
   if (data.sicDescription)   result.secIndustry = data.sicDescription;
 
+  // Segment revenue from 10-K XBRL instance
+  if (data.segments && data.segments.length > 0) {
+    result.segments = data.segments;
+    result.segmentType = data.segmentType || 'business';
+    Logger.log('[Enrich/SEC] Segment revenue: ' + data.segments.length + ' segments (' + result.segmentType + ')');
+  }
+
   return result;
 }
 
@@ -435,6 +442,16 @@ function enrichCompanyData(companyName, industry) {
     if (financials.netIncome != null) { enrichment.netIncome = financials.netIncome; enrichment.netIncomeFormatted = formatDollars(financials.netIncome); }
     if (financials.employees != null) { enrichment.employees = financials.employees; enrichment.employeesFormatted = formatNumber(financials.employees); }
     if (financials.filingPeriod)      enrichment.filingPeriod = financials.filingPeriod;
+
+    // Segment revenue
+    if (financials.segments && financials.segments.length > 0) {
+      enrichment.segments = financials.segments;
+      enrichment.segmentType = financials.segmentType || 'business';
+      enrichment.segmentsFormatted = financials.segments.map(function(seg) {
+        return seg.name + ': ' + formatDollars(seg.revenue);
+      });
+      Logger.log('[Enrich/SEC] Segment revenue formatted (' + enrichment.segmentType + '): ' + enrichment.segmentsFormatted.join(', '));
+    }
   } catch (e) {
     Logger.log('[Enrich] SEC financial data failed: ' + e.message);
   }
