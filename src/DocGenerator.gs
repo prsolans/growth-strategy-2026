@@ -722,7 +722,7 @@ function generateGrowthStrategyDoc(companyName) {
   body.appendPageBreak();
 
   Logger.log('[DocGen] Building Section 6/10: Agreement Landscape');
-  addAgreementLandscapeSection(body, data, agreementLandscape);
+  addAgreementLandscapeSection(body, data, agreementLandscape, businessMap);
   body.appendPageBreak();
 
   Logger.log('[DocGen] Building Section 7/10: Contract Commerce Estimate');
@@ -1021,60 +1021,6 @@ function addCompanyProfileSection(body, data, accountProfile, enrichment, busine
     }
     addSourceNote(body, 'Source: ' + buSources.join(' · '));
 
-    // Business Map — rendered as sub-section directly beneath Business Units
-    if (bmNodes.length > 0) {
-      addSubHeading(body, 'Business Map');
-      addSourceNote(body, 'Source: AI-generated organizational hierarchy based on company profile, public disclosures, and industry patterns. Agreement intensity ratings (High/Medium/Low) reflect expected agreement activity, not measured data.');
-
-      var bmTree = buildHierarchyTree(bmNodes);
-      var bmRows = [['Business Unit', 'Department', 'Function', 'Agreement Intensity', 'Docusign Today']];
-      var currentBU = '';
-      var currentDept = '';
-      var lastBU = '';
-      var lastDept = '';
-
-      bmTree.forEach(function(item) {
-        var level = (item.level || '').toLowerCase();
-        if (level !== 'bu' && level !== 'department' && level !== 'function') return;
-
-        var intensityKey = (item.agreementIntensity || '').toLowerCase();
-        var intensityText = intensityLabel[intensityKey] || item.agreementIntensity || '';
-        var buCell = '';
-        var deptCell = '';
-        var funcCell = '';
-
-        if (level === 'bu') {
-          currentBU = item.name;
-          currentDept = '';
-          buCell = currentBU !== lastBU ? currentBU : '';
-          lastBU = currentBU;
-          lastDept = '';
-        } else if (level === 'department') {
-          currentDept = item.name;
-          buCell = currentBU !== lastBU ? currentBU : '';
-          deptCell = currentDept !== lastDept ? currentDept : '';
-          lastBU = currentBU;
-          lastDept = currentDept;
-        } else if (level === 'function') {
-          buCell = currentBU !== lastBU ? currentBU : '';
-          deptCell = currentDept !== lastDept ? currentDept : '';
-          funcCell = item.name;
-          lastBU = currentBU;
-          lastDept = currentDept;
-        }
-
-        bmRows.push([buCell, deptCell, funcCell, intensityText, '']);
-      });
-
-      var bmTable = addStyledTable(body, bmRows);
-      var bmLastHeaderCell = bmTable.getRow(0).getCell(bmRows[0].length - 1);
-      bmLastHeaderCell.setBackgroundColor(DOCUSIGN_TODAY_BG);
-      bmLastHeaderCell.editAsText().setForegroundColor(DOCUSIGN_TODAY_FG);
-      var bmLegend = addBodyText(body, '\u25cf High agreement intensity    \u25cb Medium    \u25cb Low');
-      bmLegend.editAsText().setFontSize(9);
-      bmLegend.editAsText().setBold(false);
-      bmLegend.editAsText().setForegroundColor('#666666');
-    }
   }
 
   // Revenue by Geography table (geographic segments only)
@@ -1907,7 +1853,7 @@ function addAccountHealthSection(body, data) {
 /**
  * Section 7: Agreement Landscape
  */
-function addAgreementLandscapeSection(body, data, agreementLandscape) {
+function addAgreementLandscapeSection(body, data, agreementLandscape, businessMap) {
   addSectionHeading(body, 'Agreement Landscape');
   addSectionDescription(body, 'Sources: AI-estimated agreement types based on company profile, organizational structure, and industry patterns. Volume and complexity scores (1-10 scale) are LLM estimates, not measured counts. Quadrant classifications derive from these estimated scores.');
 
@@ -2054,6 +2000,63 @@ function addAgreementLandscapeSection(body, data, agreementLandscape) {
       }
     }
   });
+
+  // Business Map — rendered at the end of Agreement Landscape
+  var bmNodes = (businessMap && businessMap.nodes) || [];
+  if (bmNodes.length > 0) {
+    addSubHeading(body, 'Business Map');
+    addSourceNote(body, 'Source: AI-generated organizational hierarchy based on company profile, public disclosures, and industry patterns. Agreement intensity ratings (High/Medium/Low) reflect expected agreement activity, not measured data.');
+
+    var bmTree = buildHierarchyTree(bmNodes);
+    var intensityLabel = { high: '\u25cf High', medium: '\u25cb Medium', low: '\u25cb Low' };
+    var bmRows = [['Business Unit', 'Department', 'Function', 'Agreement Intensity', 'Docusign Today']];
+    var currentBU = '';
+    var currentDept = '';
+    var lastBU = '';
+    var lastDept = '';
+
+    bmTree.forEach(function(item) {
+      var level = (item.level || '').toLowerCase();
+      if (level !== 'bu' && level !== 'department' && level !== 'function') return;
+
+      var intensityKey = (item.agreementIntensity || '').toLowerCase();
+      var intensityText = intensityLabel[intensityKey] || item.agreementIntensity || '';
+      var buCell = '';
+      var deptCell = '';
+      var funcCell = '';
+
+      if (level === 'bu') {
+        currentBU = item.name;
+        currentDept = '';
+        buCell = currentBU !== lastBU ? currentBU : '';
+        lastBU = currentBU;
+        lastDept = '';
+      } else if (level === 'department') {
+        currentDept = item.name;
+        buCell = currentBU !== lastBU ? currentBU : '';
+        deptCell = currentDept !== lastDept ? currentDept : '';
+        lastBU = currentBU;
+        lastDept = currentDept;
+      } else if (level === 'function') {
+        buCell = currentBU !== lastBU ? currentBU : '';
+        deptCell = currentDept !== lastDept ? currentDept : '';
+        funcCell = item.name;
+        lastBU = currentBU;
+        lastDept = currentDept;
+      }
+
+      bmRows.push([buCell, deptCell, funcCell, intensityText, '']);
+    });
+
+    var bmTable = addStyledTable(body, bmRows);
+    var bmLastHeaderCell = bmTable.getRow(0).getCell(bmRows[0].length - 1);
+    bmLastHeaderCell.setBackgroundColor(DOCUSIGN_TODAY_BG);
+    bmLastHeaderCell.editAsText().setForegroundColor(DOCUSIGN_TODAY_FG);
+    var bmLegend = addBodyText(body, '\u25cf High agreement intensity    \u25cb Medium    \u25cb Low');
+    bmLegend.editAsText().setFontSize(9);
+    bmLegend.editAsText().setBold(false);
+    bmLegend.editAsText().setForegroundColor('#666666');
+  }
 }
 
 /**
