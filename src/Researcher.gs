@@ -695,7 +695,7 @@ function researchContractCommerce(companyName, industry, accountProfile, agreeme
   if (agreements && agreements.agreements) {
     agreementContext = '\nTop agreement types (with relative volume/complexity scores on 1-10 scale — these are NOT actual counts): ' +
       agreements.agreements.slice(0, 10).map(function(a) {
-        return a.agreementType + ' (volume score:' + a.volume + '/10, complexity score:' + a.complexity + '/10)';
+        return extractString(a.agreementType) + ' (volume score:' + a.volume + '/10, complexity score:' + a.complexity + '/10)';
       }).join(', ');
   }
 
@@ -973,7 +973,7 @@ function summarizeExternalResearch(ext) {
   if (al.agreements && al.agreements.length > 0) {
     lines.push('Top Agreement Types:');
     al.agreements.slice(0, 10).forEach(function(a) {
-      lines.push('  - ' + a.agreementType + ' (vol:' + a.volume + ', cx:' + a.complexity +
+      lines.push('  - ' + extractString(a.agreementType) + ' (vol:' + a.volume + ', cx:' + a.complexity +
         ', ' + (a.contractType || '') + ', ' + (a.category || '') + ')');
     });
   }
@@ -1263,7 +1263,7 @@ function buildCall7Request(companyName, accountProfile, priorityMap, productSign
 
   if (agreementLandscape && agreementLandscape.agreements) {
     contextParts.push('Top Agreement Types: ' + agreementLandscape.agreements.slice(0, 10).map(function(a) {
-      return a.agreementType + ' (' + a.category + ', vol:' + a.volume + ', cx:' + a.complexity + ')';
+      return extractString(a.agreementType) + ' (' + a.category + ', vol:' + a.volume + ', cx:' + a.complexity + ')';
     }).join(', '));
   }
 
