@@ -963,10 +963,43 @@ function addCompanyProfileSection(body, data, accountProfile, enrichment, busine
 
   // Business Units table
   var bus = ap.businessUnits || [];
-  if (bus.length > 0) {
+  var bmNodes = (businessMap && businessMap.nodes) || [];
+
+  // Build BU-level intensity lookup from Business Map (keyed by lowercased name)
+  var buIntensityMap = {};
+  var intensityLabel = { high: '\u25cf High', medium: '\u25cb Medium', low: '\u25cb Low' };
+  bmNodes.forEach(function(node) {
+    if ((node.level || '').toLowerCase() === 'bu') {
+      var key = (node.name || '').toLowerCase();
+      var intensityKey = (node.agreementIntensity || '').toLowerCase();
+      buIntensityMap[key] = intensityLabel[intensityKey] || node.agreementIntensity || '';
+    }
+  });
+
+  // Collect known BU names (lowercased) for gap detection
+  var knownBuNames = {};
+  bus.forEach(function(bu) { knownBuNames[(bu.name || '').toLowerCase()] = true; });
+
+  // Find BU-level nodes in Business Map not represented in the Business Units list
+  var extraBus = [];
+  bmNodes.forEach(function(node) {
+    if ((node.level || '').toLowerCase() === 'bu') {
+      var key = (node.name || '').toLowerCase();
+      if (!knownBuNames[key]) {
+        extraBus.push(node);
+      }
+    }
+  });
+
+  // Combine: known BUs + any extras from Business Map (e.g. Corporate/Shared Services)
+  var allBus = bus.slice();
+  extraBus.forEach(function(node) { allBus.push({ name: node.name }); });
+
+  if (allBus.length > 0) {
     addSubHeading(body, 'Business Units');
-    var buRows = [['Name', 'Offering', 'Target Segment', 'Revenue Model', 'Segment Revenue', 'Customers', 'Docusign Today']];
-    bus.forEach(function(bu) {
+    var buRows = [['Name', 'Offering', 'Target Segment', 'Revenue Model', 'Segment Revenue', 'Customers', 'Agreement Intensity', 'Docusign Today']];
+    allBus.forEach(function(bu) {
+      var intensityKey = (bu.name || '').toLowerCase();
       buRows.push([
         bu.name || '',
         bu.offering || '',
@@ -974,6 +1007,7 @@ function addCompanyProfileSection(body, data, accountProfile, enrichment, busine
         bu.pricingRevenueModel || '',
         bu.segmentRevenue || '',
         bu.customerCount || '',
+        buIntensityMap[intensityKey] || '',
         ''
       ]);
     });
@@ -988,13 +1022,11 @@ function addCompanyProfileSection(body, data, accountProfile, enrichment, busine
     addSourceNote(body, 'Source: ' + buSources.join(' · '));
 
     // Business Map — rendered as sub-section directly beneath Business Units
-    var bmNodes = (businessMap && businessMap.nodes) || [];
     if (bmNodes.length > 0) {
       addSubHeading(body, 'Business Map');
       addSourceNote(body, 'Source: AI-generated organizational hierarchy based on company profile, public disclosures, and industry patterns. Agreement intensity ratings (High/Medium/Low) reflect expected agreement activity, not measured data.');
 
       var bmTree = buildHierarchyTree(bmNodes);
-      var intensityLabel = { high: '\u25cf High', medium: '\u25cb Medium', low: '\u25cb Low' };
       var bmRows = [['Business Unit', 'Department', 'Function', 'Agreement Intensity', 'Docusign Today']];
       var currentBU = '';
       var currentDept = '';
