@@ -5,9 +5,11 @@
 // ── Styling constants ─────────────────────────────────────────────────
 var DOCUSIGN_PURPLE = '#1B0B3B';
 var DOCUSIGN_GREEN  = '#00B388';
-var HEADER_BG       = '#1B0B3B';
-var HEADER_FG       = '#FFFFFF';
-var TABLE_ALT_BG    = '#F5F3F7';
+var HEADER_BG            = '#1B0B3B';
+var HEADER_FG            = '#FFFFFF';
+var TABLE_ALT_BG         = '#F5F3F7';
+var DOCUSIGN_TODAY_BG    = '#00695C';  // dark teal — contrasts with purple header
+var DOCUSIGN_TODAY_FG    = '#FFFFFF';
 
 // ── Chart / quadrant constants ────────────────────────────────────────
 var QUADRANT_COLORS = {
@@ -691,51 +693,47 @@ function generateGrowthStrategyDoc(companyName) {
   // ── Build 11 sections ─────────────────────────────────────────────
   // Order: executive briefing first, big bets, then analysis & recommendations, then supporting detail.
 
-  Logger.log('[DocGen] Building Section 0/11: Executive Meeting Briefing');
+  Logger.log('[DocGen] Building Section 0/10: Executive Meeting Briefing');
   addExecutiveBriefingSection(body, data, briefing);
   if (briefing && briefing.priorities) {
     body.appendPageBreak();
   }
 
-  Logger.log('[DocGen] Building Section 1/11: Big Bet Initiatives');
+  Logger.log('[DocGen] Building Section 1/10: Big Bet Initiatives');
   addBigBetInitiativesSection(body, data, bigBets);
   if (bigBets && bigBets.bigBets && bigBets.bigBets.length > 0) {
     body.appendPageBreak();
   }
 
-  Logger.log('[DocGen] Building Section 2/11: Company Profile');
-  addCompanyProfileSection(body, data, accountProfile, enrichment);
+  Logger.log('[DocGen] Building Section 2/10: Company Profile');
+  addCompanyProfileSection(body, data, accountProfile, enrichment, businessMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 3/11: Account Health Analysis');
+  Logger.log('[DocGen] Building Section 3/10: Account Health Analysis');
   addAccountHealthSection(body, data);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 4/11: Priority Map');
+  Logger.log('[DocGen] Building Section 4/10: Priority Map');
   addPriorityMapSection(body, data, priorityMap, productSignals);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 5/11: Docusign Footprint');
+  Logger.log('[DocGen] Building Section 5/10: Docusign Footprint');
   addDocusignTodaySection(body, data, priorityMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 6/11: Business Map');
-  addBusinessMapSection(body, data, businessMap);
-  body.appendPageBreak();
-
-  Logger.log('[DocGen] Building Section 7/11: Agreement Landscape');
+  Logger.log('[DocGen] Building Section 6/10: Agreement Landscape');
   addAgreementLandscapeSection(body, data, agreementLandscape);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 8/11: Contract Commerce Estimate');
+  Logger.log('[DocGen] Building Section 7/10: Contract Commerce Estimate');
   addContractCommerceSection(body, data, contractCommerce);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 9/11: Business Performance & Strategy');
+  Logger.log('[DocGen] Building Section 8/10: Business Performance & Strategy');
   addBusinessPerformanceSection(body, data, accountProfile);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 10/11: Executive Contacts & Technology');
+  Logger.log('[DocGen] Building Section 9/10: Executive Contacts & Technology');
   addExecutivesAndTechSection(body, data, accountProfile);
 
   body.appendPageBreak();
@@ -948,7 +946,7 @@ function addBigBetInitiativesSection(body, data, bigBets) {
 /**
  * Section 2: Company Profile
  */
-function addCompanyProfileSection(body, data, accountProfile, enrichment) {
+function addCompanyProfileSection(body, data, accountProfile, enrichment, businessMap) {
   addSectionHeading(body, 'Company Profile');
   addSectionDescription(body, 'Sources: SEC EDGAR 10-K filings (revenue, employees, segment data), Wikipedia (company overview), Wikidata (CEO, HQ, founding date), and AI research via Bing-grounded web search (business units, customer base, supply chain). Verified data is labeled per sub-table; AI-generated fields are marked accordingly.');
 
@@ -967,7 +965,7 @@ function addCompanyProfileSection(body, data, accountProfile, enrichment) {
   var bus = ap.businessUnits || [];
   if (bus.length > 0) {
     addSubHeading(body, 'Business Units');
-    var buRows = [['Name', 'Offering', 'Target Segment', 'Revenue Model', 'Segment Revenue', 'Customers']];
+    var buRows = [['Name', 'Offering', 'Target Segment', 'Revenue Model', 'Segment Revenue', 'Customers', 'Docusign Today']];
     bus.forEach(function(bu) {
       buRows.push([
         bu.name || '',
@@ -975,15 +973,76 @@ function addCompanyProfileSection(body, data, accountProfile, enrichment) {
         bu.targetSegment || '',
         bu.pricingRevenueModel || '',
         bu.segmentRevenue || '',
-        bu.customerCount || ''
+        bu.customerCount || '',
+        ''
       ]);
     });
-    addStyledTable(body, buRows);
+    var buTable = addStyledTable(body, buRows);
+    var buLastHeaderCell = buTable.getRow(0).getCell(buRows[0].length - 1);
+    buLastHeaderCell.setBackgroundColor(DOCUSIGN_TODAY_BG);
+    buLastHeaderCell.editAsText().setForegroundColor(DOCUSIGN_TODAY_FG);
     var buSources = ['AI-generated research (Bing-grounded)'];
     if (enr.segments && enr.segments.length > 0 && enr.segmentType !== 'geographic') {
       buSources.push('Segment Revenue from SEC EDGAR 10-K XBRL filing');
     }
     addSourceNote(body, 'Source: ' + buSources.join(' · '));
+
+    // Business Map — rendered as sub-section directly beneath Business Units
+    var bmNodes = (businessMap && businessMap.nodes) || [];
+    if (bmNodes.length > 0) {
+      addSubHeading(body, 'Business Map');
+      addSourceNote(body, 'Source: AI-generated organizational hierarchy based on company profile, public disclosures, and industry patterns. Agreement intensity ratings (High/Medium/Low) reflect expected agreement activity, not measured data.');
+
+      var bmTree = buildHierarchyTree(bmNodes);
+      var intensityLabel = { high: '\u25cf High', medium: '\u25cb Medium', low: '\u25cb Low' };
+      var bmRows = [['Business Unit', 'Department', 'Function', 'Agreement Intensity', 'Docusign Today']];
+      var currentBU = '';
+      var currentDept = '';
+      var lastBU = '';
+      var lastDept = '';
+
+      bmTree.forEach(function(item) {
+        var level = (item.level || '').toLowerCase();
+        if (level !== 'bu' && level !== 'department' && level !== 'function') return;
+
+        var intensityKey = (item.agreementIntensity || '').toLowerCase();
+        var intensityText = intensityLabel[intensityKey] || item.agreementIntensity || '';
+        var buCell = '';
+        var deptCell = '';
+        var funcCell = '';
+
+        if (level === 'bu') {
+          currentBU = item.name;
+          currentDept = '';
+          buCell = currentBU !== lastBU ? currentBU : '';
+          lastBU = currentBU;
+          lastDept = '';
+        } else if (level === 'department') {
+          currentDept = item.name;
+          buCell = currentBU !== lastBU ? currentBU : '';
+          deptCell = currentDept !== lastDept ? currentDept : '';
+          lastBU = currentBU;
+          lastDept = currentDept;
+        } else if (level === 'function') {
+          buCell = currentBU !== lastBU ? currentBU : '';
+          deptCell = currentDept !== lastDept ? currentDept : '';
+          funcCell = item.name;
+          lastBU = currentBU;
+          lastDept = currentDept;
+        }
+
+        bmRows.push([buCell, deptCell, funcCell, intensityText, '']);
+      });
+
+      var bmTable = addStyledTable(body, bmRows);
+      var bmLastHeaderCell = bmTable.getRow(0).getCell(bmRows[0].length - 1);
+      bmLastHeaderCell.setBackgroundColor(DOCUSIGN_TODAY_BG);
+      bmLastHeaderCell.editAsText().setForegroundColor(DOCUSIGN_TODAY_FG);
+      var bmLegend = addBodyText(body, '\u25cf High agreement intensity    \u25cb Medium    \u25cb Low');
+      bmLegend.editAsText().setFontSize(9);
+      bmLegend.editAsText().setBold(false);
+      bmLegend.editAsText().setForegroundColor('#666666');
+    }
   }
 
   // Revenue by Geography table (geographic segments only)
@@ -2605,6 +2664,7 @@ function addStyledTable(body, rows) {
     cell.setBackgroundColor(HEADER_BG);
     cell.editAsText().setForegroundColor(HEADER_FG);
     cell.editAsText().setBold(true);
+    cell.editAsText().setItalic(false);
     cell.editAsText().setFontSize(10);
     cell.setPaddingTop(6);
     cell.setPaddingBottom(6);
@@ -2621,6 +2681,7 @@ function addStyledTable(body, rows) {
       dataCell.setBackgroundColor(bg);
       dataCell.editAsText().setFontSize(10);
       dataCell.editAsText().setBold(false);
+      dataCell.editAsText().setItalic(false);
       dataCell.editAsText().setForegroundColor('#333333');
       dataCell.setPaddingTop(4);
       dataCell.setPaddingBottom(4);
@@ -2635,6 +2696,7 @@ function addStyledTable(body, rows) {
   }
 
   addSpacer(body);
+  return table;
 }
 
 function formatNumber(n) {
