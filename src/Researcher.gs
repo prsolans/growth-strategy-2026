@@ -561,6 +561,11 @@ function researchBusinessMap(companyName, industry, accountProfile) {
     buContext += '\nSupply chain: ' + ((accountProfile.supplyChain.majorCategories || []).join(', ') || 'N/A');
   }
 
+  var buCount = businessUnits.length;
+  var buListInstruction = buCount > 0
+    ? 'CRITICAL: Every one of the ' + buCount + ' known business units listed above MUST appear as its own separate BU node (level="bu"). Do NOT merge, consolidate, or drop any of them.'
+    : 'Identify at least 5 distinct product or operational business units.';
+
   var userPrompt =
     'For "' + companyName + '" in the "' + industry + '" industry, map the organizational hierarchy.\n' +
     buContext + '\n\n' +
@@ -576,11 +581,11 @@ function researchBusinessMap(companyName, industry, accountProfile) {
     'Each function should have parent=department name.\n' +
     'agreementIntensity indicates how many agreements/contracts that node handles (high, medium, or low).\n\n' +
     'IMPORTANT: The tree must be comprehensive. Requirements:\n' +
-    '- Provide ALL major business units (minimum 4-5 BUs for large enterprises)\n' +
+    '- ' + buListInstruction + '\n' +
+    '- In addition, ALWAYS include a "Corporate/Shared Services" BU (level="bu") for Legal, Finance, HR, IT, and Procurement — this is REQUIRED even if not in the known units list\n' +
     '- Each BU MUST have 3-5 departments beneath it\n' +
     '- Each department MUST have 2-3 functions beneath it\n' +
     '- The total tree should have at least 40 nodes for a large company, 25+ for mid-size\n' +
-    '- Include shared services departments (Legal, Finance, HR, IT, Procurement) under a Corporate/Shared Services BU\n' +
     '- Do NOT return a sparse tree with only 1 department per BU';
 
   Logger.log('[Research] Call 2: Researching business map for "' + companyName + '"');
@@ -766,6 +771,11 @@ function buildCall2Request(companyName, industry, accountProfile) {
     buContext += '\nSupply chain: ' + ((accountProfile.supplyChain.majorCategories || []).join(', ') || 'N/A');
   }
 
+  var buCount = businessUnits.length;
+  var buListInstruction = buCount > 0
+    ? 'CRITICAL: Every one of the ' + buCount + ' known business units listed above MUST appear as its own separate BU node (level="bu"). Do NOT merge, consolidate, or drop any of them.'
+    : 'Identify at least 5 distinct product or operational business units.';
+
   var userPrompt =
     'For "' + companyName + '" in the "' + industry + '" industry, map the organizational hierarchy.\n' +
     buContext + '\n\n' +
@@ -781,11 +791,11 @@ function buildCall2Request(companyName, industry, accountProfile) {
     'Each function should have parent=department name.\n' +
     'agreementIntensity indicates how many agreements/contracts that node handles (high, medium, or low).\n\n' +
     'IMPORTANT: The tree must be comprehensive. Requirements:\n' +
-    '- Provide ALL major business units (minimum 4-5 BUs for large enterprises)\n' +
+    '- ' + buListInstruction + '\n' +
+    '- In addition, ALWAYS include a "Corporate/Shared Services" BU (level="bu") for Legal, Finance, HR, IT, and Procurement — this is REQUIRED even if not in the known units list\n' +
     '- Each BU MUST have 3-5 departments beneath it\n' +
     '- Each department MUST have 2-3 functions beneath it\n' +
     '- The total tree should have at least 40 nodes for a large company, 25+ for mid-size\n' +
-    '- Include shared services departments (Legal, Finance, HR, IT, Procurement) under a Corporate/Shared Services BU\n' +
     '- Do NOT return a sparse tree with only 1 department per BU';
 
   Logger.log('[Research] buildCall2Request: Business Map for "' + companyName + '"');
