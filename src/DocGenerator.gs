@@ -1866,18 +1866,18 @@ function addAgreementLandscapeSection(body, data, agreementLandscape, businessMa
     return;
   }
 
-  // Quadrant bubble chart (QuickChart.io)
-  var chartBlob = createQuadrantChart(agreements);
-  if (chartBlob) {
-    try {
-      var chartImage = body.appendImage(chartBlob);
-      chartImage.setWidth(468);
-      chartImage.setHeight(234);
-      addSpacer(body);
-    } catch (e) {
-      Logger.log('[DocGen] Failed to insert quadrant chart: ' + e.message);
-    }
-  }
+  // Quadrant bubble chart (QuickChart.io) — disabled: slow and low-quality output
+  // var chartBlob = createQuadrantChart(agreements);
+  // if (chartBlob) {
+  //   try {
+  //     var chartImage = body.appendImage(chartBlob);
+  //     chartImage.setWidth(468);
+  //     chartImage.setHeight(234);
+  //     addSpacer(body);
+  //   } catch (e) {
+  //     Logger.log('[DocGen] Failed to insert quadrant chart: ' + e.message);
+  //   }
+  // }
 
   // Show fallback note if agreements were generated deterministically
   if (agreementLandscape._fallback) {
