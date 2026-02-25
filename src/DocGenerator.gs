@@ -1000,9 +1000,11 @@ function addCompanyProfileSection(body, data, accountProfile, enrichment, busine
     var buRows = [['Name', 'Offering', 'Target Segment', 'Revenue Model', 'Segment Revenue', 'Customers', 'Agreement Intensity', 'Docusign Today']];
     allBus.forEach(function(bu) {
       var intensityKey = (bu.name || '').toLowerCase();
+      var isCorporate = /corporate|shared services/i.test(bu.name || '');
+      var offeringValue = bu.offering || (isCorporate ? 'Legal, Finance, HR, Operations, Etc.' : '');
       buRows.push([
         bu.name || '',
-        bu.offering || '',
+        offeringValue,
         bu.targetSegment || '',
         bu.pricingRevenueModel || '',
         bu.segmentRevenue || '',

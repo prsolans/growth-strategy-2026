@@ -26,6 +26,7 @@ After the standard git + plan status report, also present this project quick-ref
    Call 4: researchContractCommerce()  → commerce estimates by dept/type (uses Calls 1+3)
    Call 5: synthesizePriorityMap()     → recommendations + action plan (uses ALL + signals)
    Fallback: any call failure → {} + fallback render; Call 3 also has simplified-prompt retry
+            Call 3 double-fail → generateFallbackAgreementLandscape() (deterministic, from Config.gs tables)
 
 ⚠️  Key conventions:
    extractString(obj, key) — always use for LLM JSON string fields (crash safety)
@@ -105,11 +106,31 @@ Each call is wrapped in try/catch; failure produces `{}` and the affected sectio
 - **Citation markers** like `【3:2†source】` are injected by the Bing-grounded endpoint and must be stripped via `cleanCitations()` before writing to the doc
 - **Bookscrub columns** are referenced by logical group via `COLUMN_GROUPS` in `Config.gs` — add new columns there, not scattered across files
 - **Business Map** — every known BU from Call 1 must appear as its own node; Corporate/Shared Services is always required as an additional node (enforced in both `researchBusinessMap()` and `buildCall2Request()` prompts)
+- **`collectSources()`** — filters source URLs before writing to the Sources section; blocks hallucinated/placeholder patterns (`internal.docusign`, `example.com`, `localhost`, etc.); extend the blocklist there, not inline
 
-## Docs
+## Output Document Structure
+
+9 sections built in sequence by `generateGrowthStrategyDoc()`. Section 6 is the only section with no LLM dependency — it derives entirely from internal bookscrub data.
+
+| # | Section | Data Source | Builder Function |
+|---|---------|------------|-----------------|
+| 1 | Company Profile | Call 1 | `addCompanyProfileSection()` |
+| 2 | Business Performance & Strategy | Call 1 | `addBusinessPerformanceSection()` |
+| 3 | Executive Contacts & Technology | Call 1 | `addExecutivesAndTechSection()` |
+| 4 | Business Map | Call 2 | `addBusinessMapSection()` |
+| 5 | Docusign Footprint | Internal data + Call 5 (current use cases) | `addDocusignTodaySection()` |
+| 6 | Account Health Analysis | Internal data only | `addAccountHealthSection()` |
+| 7 | Agreement Landscape | Call 3 | `addAgreementLandscapeSection()` |
+| 8 | Contract Commerce Estimate | Call 4 | `addContractCommerceSection()` |
+| 9 | Priority Map | Call 5 | `addPriorityMapSection()` |
+| — | Sources | All calls (deduplicated, filtered) | `addSourcesSection()` |
+
+## Docs & Prompts
 
 - `docs/architecture.md` — detailed execution flow, LLM pipeline, error handling
 - `docs/data-dictionary.md` — every bookscrub column and how it's used
 - `docs/signal-matching.md` — how product signals are evaluated
 - `docs/ACCOUNT_HEALTH_ANALYSIS.md` — health scorecard indicator definitions
-- `prompts/` — standalone prompt reference files for each of the 5 LLM calls
+- `prompts/call1-5-*.md` — reference specs for each of the 5 GAS LLM calls
+- `prompts/GEM_PROMPT.md` — full system prompt for a Google Gemini Gem implementation of the same tool (alternative to GAS, uses a connected Sheet as knowledge source)
+- `prompts/GLEAN_PROMPT.md` / `GLEAN_WORKFLOW.md` — system prompt + workflow for a Glean agent implementation
