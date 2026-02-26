@@ -7,6 +7,9 @@ function onOpen() {
     .createMenu('Growth Strategy')
     .addItem('Generate for Company...', 'showCompanyPicker')
     .addSeparator()
+    .addItem('Batch Generate All...', 'batchGenerateAll')
+    .addItem('Stop Batch', 'stopBatch')
+    .addSeparator()
     .addItem('Set API Key', 'promptApiKey')
     .addItem('Set API User', 'promptApiUser')
     .addItem('Set Output Folder ID', 'promptOutputFolder')
@@ -132,6 +135,46 @@ function showCompanyPicker() {
     .setTitle('Growth Strategy Generator');
 
   SpreadsheetApp.getUi().showModalDialog(ui, 'Growth Strategy Generator');
+}
+
+// ── Batch Generation ───────────────────────────────────────────────────
+
+/**
+ * Entry point for batch generation. Shows a confirmation dialog,
+ * then delegates to initBatch() in BatchRunner.gs.
+ *
+ * Already-completed rows (status = 'done') are preserved and skipped on re-run.
+ */
+function batchGenerateAll() {
+  var ui = SpreadsheetApp.getUi();
+  var names = getCompanyNames();
+  var result = ui.alert(
+    'Batch Generate All',
+    'This will queue all ' + names.length + ' companies for generation.\n\n' +
+    'Processing runs in the background at ' + BATCH_CHUNK_SIZE + ' companies every ' +
+    BATCH_TRIGGER_INTERVAL_MINS + ' minutes (~' + Math.ceil(names.length / BATCH_CHUNK_SIZE * BATCH_TRIGGER_INTERVAL_MINS) +
+    ' min total).\n\n' +
+    'Companies already marked "done" will be skipped.\n\n' +
+    'Continue?',
+    ui.ButtonSet.YES_NO
+  );
+  if (result !== ui.Button.YES) return;
+  initBatch();
+}
+
+/**
+ * Cancel the running batch. Removes the trigger and resets any
+ * in-progress rows back to 'pending'. Delegates to cancelBatch() in BatchRunner.gs.
+ */
+function stopBatch() {
+  var ui = SpreadsheetApp.getUi();
+  var result = ui.alert(
+    'Stop Batch',
+    'Are you sure you want to stop the batch? Any in-progress rows will be reset to pending.',
+    ui.ButtonSet.YES_NO
+  );
+  if (result !== ui.Button.YES) return;
+  cancelBatch();
 }
 
 /**
