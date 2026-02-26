@@ -21,7 +21,7 @@
 // ── Constants ──────────────────────────────────────────────────────────
 
 var BATCH_SHEET_NAME           = 'Batch Status';
-var BATCH_CHUNK_SIZE           = 3;     // companies per trigger fire (~90s each, safe under 6-min limit)
+var BATCH_CHUNK_SIZE           = 2;     // companies per trigger fire (~120s each, safe under 6-min limit)
 var BATCH_TRIGGER_INTERVAL_MINS = 5;    // minutes between trigger fires
 
 var PROP_BATCH_TRIGGER = 'BATCH_TRIGGER_ID';
@@ -143,6 +143,19 @@ function initBatch() {
  * Deletes the trigger when no pending rows remain.
  */
 function batchGenerateChunk() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(0)) {
+    Logger.log('[Batch] Another chunk is already running — skipping this trigger fire.');
+    return;
+  }
+  try {
+    _batchGenerateChunkBody();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function _batchGenerateChunkBody() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var batchSheet = ss.getSheetByName(BATCH_SHEET_NAME);
 
