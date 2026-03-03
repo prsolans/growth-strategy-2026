@@ -210,8 +210,8 @@ function getCompanyNames() {
  * @param {string} companyName
  * @returns {Object} structured company data
  */
-function getCompanyData(companyName) {
-  Logger.log('[DataExtractor] getCompanyData called for: "' + companyName + '"');
+function getCompanyData(companyName, isProspect) {
+  Logger.log('[DataExtractor] getCompanyData called for: "' + companyName + '" (isProspect=' + !!isProspect + ')');
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   Logger.log('[DataExtractor] Active sheet: "' + sheet.getName() + '" (' + sheet.getLastRow() + ' rows, ' + sheet.getLastColumn() + ' cols)');
   var headerIndex = buildHeaderIndex(sheet);
@@ -223,6 +223,10 @@ function getCompanyData(companyName) {
   Logger.log('[DataExtractor] Loaded ' + data.length + ' data rows. Searching for "' + companyName + '"...');
   var rowIdx = findCompanyRow(data, companyName, nameCol);
   if (rowIdx === -1) {
+    if (isProspect) {
+      Logger.log('[DataExtractor] Company not found in sheet — returning prospect data object for "' + companyName + '"');
+      return buildProspectData(companyName);
+    }
     var available = data.slice(0, 10).map(function(r) { return String(r[nameCol]).trim(); });
     Logger.log('[DataExtractor] ERROR: Company not found. First 10 names: ' + available.join(', '));
     throw new Error('Company "' + companyName + '" not found in sheet.');
@@ -427,6 +431,72 @@ function getCompanyData(companyName) {
       renewalMgrMgr:    v('RENEWAL_MANAGER'),
       salesRep:         v('EXECUTIVE_SALES_REP'),
       mdr:              v('MDR')
+    }
+  };
+}
+
+/**
+ * Build a sparse data object for a prospect account (no bookscrub row).
+ * Matches the shape of a real getCompanyData() return value so downstream code
+ * doesn't crash on field access. All usage/financial fields default to 0 or ''.
+ *
+ * @param {string} companyName
+ * @returns {Object}
+ */
+function buildProspectData(companyName) {
+  var noProducts = {
+    eSignature: false, clm: false, iam: false, smsDelivery: false,
+    smsAuth: false, phoneAuth: false, idCheck: false, idVerifyGovId: false,
+    clickwraps: false, agreementActions: false, workflows: false,
+    workflowDefs: false, aiExtraction: false, navigator: false,
+    navigatorDocs: false, docGeneration: false, multiChannel: false,
+    premiumDataVerif: false, idVerification: false, saml: false
+  };
+  return {
+    identity: {
+      name: companyName, rawName: companyName, isProspect: true,
+      sfdcParentId: '', siteId: '', docusignAccountId: '',
+      salesforceAccountId: '', sfdcUrl: ''
+    },
+    context: {
+      industry: '', country: '', salesChannel: '',
+      region: '', gtmGroup: '', gtmGroupName: '', partnerAccount: ''
+    },
+    contract: {
+      plan: '', planName: '', chargeModel: '',
+      termStart: '', termEnd: '', termEndFyq: '',
+      daysUsed: 0, daysLeft: 0, percentComplete: 0,
+      monthsLeft: 0, isMultiYearRamp: false
+    },
+    consumption: {
+      envelopesPurchased: 0, envelopesSent: 0,
+      sent7d: 0, sent30d: 0, sent60d: 0, sent90d: 0, sent365d: 0,
+      envelopesExpected: 0, consumptionPerformance: 0, usageTrend: '',
+      usageTrendSeat: '', projectedUsageScore: 0, last30dBucket: '',
+      sendVitality: 0, sendVelocityMom: 0, completed: 0, completedRate: 0,
+      declined: 0, voided: 0, expired: 0, pctDeclined: 0, pctVoided: 0,
+      pctExpired: 0, usageVsExpected: 0, pctUsageVsExpected: 0,
+      projectedSent: 0, envelopeAllowance: 0, plannedSends: 0, plannedPerDay: 0
+    },
+    integrations: {
+      salesforce: 0, workday: 0, sap: 0, customApi: 0,
+      pctCustomApi: 0, powerforms: 0, bulkSend: 0, mobileSigns: 0,
+      nonMobileSigns: 0, webappSends: 0, automationSends: 0, count: 0
+    },
+    seats: {
+      purchased: 0, active: 0, admin: 0, viewer: 0, sender: 0,
+      activationRate: 0, evaRate: 0, activeSeatsMom: 0, unlimited: false
+    },
+    financial: {
+      cmrr: '', acv: 0, currency: '', costPerEnvelope: 0,
+      costPerSeat: 0, reportingMrr: 0
+    },
+    products: noProducts,
+    activeProducts: [],
+    inactiveProducts: [],
+    people: {
+      accountOwner: '', accountOwnerMgr: '', csm: '', csmManager: '',
+      renewalManager: '', renewalMgrMgr: '', salesRep: '', mdr: ''
     }
   };
 }
@@ -1037,6 +1107,10 @@ function generateFallbackAgreementLandscape(data, accountProfile, businessMap) {
  * @returns {string}
  */
 function summarizeForLLM(data, productSignals) {
+  if (data.identity.isProspect) {
+    return 'Prospect: ' + data.identity.name + '. No existing Docusign usage data available.\n' +
+           'This is a net-new opportunity with no current product footprint.';
+  }
   var lines = [];
   lines.push('Company: ' + data.identity.name);
   lines.push('Industry: ' + data.context.industry);

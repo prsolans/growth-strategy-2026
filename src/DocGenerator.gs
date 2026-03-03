@@ -482,12 +482,12 @@ function createQuadrantChart(agreements) {
  * @param {string} companyName
  * @returns {string} URL of the created Google Doc
  */
-function generateGrowthStrategyDoc(companyName) {
-  Logger.log('Starting growth strategy generation for: ' + companyName);
+function generateGrowthStrategyDoc(companyName, isProspect) {
+  Logger.log('Starting growth strategy generation for: ' + companyName + (isProspect ? ' [PROSPECT]' : ''));
 
   // ── Step 1: Extract internal data and run signal matching ─────────
   Logger.log('Extracting sheet data...');
-  var data = getCompanyData(companyName);
+  var data = getCompanyData(companyName, isProspect);
   var productSignals = generateProductSignals(data);
   var internalSummary = summarizeForLLM(data, productSignals);
   Logger.log('[DocGen] Internal data extracted. Industry: ' + data.context.industry +
@@ -671,7 +671,7 @@ function generateGrowthStrategyDoc(companyName) {
 
   // ── Step 3: Create the Google Doc ─────────────────────────────────
   Logger.log('[DocGen] Creating Google Doc...');
-  var docTitle = data.identity.name + ' | Growth Strategy';
+  var docTitle = (isProspect ? '[PROSPECT] ' : '') + data.identity.name + ' | Growth Strategy';
   var doc = DocumentApp.create(docTitle);
 
   // Move to configured folder
@@ -690,54 +690,79 @@ function generateGrowthStrategyDoc(companyName) {
   body.setMarginLeft(48);
   body.setMarginRight(48);
 
-  // ── Build 11 sections ─────────────────────────────────────────────
-  // Order: executive briefing first, big bets, then analysis & recommendations, then supporting detail.
+  // ── Build primary sections ───────────────────────────────────────────
+  // Sections 1–3: internal account data (customer accounts only).
+  // Sections 4–6: AI-synthesized strategy (shown for all accounts including prospects).
 
-  Logger.log('[DocGen] Building Section 0/10: Executive Meeting Briefing');
-  addExecutiveBriefingSection(body, data, briefing);
-  if (briefing && briefing.priorities) {
+  if (!isProspect) {
+    Logger.log('[DocGen] Building Section 1/6: Docusign Today');
+    addDocusignTodayContractSection(body, data);
+    body.appendPageBreak();
+
+    Logger.log('[DocGen] Building Section 2/6: Product Adoption Opportunity');
+    addProductAdoptionSection(body, data);
+    body.appendPageBreak();
+
+    Logger.log('[DocGen] Building Section 3/6: Account Health');
+    addAccountHealthSection(body, data, false);
     body.appendPageBreak();
   }
 
-  Logger.log('[DocGen] Building Section 1/10: Big Bet Initiatives');
-  addBigBetInitiativesSection(body, data, bigBets);
-  if (bigBets && bigBets.bigBets && bigBets.bigBets.length > 0) {
+  Logger.log('[DocGen] Building Section 4/6: Strategic Initiatives');
+  addStrategicInitiativesSection(body, data, briefing);
+  if (briefing && briefing.priorities && briefing.priorities.length > 0) {
     body.appendPageBreak();
   }
 
-  Logger.log('[DocGen] Building Section 2/10: Company Profile');
+  Logger.log('[DocGen] Building Section 5/6: Long Term Opportunity Map - Big Bets');
+  addLongTermOpportunityMapSection(body, data, accountProfile, enrichment, businessMap, bigBets);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Building Section 6/6: High Value - Top 3 Big Bets');
+  addBigBetInitiativesSection(body, data, bigBets, accountProfile, contractCommerce);
+
+  // ── Appendix: full supporting detail ─────────────────────────────────
+  body.appendPageBreak();
+  Logger.log('[DocGen] Building Appendix divider');
+  addAppendixDivider(body);
+
+  Logger.log('[DocGen] Appendix: Company Profile');
   addCompanyProfileSection(body, data, accountProfile, enrichment, businessMap);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 3/10: Account Health Analysis');
-  addAccountHealthSection(body, data);
-  body.appendPageBreak();
-
-  Logger.log('[DocGen] Building Section 4/10: Priority Map');
-  addPriorityMapSection(body, data, priorityMap, productSignals);
-  body.appendPageBreak();
-
-  Logger.log('[DocGen] Building Section 5/10: Docusign Footprint');
-  addDocusignTodaySection(body, data, priorityMap);
-  body.appendPageBreak();
-
-  Logger.log('[DocGen] Building Section 6/10: Agreement Landscape');
-  addAgreementLandscapeSection(body, data, agreementLandscape, businessMap);
-  body.appendPageBreak();
-
-  Logger.log('[DocGen] Building Section 7/10: Contract Commerce Estimate');
-  addContractCommerceSection(body, data, contractCommerce);
-  body.appendPageBreak();
-
-  Logger.log('[DocGen] Building Section 8/10: Business Performance & Strategy');
+  Logger.log('[DocGen] Appendix: Business Performance & Strategy');
   addBusinessPerformanceSection(body, data, accountProfile);
   body.appendPageBreak();
 
-  Logger.log('[DocGen] Building Section 9/10: Executive Contacts & Technology');
+  Logger.log('[DocGen] Appendix: Executive Contacts & Technology');
   addExecutivesAndTechSection(body, data, accountProfile);
-
   body.appendPageBreak();
-  Logger.log('[DocGen] Building appendix: Data Sources & Methodology');
+
+  Logger.log('[DocGen] Appendix: Priority Map');
+  addPriorityMapSection(body, data, priorityMap, productSignals);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Appendix: Agreement Landscape');
+  addAgreementLandscapeSection(body, data, agreementLandscape, businessMap);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Appendix: Contract Commerce Estimate');
+  addContractCommerceSection(body, data, contractCommerce);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Appendix: Docusign Footprint');
+  addDocusignTodaySection(body, data, priorityMap, isProspect);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Appendix: Executive Meeting Briefing');
+  addExecutiveBriefingSection(body, data, briefing);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Appendix: Big Bet Detail');
+  addBigBetsDetailSection(body, data, bigBets);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Appendix: Data Sources & Methodology');
   addDataSourcesSection(body, enrichment);
 
   Logger.log('[DocGen] Saving and closing doc...');
@@ -860,25 +885,155 @@ function addExecutiveBriefingSection(body, data, briefing) {
 /**
  * Section 1: Big Bet Initiatives — 3 quantified, high-impact IAM transformation projects.
  */
-function addBigBetInitiativesSection(body, data, bigBets) {
+function addBigBetInitiativesSection(body, data, bigBets, accountProfile, contractCommerce) {
   if (!bigBets || !bigBets.bigBets || bigBets.bigBets.length === 0) return;
 
-  addSectionHeading(body, 'Big Bet Initiatives');
+  addSectionHeading(body, 'High Value - Top 3 Big Bets');
   addSectionDescription(body, 'Sources: AI-generated strategic analysis combining SEC EDGAR financials, internal Docusign usage signals, agreement landscape estimates, and strategic initiative research. Dollar figures and ROI projections are LLM estimates grounded in company financials but not independently verified.');
 
-  var bets = bigBets.bigBets;
-  bets.forEach(function(bet) {
-    // ── Title (H2, Docusign purple) ──────────────────────────────
-    var titleText = 'Big Bet #' + (bet.number || '') + ': ' + (bet.title || 'Initiative');
+  // Sort all bets by opportunityScore descending; top 3 shown in matrix.
+  var bets = bigBets.bigBets.slice().sort(function(a, b) {
+    return (Number(b.opportunityScore) || 0) - (Number(a.opportunityScore) || 0);
+  });
+  var top3Bets = bets.slice(0, 3);
+
+  var buList = (accountProfile && accountProfile.businessUnits) || [];
+  var deptList = (contractCommerce && contractCommerce.commerceByDepartment) || [];
+
+  // Fuzzy BU name match: exact first, then substring in either direction.
+  function findMatchingBU(betBUName) {
+    if (!betBUName || !buList.length) return null;
+    var betLower = betBUName.toLowerCase().trim();
+    for (var i = 0; i < buList.length; i++) {
+      if ((buList[i].name || '').toLowerCase().trim() === betLower) return buList[i];
+    }
+    for (var j = 0; j < buList.length; j++) {
+      var buLower = (buList[j].name || '').toLowerCase().trim();
+      if (buLower && (betLower.indexOf(buLower) !== -1 || buLower.indexOf(betLower) !== -1)) {
+        return buList[j];
+      }
+    }
+    return null;
+  }
+
+  // Build Size and Scope from matched BU data, falling back through contract commerce
+  // then the LLM-generated field.
+  function buildSizeAndScope(bet, matchedBU) {
+    var parts = [];
+    if (matchedBU) {
+      if (matchedBU.segmentRevenue) parts.push(matchedBU.segmentRevenue);
+      if (matchedBU.customerCount) parts.push(matchedBU.customerCount + ' customers');
+    }
+    if (parts.length === 0) {
+      var betLower = (bet.targetBusinessUnit || '').toLowerCase();
+      for (var i = 0; i < deptList.length; i++) {
+        var dLower = (deptList[i].department || '').toLowerCase();
+        if (dLower && (betLower.indexOf(dLower) !== -1 || dLower.indexOf(betLower) !== -1)) {
+          if (deptList[i].estimatedAnnualValue) parts.push(deptList[i].estimatedAnnualValue);
+          break;
+        }
+      }
+    }
+    if (parts.length === 0) {
+      return bet.sizeAndScope || (bet.impact && bet.impact.estimatedAnnualValue) || '—';
+    }
+    return parts.join(' | ');
+  }
+
+  // ── Summary matrix table (top 3 by opportunityScore) ────────────────
+  // Transposed format: rows = attributes, columns = each big bet.
+  if (top3Bets.length > 0) {
+    var matrixRows = [
+      // Header row: label col + one col per bet
+      ['Big Bet'].concat(top3Bets.map(function(b, i) {
+        return (i + 1) + '. ' + (b.title || 'Initiative ' + (i + 1));
+      })),
+      ['Timing'].concat(top3Bets.map(function() { return ''; })),
+      ['BU Name'].concat(top3Bets.map(function(b) {
+        var matched = findMatchingBU(b.targetBusinessUnit);
+        return (matched && matched.name) || b.targetBusinessUnit || '—';
+      })),
+      ['Use Case'].concat(top3Bets.map(function(b) { return b.useCase || '—'; })),
+      ['IAM Solution'].concat(top3Bets.map(function(b) {
+        var sol = b.solution || {};
+        var products = (sol.primaryProducts || []).join(', ');
+        return products || sol.description || '—';
+      })),
+      ['Why change'].concat(top3Bets.map(function(b) { return b.painPoint || '—'; })),
+      ['Size and Scope'].concat(top3Bets.map(function(b) {
+        return buildSizeAndScope(b, findMatchingBU(b.targetBusinessUnit));
+      }))
+    ];
+
+    var matrixTable = body.appendTable(matrixRows);
+    matrixTable.setBorderColor('#CCCCCC');
+    matrixTable.setBorderWidth(1);
+
+    var numCols = matrixRows[0].length;
+
+    // Column widths: label col narrower, data cols share remaining 516pt
+    var labelColWidth = 100;
+    var dataColWidth = Math.floor((516 - labelColWidth) / (numCols - 1));
+    matrixTable.setColumnWidth(0, labelColWidth);
+    for (var mw = 1; mw < numCols; mw++) {
+      matrixTable.setColumnWidth(mw, dataColWidth);
+    }
+
+    for (var mr = 0; mr < matrixTable.getNumRows(); mr++) {
+      var mRow = matrixTable.getRow(mr);
+      var isHeader = (mr === 0);
+      var rowBg = isHeader ? HEADER_BG : ((mr % 2 === 0) ? TABLE_ALT_BG : '#FFFFFF');
+
+      for (var mc = 0; mc < numCols; mc++) {
+        var mCell = mRow.getCell(mc);
+        var isLabelCol = (mc === 0);
+
+        mCell.setBackgroundColor(rowBg);
+        mCell.editAsText().setForegroundColor(isHeader ? HEADER_FG : '#333333');
+        mCell.editAsText().setBold(isHeader || isLabelCol);
+        mCell.editAsText().setItalic(false);
+        mCell.editAsText().setFontSize(10);
+
+        mCell.setPaddingTop(isHeader ? 6 : 4);
+        mCell.setPaddingBottom(isHeader ? 6 : 4);
+        mCell.setPaddingLeft(8);
+        mCell.setPaddingRight(8);
+      }
+    }
+
+    addSpacer(body);
+  }
+
+}
+
+/**
+ * Appendix: Big Bet detail cards — one per bet with full narrative.
+ */
+function addBigBetsDetailSection(body, data, bigBets) {
+  if (!bigBets || !bigBets.bigBets || bigBets.bigBets.length === 0) return;
+
+  var allBets = bigBets.bigBets.slice().sort(function(a, b) {
+    return (Number(b.opportunityScore) || 0) - (Number(a.opportunityScore) || 0);
+  });
+  var totalBets = allBets.length;
+
+  addSectionHeading(body, 'Big Bets by Business Unit — Full Detail (' + totalBets + ' initiatives)');
+  addSectionDescription(body, 'Sources: AI-generated strategic analysis combining SEC EDGAR financials, internal Docusign usage signals, agreement landscape estimates, and strategic initiative research. One initiative per business unit, ranked by opportunity score. Dollar figures and ROI projections are LLM estimates grounded in company financials but not independently verified.');
+
+  allBets.forEach(function(bet) {
+    // ── Title ────────────────────────────────────────────────────
+    var scoreLabel = bet.opportunityScore ? ' [Score: ' + bet.opportunityScore + '/10]' : '';
+    var titleText = 'Big Bet #' + (bet.number || '') + ': ' + (bet.title || 'Initiative') + scoreLabel;
     var titlePara = body.appendParagraph(titleText);
     titlePara.setHeading(DocumentApp.ParagraphHeading.HEADING2);
     titlePara.editAsText().setFontSize(15);
     titlePara.editAsText().setBold(true);
+    titlePara.editAsText().setItalic(false);
     titlePara.editAsText().setForegroundColor(DOCUSIGN_PURPLE);
     titlePara.setSpacingBefore(12);
     titlePara.setSpacingAfter(4);
 
-    // ── Metadata line (italic) ───────────────────────────────────
+    // ── Metadata line ────────────────────────────────────────────
     var metaParts = [];
     if (bet.targetBusinessUnit) metaParts.push('Target BU: ' + bet.targetBusinessUnit);
     if (bet.executiveSponsor) metaParts.push('Executive Sponsor: ' + bet.executiveSponsor);
@@ -891,7 +1046,7 @@ function addBigBetInitiativesSection(body, data, bigBets) {
       metaPara.setSpacingAfter(6);
     }
 
-    // ── Why This Big Bet (rationale) ─────────────────────────────
+    // ── Why This Big Bet ─────────────────────────────────────────
     if (bet.rationale) {
       var rationaleLabel = body.appendParagraph('Why This Big Bet');
       rationaleLabel.setHeading(DocumentApp.ParagraphHeading.NORMAL);
@@ -943,8 +1098,208 @@ function addBigBetInitiativesSection(body, data, bigBets) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Primary Section Builders (front matter — extracted from full sections)
+// ═══════════════════════════════════════════════════════════════════════
+
 /**
- * Section 2: Company Profile
+ * Primary Section 1: Docusign Today — Contract & Account table only.
+ */
+function addDocusignTodayContractSection(body, data) {
+  addSectionHeading(body, 'Docusign Today');
+  addSectionDescription(body, 'Sources: Internal Docusign Book of Business. All metrics are verified internal data.');
+  addSourceNote(body, 'Source: Docusign Book of Business · Internal account data');
+
+  addSubHeading(body, 'Contract & Account');
+  var contractRows = [
+    ['Field', 'Value'],
+    ['Docusign Plan',          data.contract.plan || 'N/A'],
+    ['Contract Term',          formatDate(data.contract.termStart) + ' - ' + formatDate(data.contract.termEnd)],
+    ['Term Completion',        formatPct(data.contract.percentComplete)],
+    ['Days Used / Left',       data.contract.daysUsed + ' / ' + data.contract.daysLeft],
+    ['Months Left',            String(data.contract.monthsLeft)],
+    ['Renewal FYQ',            data.contract.termEndFyq || 'N/A'],
+    ['Multi-Year Ramp',        data.contract.isMultiYearRamp ? 'Yes' : 'No'],
+    ['Charge Model',           data.contract.chargeModel || 'N/A'],
+    ['Sales Channel',          data.context.salesChannel || 'N/A'],
+    ['Industry',               data.context.industry || 'N/A'],
+    ['Country',                data.context.country || 'N/A'],
+    ['ACV',                    '$' + formatNumber(data.financial.acv)],
+    ['CMRR',                   data.financial.cmrr || 'N/A'],
+    ['Cost per Envelope',      data.financial.costPerEnvelope ? '$' + data.financial.costPerEnvelope.toFixed(3) : 'N/A'],
+    ['Cost per Seat',          data.financial.costPerSeat ? '$' + data.financial.costPerSeat.toFixed(2) : 'N/A']
+  ];
+  addStyledTable(body, contractRows);
+}
+
+/**
+ * Primary Section 2: Product Adoption Opportunity — active and unused products.
+ */
+function addProductAdoptionSection(body, data) {
+  addSectionHeading(body, 'Product Adoption Opportunity');
+  addSectionDescription(body, 'Sources: Internal Docusign Book of Business (product activation data). Unused products represent upsell and expansion opportunities.');
+  addSourceNote(body, 'Source: Docusign Book of Business · Product activation data');
+
+  var activeText  = data.activeProducts.length   > 0 ? data.activeProducts.map(function(p) { return '\u2022 ' + p; }).join('\n')   : 'None';
+  var unusedText  = data.inactiveProducts.length > 0 ? data.inactiveProducts.map(function(p) { return '\u2022 ' + p; }).join('\n') : 'All products active';
+
+  var ptTable = body.appendTable([
+    ['Active Products', 'Unused / Available for Expansion'],
+    [activeText, unusedText]
+  ]);
+  ptTable.setBorderColor('#CCCCCC');
+  ptTable.setBorderWidth(1);
+  ptTable.setColumnWidth(0, 258);
+  ptTable.setColumnWidth(1, 258);
+
+  // Header row
+  var hRow = ptTable.getRow(0);
+  for (var h = 0; h < 2; h++) {
+    var hCell = hRow.getCell(h);
+    hCell.setBackgroundColor(HEADER_BG);
+    hCell.editAsText().setForegroundColor(HEADER_FG);
+    hCell.editAsText().setBold(true);
+    hCell.editAsText().setItalic(false);
+    hCell.editAsText().setFontSize(10);
+    hCell.setPaddingTop(6); hCell.setPaddingBottom(6);
+    hCell.setPaddingLeft(8); hCell.setPaddingRight(8);
+  }
+
+  // Content row
+  var cRow = ptTable.getRow(1);
+  for (var c = 0; c < 2; c++) {
+    var cCell = cRow.getCell(c);
+    cCell.setBackgroundColor('#FFFFFF');
+    cCell.editAsText().setFontSize(10);
+    cCell.editAsText().setBold(false);
+    cCell.editAsText().setItalic(false);
+    cCell.editAsText().setForegroundColor('#333333');
+    cCell.setPaddingTop(6); cCell.setPaddingBottom(6);
+    cCell.setPaddingLeft(8); cCell.setPaddingRight(8);
+  }
+
+  addSpacer(body);
+}
+
+/**
+ * Primary Section 4: Strategic Initiatives — numbered priorities from executive briefing.
+ */
+function addStrategicInitiativesSection(body, data, briefing) {
+  if (!briefing || !briefing.priorities || briefing.priorities.length === 0) return;
+
+  addSectionHeading(body, 'Strategic Initiatives');
+  addSectionDescription(body, 'Sources: AI-synthesized narrative focused on the customer\'s strategic priorities, business challenges, and market context. Treat as a conversation starter, not a factual reference.');
+
+  var priorities = briefing.priorities || [];
+  priorities.forEach(function(p, idx) {
+    var titleText = (idx + 1) + '. ' + (p.title || 'Priority ' + (idx + 1));
+    var titlePara = body.appendParagraph(titleText);
+    titlePara.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+    titlePara.editAsText().setFontSize(12);
+    titlePara.editAsText().setBold(true);
+    titlePara.editAsText().setForegroundColor(DOCUSIGN_PURPLE);
+    titlePara.setSpacingBefore(8);
+    titlePara.setSpacingAfter(2);
+
+    if (p.body) {
+      appendRichText(body, p.body);
+    }
+  });
+}
+
+/**
+ * Primary Section 5: Long Term Opportunity Map - Big Bets — Business Units strategic overview table.
+ */
+function addLongTermOpportunityMapSection(body, data, accountProfile, enrichment, businessMap, bigBets) {
+  addSectionHeading(body, 'Long Term Opportunity Map - Big Bets');
+  addSectionDescription(body, 'Sources: AI-generated research (Bing-grounded) for business unit structure and strategic context. Agreement intensity from org hierarchy analysis. Big Bet columns derived from strategic initiative and big bet research. Docusign Today column left blank for AE completion.');
+
+  var ap = accountProfile || {};
+  var bus = ap.businessUnits || [];
+  var bmNodes = (businessMap && businessMap.nodes) || [];
+  var bets = ((bigBets && bigBets.bigBets) || []).slice().sort(function(a, b) {
+    return (Number(b.opportunityScore) || 0) - (Number(a.opportunityScore) || 0);
+  });
+
+  if (bets.length === 0) {
+    addBodyText(body, 'Big bet data not available.');
+    return;
+  }
+
+  // Build BU-level intensity lookup from Business Map
+  var buIntensityMap = {};
+  bmNodes.forEach(function(node) {
+    if ((node.level || '').toLowerCase() === 'bu') {
+      var key = (node.name || '').toLowerCase().trim();
+      var raw = node.agreementIntensity || '';
+      buIntensityMap[key] = raw.charAt(0).toUpperCase() + raw.slice(1);
+    }
+  });
+
+  // Fuzzy intensity lookup — exact key first, then substring
+  function findIntensity(name) {
+    if (!name) return '';
+    var nLower = name.toLowerCase().trim();
+    if (buIntensityMap[nLower]) return buIntensityMap[nLower];
+    for (var key in buIntensityMap) {
+      if (key && (key.indexOf(nLower) !== -1 || nLower.indexOf(key) !== -1)) return buIntensityMap[key];
+    }
+    return '';
+  }
+
+  // Fuzzy lookup: find account profile BU matching a bet's targetBusinessUnit
+  function findApBU(betBUName) {
+    if (!betBUName || !bus.length) return null;
+    var nLower = betBUName.toLowerCase().trim();
+    for (var i = 0; i < bus.length; i++) {
+      var bLower = (bus[i].name || '').toLowerCase().trim();
+      if (bLower === nLower || bLower.indexOf(nLower) !== -1 || nLower.indexOf(bLower) !== -1) return bus[i];
+    }
+    return null;
+  }
+
+  // Table driven by bigBets so all data columns are guaranteed to populate.
+  // BU Name | BU Offering | Major Company Initiative | Executive Sponsor | Agreement Intensity | Docusign Opportunity | Docusign Today
+  var buRows = [['BU Name', 'BU Offering', 'Major Company Initiative', 'Executive Sponsor', 'Agreement Intensity', 'Docusign Opportunity', 'Docusign Today']];
+  bets.forEach(function(bet) {
+    var buName = bet.targetBusinessUnit || '';
+    var isCorporate = /corporate|shared services/i.test(buName);
+    var apBU = findApBU(buName);
+    var offering = (apBU && apBU.offering) || (isCorporate ? 'Legal, Finance, HR, Operations, Etc.' : '');
+    var intensity = findIntensity(buName) || (apBU ? findIntensity(apBU.name || '') : '');
+    var initiative = bet.companyInitiative || '';
+    var sponsor = bet.executiveSponsor || '';
+    var opportunity = ((bet.solution && bet.solution.primaryProducts) || []).join(', ') || (bet.solution && bet.solution.description) || '';
+    buRows.push([buName, offering, initiative, sponsor, intensity, opportunity, '']);
+  });
+
+  var buTable = addStyledTable(body, buRows);
+
+  // Custom column widths for 7-column LTOM table (sum = 516pt)
+  // Proportioned so "Opportunity", "Initiative", "Offering" headers don't break mid-word
+  var ltomColWidths = [68, 82, 80, 76, 68, 82, 60];
+  for (var lw = 0; lw < ltomColWidths.length; lw++) {
+    buTable.setColumnWidth(lw, ltomColWidths[lw]);
+  }
+
+  // Teal background for "Docusign Today" header cell (last column)
+  var lastHeaderCell = buTable.getRow(0).getCell(buRows[0].length - 1);
+  lastHeaderCell.setBackgroundColor(DOCUSIGN_TODAY_BG);
+  lastHeaderCell.editAsText().setForegroundColor(DOCUSIGN_TODAY_FG);
+
+  addSourceNote(body, 'Source: AI-generated research (Bing-grounded) · Big Bet columns from strategic analysis');
+}
+
+/**
+ * Appendix divider — rendered as a section heading to mark the start of supporting detail.
+ */
+function addAppendixDivider(body) {
+  addSectionHeading(body, 'Appendix');
+  addSectionDescription(body, 'Full supporting detail for the analysis and recommendations presented above.');
+}
+
+/**
+ * Company Profile section
  */
 function addCompanyProfileSection(body, data, accountProfile, enrichment, businessMap) {
   addSectionHeading(body, 'Company Profile');
@@ -1312,10 +1667,14 @@ function addBusinessMapSection(body, data, businessMap) {
 /**
  * Section 5: Docusign Footprint (was Docusign Today — mostly unchanged)
  */
-function addDocusignTodaySection(body, data, strategy) {
+function addDocusignTodaySection(body, data, strategy, isProspect) {
   addSectionHeading(body, 'Docusign Footprint');
-  addSectionDescription(body, 'Sources: Internal Docusign Book of Business (contract terms, consumption metrics, seat usage, integrations). Current use cases are LLM-synthesized from internal product adoption data. All quantitative metrics are verified internal data.');
-  addSourceNote(body, 'Source: Docusign Book of Business · All metrics derived from internal account data');
+  if (isProspect) {
+    addSectionDescription(body, 'This is a prospect account with no existing Docusign footprint. Typical use cases below are LLM-inferred based on industry and company research.');
+  } else {
+    addSectionDescription(body, 'Sources: Internal Docusign Book of Business (contract terms, consumption metrics, seat usage, integrations). Current use cases are LLM-synthesized from internal product adoption data. All quantitative metrics are verified internal data.');
+    addSourceNote(body, 'Source: Docusign Book of Business · All metrics derived from internal account data');
+  }
 
   // ── Current Use Cases (from LLM synthesis) ──────────────────────
   addSubHeading(body, 'Current Use Cases');
@@ -1323,7 +1682,9 @@ function addDocusignTodaySection(body, data, strategy) {
   var useCases = (strategy && strategy.currentUseCases) || {};
 
   var bullets = [];
-  bullets.push('Docusign Products: ' + data.activeProducts.join(', '));
+  if (!isProspect) {
+    bullets.push('Docusign Products: ' + data.activeProducts.join(', '));
+  }
   if (useCases.useCases && useCases.useCases.length > 0) {
     bullets.push('Current use cases: ' + useCases.useCases.join(', '));
   }
@@ -1342,6 +1703,7 @@ function addDocusignTodaySection(body, data, strategy) {
       li.editAsText().setForegroundColor('#333333');
   });
 
+  if (!isProspect) {
   // ── Contract & Account ──────────────────────────────────────────
   addSubHeading(body, 'Contract & Account');
 
@@ -1484,6 +1846,7 @@ function addDocusignTodaySection(body, data, strategy) {
   } else {
     addBodyText(body, 'All products active');
   }
+  } // end if (!isProspect)
 }
 
 
@@ -1700,8 +2063,8 @@ function analyzeAccountHealth(data) {
 /**
  * Section 6: Account Health Analysis — data-driven health indicators (unchanged)
  */
-function addAccountHealthSection(body, data) {
-  addSectionHeading(body, 'Account Health Analysis');
+function addAccountHealthSection(body, data, showOverallAssessment) {
+  addSectionHeading(body, 'Account Health');
   addSectionDescription(body, 'Sources: Internal Docusign account metrics processed through rule-based scoring. Health indicators (green/yellow/red) are computed deterministically from consumption pacing, usage trends, seat activation, and renewal proximity. No AI estimation involved.');
   addSourceNote(body, 'Source: Docusign Book of Business · Health indicators computed from internal account metrics');
 
@@ -1803,6 +2166,7 @@ function addAccountHealthSection(body, data) {
   });
 
   // ── Overall Assessment ─────────────────────────────────────────
+  if (showOverallAssessment === false) return;
   addSubHeading(body, 'Overall Assessment');
 
   var total = greenCount + yellowCount + redCount + grayCount;
@@ -2600,6 +2964,7 @@ function addSectionHeading(body, text) {
   heading.editAsText().setForegroundColor(DOCUSIGN_PURPLE);
   heading.editAsText().setFontSize(22);
   heading.editAsText().setBold(false);
+  heading.editAsText().setItalic(false);
   heading.setSpacingAfter(12);
   // Insert a reset paragraph so the next append doesn't inherit heading style
   var reset = body.appendParagraph('');
@@ -2693,6 +3058,19 @@ function addStyledTable(body, rows) {
   table.setBorderWidth(1);
 
   var numCols = rows[0].length;
+
+  // Distribute full page width (516pt = 612 letter - 48 left - 48 right margin).
+  // 2-column tables use a 30/70 label/value split; all others divide evenly.
+  var PAGE_WIDTH = 516;
+  if (numCols === 2) {
+    table.setColumnWidth(0, Math.floor(PAGE_WIDTH * 0.30));
+    table.setColumnWidth(1, Math.floor(PAGE_WIDTH * 0.70));
+  } else {
+    var colW = Math.floor(PAGE_WIDTH / numCols);
+    for (var cw = 0; cw < numCols; cw++) {
+      table.setColumnWidth(cw, colW);
+    }
+  }
 
   // Style header row
   var headerRow = table.getRow(0);

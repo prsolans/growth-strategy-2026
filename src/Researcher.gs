@@ -1014,6 +1014,13 @@ function synthesizePriorityMap(companyName, internalSummary, externalResearch, p
   var catalogContext = buildCatalogContext();
   var signalContext = (productSignals && productSignals.summary) || '';
 
+  var isProspectSummary = internalSummary.indexOf('No existing Docusign usage') !== -1;
+  var prospectInstruction = isProspectSummary
+    ? '\nIMPORTANT: This is a PROSPECT account — no existing Docusign usage data is available. ' +
+      'Base product and expansion recommendations on industry-typical patterns and company research only. ' +
+      'Frame recommendations as greenfield / land-and-expand opportunities, not expansion of existing footprint.\n'
+    : '';
+
   var systemPrompt =
     'You are a Docusign growth strategist helping account teams identify upsell and expansion opportunities.\n\n' +
     '--- DOCUSIGN PRODUCT CATALOG ---\n' + catalogContext + '\n\n' +
@@ -1021,7 +1028,8 @@ function synthesizePriorityMap(companyName, internalSummary, externalResearch, p
     'IMPORTANT: The product signals above are computed from the customer\'s actual usage data. ' +
     'Use them to ground your recommendations. Do NOT recommend products marked "in_use" as new opportunities. ' +
     'Prioritize "strong" signal products in your expansion opportunities and priority mappings. ' +
-    'For each recommendation, explain WHY the customer\'s data supports it.\n\n' +
+    'For each recommendation, explain WHY the customer\'s data supports it.' +
+    prospectInstruction + '\n\n' +
     RESEARCH_SYSTEM_BASE;
 
   // Build a condensed summary instead of raw JSON to avoid truncation issues
@@ -1281,8 +1289,17 @@ function buildCall7Request(companyName, accountProfile, priorityMap, productSign
     contextParts.push('Internal Docusign Usage Data:\n' + internalSummary);
   }
 
+  // Build explicit BU list so the LLM uses the exact names and count
+  var buNameList = [];
+  if (accountProfile && accountProfile.businessUnits) {
+    accountProfile.businessUnits.forEach(function(bu) { buNameList.push(bu.name); });
+  }
+  if (buNameList.indexOf('Corporate/Shared Services') === -1) buNameList.push('Corporate/Shared Services');
+  var buListStr = buNameList.map(function(n, i) { return (i + 1) + '. ' + n; }).join('\n');
+
   var userPrompt =
-    'Design 3 Big Bet IAM transformation initiatives for "' + companyName + '".\n\n' +
+    'Design one Big Bet IAM transformation initiative per business unit for "' + companyName + '".\n\n' +
+    'You MUST create exactly one big bet for EACH of the following ' + buNameList.length + ' business units — use these exact names for targetBusinessUnit:\n' + buListStr + '\n\n' +
     '--- COMPANY CONTEXT ---\n' + contextParts.join('\n\n') + '\n\n' +
     'Return a JSON object with exactly this structure:\n' +
     '{\n' +
@@ -1291,6 +1308,8 @@ function buildCall7Request(companyName, accountProfile, priorityMap, productSign
     '      "number": 1,\n' +
     '      "title": "Short punchy initiative name",\n' +
     '      "targetBusinessUnit": "Which BU this serves",\n' +
+    '      "useCase": "Department or function category being served (e.g. \'Sales & Marketing\', \'Procurement\', \'HR & People Ops\')",\n' +
+    '      "companyInitiative": "Exact title of the major company strategic initiative (from the executive briefing priorities) that this big bet most directly supports",\n' +
     '      "painPoint": "The problem it solves (2-3 sentences)",\n' +
     '      "solution": {\n' +
     '        "description": "What the IAM solution looks like (3-4 sentences)",\n' +
@@ -1313,20 +1332,22 @@ function buildCall7Request(companyName, accountProfile, priorityMap, productSign
     '        "prerequisites": ["prerequisite 1", "prerequisite 2"]\n' +
     '      },\n' +
     '      "executiveSponsor": "Suggested executive title (e.g. CPO, CLO, CIO)",\n' +
+    '      "opportunityScore": 8,\n' +
     '      "rationale": "A 3-4 sentence paragraph explaining WHY this was identified as a big bet. Reference specific evidence from the research: financial data points, strategic initiatives, agreement landscape findings, product signal strengths, internal usage patterns, or pain points that converge to make this a high-impact opportunity. This should read as a persuasive narrative connecting the dots across multiple data sources."\n' +
     '    }\n' +
     '  ]\n' +
     '}\n\n' +
     'Rules:\n' +
-    '- Exactly 3 big bets, sorted by estimated annual value (highest first)\n' +
+    '- You MUST produce exactly ' + buNameList.length + ' bets — one per BU in the list above; do not skip any BU\n' +
+    '- The targetBusinessUnit field must exactly match one of the BU names listed above\n' +
+    '- Number each bet 1–N in order of opportunityScore descending (highest score = #1)\n' +
+    '- opportunityScore: integer 1–10 reflecting Docusign revenue potential, strategic alignment, and white-space opportunity\n' +
     '- Each must use 2+ Docusign products from the catalog\n' +
     '- Prioritize strong-signal products from the product signals data\n' +
     '- Do NOT recommend products already in use as the core of a big bet (they can be supporting)\n' +
-    '- At least one bet must be revenue-side (sales, customer-facing agreements)\n' +
-    '- At least one bet must be spend-side (procurement, vendor, supply chain agreements)\n' +
+    '- Aim for variety across revenue-side, spend-side, and operational use cases across the BU set\n' +
     '- Value estimates should be realistic and grounded in the company\'s financials\n' +
     '- Implementation phases should be specific and actionable (typically 3 phases each)\n' +
-    '- Each bet should target a different business unit where possible\n' +
     '- The rationale field is critical: it must cite specific data points from the company context above (e.g. revenue figures, strategic initiative names, agreement types, product signals) to substantiate why this bet was chosen';
 
   Logger.log('[Research] buildCall7Request: Big Bet Initiatives for "' + companyName + '"');

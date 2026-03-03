@@ -6,6 +6,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Growth Strategy')
     .addItem('Generate for Company...', 'showCompanyPicker')
+    .addItem('Generate for Prospect...', 'showProspectDialog')
     .addSeparator()
     .addItem('Batch Generate All...', 'batchGenerateAll')
     .addItem('Stop Batch', 'stopBatch')
@@ -137,6 +138,72 @@ function showCompanyPicker() {
   SpreadsheetApp.getUi().showModalDialog(ui, 'Growth Strategy Generator');
 }
 
+/**
+ * Show a dialog to enter a prospect company name (not in the sheet).
+ * Calls generateGrowthStrategyDoc(name, true) with isProspect = true.
+ */
+function showProspectDialog() {
+  var html = '<style>' +
+    'body { font-family: Arial, sans-serif; padding: 16px; }' +
+    'label { font-weight: bold; display: block; margin-bottom: 6px; }' +
+    '#name { width: 100%; padding: 10px 12px; font-size: 14px; border: 2px solid #ccc; ' +
+    '  border-radius: 6px; box-sizing: border-box; outline: none; }' +
+    '#name:focus { border-color: #1B0B3B; }' +
+    'button { background: #1B0B3B; color: white; border: none; padding: 10px 24px; ' +
+    '  font-size: 14px; cursor: pointer; border-radius: 4px; margin-top: 12px; width: 100%; }' +
+    'button:hover { background: #2D1B5E; }' +
+    'button:disabled { background: #999; cursor: default; }' +
+    '.status { color: #666; font-size: 12px; margin-top: 8px; }' +
+    '.note { color: #999; font-size: 11px; margin-top: 4px; }' +
+    '</style>' +
+    '<div>' +
+    '<label>Prospect company name:</label>' +
+    '<input type="text" id="name" placeholder="e.g. Stripe, Airbnb, Palantir..." autocomplete="off" />' +
+    '<div class="note">This company does not need to exist in the sheet.</div>' +
+    '<button id="btn" onclick="generate()" disabled>Generate Prospect Strategy</button>' +
+    '<div id="status" class="status"></div>' +
+    '</div>' +
+    '<script>' +
+    'var nameEl = document.getElementById("name");' +
+    'var btnEl = document.getElementById("btn");' +
+    '' +
+    'nameEl.addEventListener("input", function() {' +
+    '  btnEl.disabled = this.value.trim().length === 0;' +
+    '});' +
+    '' +
+    'nameEl.addEventListener("keydown", function(e) {' +
+    '  if (e.key === "Enter" && !btnEl.disabled) generate();' +
+    '});' +
+    '' +
+    'function generate() {' +
+    '  var name = nameEl.value.trim();' +
+    '  if (!name) return;' +
+    '  document.getElementById("status").innerText = "Generating... this may take a minute.";' +
+    '  btnEl.disabled = true;' +
+    '  google.script.run' +
+    '    .withSuccessHandler(function(url) {' +
+    '      document.getElementById("status").innerHTML = ' +
+    '        \'Done! <a href="\' + url + \'" target="_blank">Open Document</a>\';' +
+    '      btnEl.disabled = false;' +
+    '    })' +
+    '    .withFailureHandler(function(err) {' +
+    '      document.getElementById("status").innerText = "Error: " + err.message;' +
+    '      btnEl.disabled = false;' +
+    '    })' +
+    '    .generateGrowthStrategyDoc(name, true);' +
+    '}' +
+    '' +
+    'nameEl.focus();' +
+    '</script>';
+
+  var ui = HtmlService.createHtmlOutput(html)
+    .setWidth(450)
+    .setHeight(240)
+    .setTitle('Prospect Strategy Generator');
+
+  SpreadsheetApp.getUi().showModalDialog(ui, 'Prospect Strategy Generator');
+}
+
 // ── Batch Generation ───────────────────────────────────────────────────
 
 /**
@@ -198,6 +265,17 @@ function testGenerate() {
   var companyName = 'Merck Sharp & Dohme LLC';  // <-- change to any company name in your sheet
   Logger.log('[TEST] Starting test for: ' + companyName);
   var url = generateGrowthStrategyDoc(companyName);
+  Logger.log('[TEST] Done. Doc URL: ' + url);
+}
+
+/**
+ * Run this directly from the Apps Script editor to test prospect mode.
+ * Uses a company name that is NOT in the sheet.
+ */
+function testGenerateProspect() {
+  var companyName = 'Stripe';  // <-- change to any prospect company name
+  Logger.log('[TEST] Starting prospect test for: ' + companyName);
+  var url = generateGrowthStrategyDoc(companyName, true);
   Logger.log('[TEST] Done. Doc URL: ' + url);
 }
 
