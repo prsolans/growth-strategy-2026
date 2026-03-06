@@ -21,7 +21,7 @@
 // ── Constants ──────────────────────────────────────────────────────────
 
 var BATCH_SHEET_NAME           = 'Batch Status';
-var BATCH_CHUNK_SIZE           = 2;     // companies per trigger fire (~120s each, safe under 6-min limit)
+var BATCH_CHUNK_SIZE           = 2;     // companies per trigger fire (~150s each, well within 5-min window)
 var BATCH_TRIGGER_INTERVAL_MINS = 5;    // minutes between trigger fires
 
 var PROP_BATCH_TRIGGER = 'BATCH_TRIGGER_ID';
@@ -173,14 +173,29 @@ function _batchGenerateChunkBody() {
   }
 
   var allRows = batchSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+
+  // Mark any stuck 'running' rows as 'failed' — they were left by a prior timed-out execution.
+  // Do NOT silently re-run them; that causes duplicate doc generation.
+  for (var i = 0; i < allRows.length; i++) {
+    if (String(allRows[i][BATCH_COL_STATUS - 1]).trim() === 'running') {
+      var stuckRow = i + 2;
+      batchSheet.getRange(stuckRow, BATCH_COL_STATUS).setValue('failed');
+      batchSheet.getRange(stuckRow, BATCH_COL_ERROR).setValue('Execution timed out or was interrupted — re-queue manually if needed');
+      Logger.log('[Batch] Marked stuck row ' + stuckRow + ' as failed: ' + String(allRows[i][BATCH_COL_COMPANY - 1]).trim());
+    }
+  }
+  SpreadsheetApp.flush();
+
+  // Re-read after cleanup so our loop reflects current state
+  allRows = batchSheet.getRange(2, 1, lastRow - 1, 5).getValues();
   var processedThisChunk = 0;
 
   for (var r = 0; r < allRows.length && processedThisChunk < BATCH_CHUNK_SIZE; r++) {
     var status      = String(allRows[r][BATCH_COL_STATUS - 1]).trim();
     var companyName = String(allRows[r][BATCH_COL_COMPANY - 1]).trim();
 
-    // Process 'pending' rows; re-process 'running' (interrupted by a prior timeout)
-    if (status !== 'pending' && status !== 'running') continue;
+    // Only process 'pending' rows — never silently re-run 'running' (handled above)
+    if (status !== 'pending') continue;
     if (!companyName) continue;
 
     var rowNum = r + 2; // 1-based row in sheet (offset by 1 header row)

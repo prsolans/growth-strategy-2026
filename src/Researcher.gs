@@ -27,7 +27,8 @@ function callLLM(systemPrompt, userPrompt) {
       'DOCU-INFRA-IC-USER': getApiUser()
     },
     payload: JSON.stringify(payload),
-    muteHttpExceptions: true
+    muteHttpExceptions: true,
+    timeoutSeconds: 90
   };
 
   Logger.log('[LLM] Sending request...');
@@ -217,7 +218,8 @@ function buildLLMRequest(systemPrompt, userPrompt) {
       'DOCU-INFRA-IC-USER': getApiUser()
     },
     payload: JSON.stringify(payload),
-    muteHttpExceptions: true
+    muteHttpExceptions: true,
+    timeoutSeconds: 90
   };
 }
 
@@ -1243,7 +1245,7 @@ function buildCall7Request(companyName, accountProfile, priorityMap, productSign
 
   var systemPrompt =
     'You are a senior Docusign solutions architect designing high-impact IAM (Intelligent Agreement Management) transformation projects.\n' +
-    'Your goal is to identify 3 bold, quantified initiatives that would transform how the company manages agreements.\n\n' +
+    'Your goal is to identify one bold, quantified initiative per business unit that would transform how the company manages agreements.\n\n' +
     '--- DOCUSIGN PRODUCT CATALOG ---\n' + catalogContext + '\n\n' +
     '--- PRODUCT SIGNALS (from internal data analysis) ---\n' + signalSummary + '\n\n' +
     'IMPORTANT: Use product signals to ground recommendations. Do NOT recommend products marked "in_use" as the core of a big bet. ' +
@@ -1312,28 +1314,14 @@ function buildCall7Request(companyName, accountProfile, priorityMap, productSign
     '      "companyInitiative": "Exact title of the major company strategic initiative (from the executive briefing priorities) that this big bet most directly supports",\n' +
     '      "painPoint": "The problem it solves (2-3 sentences)",\n' +
     '      "solution": {\n' +
-    '        "description": "What the IAM solution looks like (3-4 sentences)",\n' +
+    '        "description": "What the IAM solution looks like (2-3 sentences)",\n' +
     '        "primaryProducts": ["Docusign Product 1", "Docusign Product 2"],\n' +
     '        "integrations": ["Salesforce", "SAP", "etc."]\n' +
     '      },\n' +
-    '      "impact": {\n' +
-    '        "estimatedAnnualValue": "$X.XM",\n' +
-    '        "valueDrivers": [\n' +
-    '          { "driver": "Description of value driver", "estimate": "$X" }\n' +
-    '        ],\n' +
-    '        "qualitativeImpact": "Risk reduction, compliance improvement, etc."\n' +
-    '      },\n' +
-    '      "implementation": {\n' +
-    '        "effortLevel": "Low|Medium|High",\n' +
-    '        "timelineWeeks": "X-Y weeks",\n' +
-    '        "phases": [\n' +
-    '          { "phase": "Phase name", "duration": "X weeks", "activities": "Key activities" }\n' +
-    '        ],\n' +
-    '        "prerequisites": ["prerequisite 1", "prerequisite 2"]\n' +
-    '      },\n' +
+    '      "estimatedAnnualValue": "$X.XM",\n' +
     '      "executiveSponsor": "Suggested executive title (e.g. CPO, CLO, CIO)",\n' +
     '      "opportunityScore": 8,\n' +
-    '      "rationale": "A 3-4 sentence paragraph explaining WHY this was identified as a big bet. Reference specific evidence from the research: financial data points, strategic initiatives, agreement landscape findings, product signal strengths, internal usage patterns, or pain points that converge to make this a high-impact opportunity. This should read as a persuasive narrative connecting the dots across multiple data sources."\n' +
+    '      "rationale": "2-3 sentences citing specific evidence (financials, initiatives, agreement types, product signals) explaining why this is a high-impact opportunity."\n' +
     '    }\n' +
     '  ]\n' +
     '}\n\n' +
@@ -1347,8 +1335,7 @@ function buildCall7Request(companyName, accountProfile, priorityMap, productSign
     '- Do NOT recommend products already in use as the core of a big bet (they can be supporting)\n' +
     '- Aim for variety across revenue-side, spend-side, and operational use cases across the BU set\n' +
     '- Value estimates should be realistic and grounded in the company\'s financials\n' +
-    '- Implementation phases should be specific and actionable (typically 3 phases each)\n' +
-    '- The rationale field is critical: it must cite specific data points from the company context above (e.g. revenue figures, strategic initiative names, agreement types, product signals) to substantiate why this bet was chosen';
+    '- The rationale field must cite specific data points from the company context above to substantiate why this bet was chosen';
 
   Logger.log('[Research] buildCall7Request: Big Bet Initiatives for "' + companyName + '"');
   return buildLLMRequest(systemPrompt, userPrompt);
