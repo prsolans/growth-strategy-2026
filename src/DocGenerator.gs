@@ -487,6 +487,120 @@ function createQuadrantChart(agreements) {
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
+ * Add a branded header to the top of the document.
+ * Layout: Row 1 — Docusign logo (left) | "Growth Strategy" title (center) | empty (right)
+ *         Row 2 — Company name (left) | "Growth Strategy Report" italic (center) | Generated date (right)
+ *         Followed by a horizontal rule divider.
+ * @param {Body}   body         Document body
+ * @param {string} companyName  Account name for the subtitle row
+ * @param {boolean} isProspect  Prepends [PROSPECT] to company name if true
+ */
+function addDocumentHeader(body, companyName, isProspect) {
+  var label = (isProspect ? '[PROSPECT] ' : '') + companyName;
+  var dateStr = 'Generated ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMMM d, yyyy');
+
+  // Decode logo blob from base64 constant in Config.gs
+  var logoBlob = null;
+  try {
+    var logoBytes = Utilities.base64Decode(DOCUSIGN_LOGO_BASE64);
+    logoBlob = Utilities.newBlob(logoBytes, 'image/jpeg', 'docusign-logo.jpg');
+  } catch (e) {
+    Logger.log('[Header] Logo decode failed: ' + e.message);
+  }
+
+  // Build table: 3 cols x 2 rows
+  var tableData = [
+    ['', 'Growth Strategy', ''],
+    [label, 'Growth Strategy Report', dateStr]
+  ];
+  var table = body.appendTable(tableData);
+  table.setBorderColor('#FFFFFF');
+  table.setBorderWidth(0);
+
+  // Column widths: ~30 / 40 / 30 split of 516pt page width
+  table.setColumnWidth(0, 155);
+  table.setColumnWidth(1, 206);
+  table.setColumnWidth(2, 155);
+
+  // ── Row 0 ────────────────────────────────────────────────────────────
+  var row0 = table.getRow(0);
+
+  // Col 0: Docusign logo (replaces placeholder text)
+  var logoCell = row0.getCell(0);
+  var logoPara = logoCell.getChild(0).asParagraph();
+  logoPara.clear();
+  logoPara.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
+  if (logoBlob) {
+    try {
+      logoPara.appendInlineImage(logoBlob).setHeight(30).setWidth(103);
+    } catch (e) {
+      Logger.log('[Header] Logo insert failed: ' + e.message);
+      logoPara.appendText('Docusign').editAsText().setBold(true);
+    }
+  }
+  logoCell.setPaddingTop(8);
+  logoCell.setPaddingBottom(4);
+  logoCell.setPaddingLeft(0);
+  logoCell.setPaddingRight(0);
+
+  // Col 1: "Growth Strategy" bold purple centered
+  var titleCell = row0.getCell(1);
+  var titleText = titleCell.editAsText();
+  titleText.setFontSize(20);
+  titleText.setBold(true);
+  titleText.setForegroundColor(DOCUSIGN_PURPLE);
+  titleCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  titleCell.setPaddingTop(8);
+  titleCell.setPaddingBottom(4);
+
+  // Col 2: empty balancing cell
+  row0.getCell(2).getChild(0).asParagraph().clear();
+
+  // ── Row 1 ────────────────────────────────────────────────────────────
+  var row1 = table.getRow(1);
+
+  // Col 0: company name, bold
+  var nameCell = row1.getCell(0);
+  var nameText = nameCell.editAsText();
+  nameText.setFontSize(10);
+  nameText.setBold(true);
+  nameText.setForegroundColor('#333333');
+  nameCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.LEFT);
+  nameCell.setPaddingTop(2);
+  nameCell.setPaddingBottom(8);
+  nameCell.setPaddingLeft(0);
+
+  // Col 1: "Growth Strategy Report" italic grey centered
+  var subtitleCell = row1.getCell(1);
+  var subtitleText = subtitleCell.editAsText();
+  subtitleText.setFontSize(9);
+  subtitleText.setBold(false);
+  subtitleText.setItalic(true);
+  subtitleText.setForegroundColor('#666666');
+  subtitleCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  subtitleCell.setPaddingTop(2);
+  subtitleCell.setPaddingBottom(8);
+
+  // Col 2: date, italic grey right-aligned
+  var dateCell = row1.getCell(2);
+  var dateCellText = dateCell.editAsText();
+  dateCellText.setFontSize(9);
+  dateCellText.setBold(false);
+  dateCellText.setItalic(true);
+  dateCellText.setForegroundColor('#666666');
+  dateCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+  dateCell.setPaddingTop(2);
+  dateCell.setPaddingBottom(8);
+  dateCell.setPaddingRight(0);
+
+  // ── Divider ───────────────────────────────────────────────────────────
+  body.appendHorizontalRule();
+  var spacer = body.appendParagraph('');
+  spacer.setSpacingBefore(0);
+  spacer.setSpacingAfter(8);
+}
+
+/**
  * Main entry point: generate a growth strategy doc for one company.
  * @param {string} companyName
  * @returns {string} URL of the created Google Doc
@@ -698,6 +812,9 @@ function generateGrowthStrategyDoc(companyName, isProspect) {
   body.setMarginBottom(36);
   body.setMarginLeft(48);
   body.setMarginRight(48);
+
+  // ── Header ────────────────────────────────────────────────────────────
+  addDocumentHeader(body, data.identity.name, isProspect);
 
   // ── Build primary sections ───────────────────────────────────────────
   // Sections 1–3: internal account data (customer accounts only).
