@@ -436,7 +436,7 @@ var DOCUSIGN_CATALOG = {
       signals: { strong: 'activeSeat > 50 OR adminSeats > 5', moderate: 'integrations >= 2' }
     },
     {
-      name: 'Clickwraps',
+      name: 'Embedded Signing',
       description: 'Click-to-agree for standard terms, privacy policies, and disclosures',
       solves: ['no audit trail for terms acceptance', 'manual terms management', 'compliance gaps on standard agreements'],
       signals: { strong: 'NOT clickwraps AND (webappSends > 1000 OR ecommerce/SaaS industry)', moderate: 'NOT clickwraps' }

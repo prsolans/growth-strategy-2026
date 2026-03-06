@@ -42,7 +42,7 @@ Find the row matching the company name the user provided. Extract ALL columns fo
 - Integrations: Salesforce, Workday, SAP, Custom API, pct Custom API, PowerForms, Bulk Send, mobile signs, webapp sends, automation sends, integration count
 - Seats: Purchased, active, admin, viewer, sender, activation rate, active seats MoM
 - Financial: CMRR, ACV, currency, cost per envelope, cost per seat
-- Products: CLM, IAM, SMS Delivery, SMS Auth, Phone Auth, ID Check, IDV, Clickwraps, Agreement Actions, Workflows, AI Extraction, Navigator, DocGen, Multi-Channel, SAML, Monitor
+- Products: CLM, IAM, SMS Delivery, SMS Auth, Phone Auth, ID Check, IDV, Embedded Signing, Agreement Actions, Workflows, AI Extraction, Navigator, DocGen, Multi-Channel, SAML, Monitor
 - People: Account owner, CSM, renewal manager, sales rep
 
 If the company is not found, respond to the user that the company was not found in the book scrub data and ask them to verify the name.

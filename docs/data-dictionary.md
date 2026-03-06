@@ -116,7 +116,7 @@ Integration usage across Salesforce, Workday, SAP, custom API, PowerForms, BulkS
 | `PERCENT_BULKSEND_SENT` | Percentage via Bulk Send | Not currently used in signal matching; available in raw data |
 | `MOBILE_SIGNS` | Signing events from mobile devices | Signal matching: SMS Delivery strong (>0). IAM for CX bundle trigger. |
 | `NON_MOBILE_SIGNS` | Signing events from non-mobile devices | Displayed in Docusign Footprint for context |
-| `ANNUAL_WEBAPP_SENTS` | Envelopes sent via web application per year | Signal matching: Maestro (compared to automation sends), Web Forms strong (> automation sends), Clickwraps strong (>1k). LLM summary (send split). |
+| `ANNUAL_WEBAPP_SENTS` | Envelopes sent via web application per year | Signal matching: Maestro (compared to automation sends), Web Forms strong (> automation sends), Embedded Signing strong (>1k). LLM summary (send split). |
 | `ANNUAL_AUTOMATION_SENTS` | Envelopes sent via automation per year | Signal matching: Maestro strong (> webapp sends), Web Forms comparison. LLM summary (send split). |
 
 ---
@@ -168,7 +168,7 @@ Purchased and usage flags for each Docusign product. Determines which products a
 | `PHONE_AUTH_PURCHASED` / `PHONE_AUTH_USED` | Phone Authentication adoption | Signal matching: determines if Phone Auth is in_use |
 | `ID_CHECK_PURCHASED` / `ID_CHECK_USED` | ID Check adoption | Signal matching: IDV in_use flag |
 | `ID_VERIFY_GOVID_EID_AUTH_PURCHASED` / `ID_VERIFY_GOVID_EID_AUTH_USED` | Government ID Verification adoption | Signal matching: IDV in_use flag |
-| `CLICKWRAPS_PURCHASED` / `CLICKWRAPS_USED` | Clickwraps adoption | Signal matching: determines if Clickwraps is in_use |
+| `CLICKWRAPS_PURCHASED` / `CLICKWRAPS_USED` | Embedded Signing adoption | Signal matching: determines if Embedded Signing is in_use |
 | `AGREEMENT_ACTIONS_PURCHASED` / `AGREEMENT_ACTIONS_USED` | Agreement Actions adoption | Product adoption display |
 | `WORKFLOW_RUNS_PURCHASED` / `WORKFLOW_RUNS_USAGE` | Maestro Workflow runs | Signal matching: determines if Maestro is in_use |
 | `WORKFLOW_DEFINITIONS_PURCHASED` / `WORKFLOW_DEFINITIONS_USAGE` | Workflow definitions | Signal matching: additional Maestro in_use check |

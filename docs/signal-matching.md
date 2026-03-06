@@ -35,7 +35,7 @@ The engine evaluates 15 individual Docusign products. The table below shows what
 | **ID Verification (IDV)** | Not using IDV AND regulated industry | Declined rate > 5% OR voided rate > 5% | `ID_VERIFICATION_PURCHASED/USAGE`, `ID_VERIFY_GOVID_EID_AUTH_PURCHASED/USAGE`, `ID_CHECK_PURCHASED/USAGE`, `INDUSTRY`, `PERCENT_DECLINED`, `PERCENT_VOIDED` |
 | **App Center** | No integrations AND envelopes sent > 1,000 | Fewer than 3 integrations | Integration counts (`ENVELOPES_VIA_SALESFORCE`, `ENVELOPES_VIA_WORKDAY`, `ENVELOPES_VIA_SAP`, `CUSTOM_API_SENT`, `COUNT_POWERFORM_SENT`, `COUNT_BULKSEND_SENT`), `ENVELOPES_SENT` |
 | **Monitor** | Active seats > 50 OR admin seats > 5 | 2+ integrations | `ACTIVE_SEATS`, `ADMIN_SEATS`, integration counts |
-| **Clickwraps** | Not using Clickwraps AND webapp sends > 1,000 | Not using Clickwraps (any account) | `CLICKWRAPS_PURCHASED/USAGE`, `ANNUAL_WEBAPP_SENTS` |
+| **Embedded Signing** | Not using Embedded Signing AND webapp sends > 1,000 | Not using Embedded Signing (any account) | `CLICKWRAPS_PURCHASED/USAGE`, `ANNUAL_WEBAPP_SENTS` |
 | **Multi-Channel Delivery** | Not using multi-channel AND envelopes sent > 5,000 | -- | `MULTI_CHANNEL_DELIVERY_PURCHASED/USAGE`, `ENVELOPES_SENT` |
 | **SMS Delivery** | Not using SMS delivery AND mobile signs > 0 | Envelopes sent > 1,000 | `SMS_DELIVERY_PURCHASED/USAGE`, `MOBILE_SIGNS`, `ENVELOPES_SENT` |
 | **SMS Authentication** | Not using SMS auth AND regulated industry | Envelopes sent > 1,000 | `SMS_AUTH_PURCHASED/USAGE`, `INDUSTRY`, `ENVELOPES_SENT` |

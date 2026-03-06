@@ -281,7 +281,7 @@ function getCompanyData(companyName, isProspect) {
     phoneAuth: 'Phone Authentication',
     idCheck: 'ID Check',
     idVerifyGovId: 'Government ID Verification',
-    clickwraps: 'Clickwraps',
+    clickwraps: 'Embedded Signing',
     agreementActions: 'Agreement Actions',
     workflows: 'Maestro Workflows',
     workflowDefs: 'Workflow Definitions',
@@ -728,7 +728,7 @@ function generateProductSignals(data) {
     addSignal('Monitor', active, strength, reasons, dp);
   })();
 
-  // ── Clickwraps ──────────────────────────────────────────────────
+  // ── Embedded Signing ────────────────────────────────────────────
   (function() {
     var active = products.clickwraps;
     var reasons = [];
@@ -736,13 +736,13 @@ function generateProductSignals(data) {
     var dp = { clickwrapsActive: active, webappSends: integrations.webappSends };
     if (!active && integrations.webappSends > 1000) {
       strength = 'strong';
-      reasons.push('High webapp sends (' + integrations.webappSends.toLocaleString() + ') without Clickwraps — standard terms acceptance needs audit trail');
+      reasons.push('High webapp sends (' + integrations.webappSends.toLocaleString() + ') without Embedded Signing — standard terms acceptance needs audit trail');
     }
     if (!strength && !active) {
       strength = 'moderate';
-      reasons.push('Clickwraps not active — could provide click-to-agree for standard terms and policies');
+      reasons.push('Embedded Signing not active — could provide click-to-agree for standard terms and policies');
     }
-    addSignal('Clickwraps', active, strength, reasons, dp);
+    addSignal('Embedded Signing', active, strength, reasons, dp);
   })();
 
   // ── Multi-Channel Delivery ──────────────────────────────────────

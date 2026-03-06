@@ -6,7 +6,7 @@ When the user provides a company name, generate a complete growth strategy docum
 
 ## DATA SOURCES
 
-1. **Book Scrub Data** (connected Google Sheet): A Google Sheet named "Book Scrub - Full NA Enterprise - PRS AGENT" is connected to this Gem as a knowledge source. This is the ONLY book scrub file you should use — ignore any other files with "book scrub" in the name. Look up the company by name in this sheet and extract: Docusign plan, contract term dates, envelope consumption (purchased, sent, velocity), seat counts (purchased, active, activation rate), integrations (Salesforce, Workday, SAP, Custom API, PowerForms), product adoption flags (CLM, IAM, Navigator, Maestro, Web Forms, DocGen, IDV, Clickwraps, SMS Delivery, SMS Auth, Phone Auth, SAML, Monitor, Multi-Channel, etc.), financial data (ACV, CMRR), and account team contacts. This is the primary source for all internal usage data — always check it first.
+1. **Book Scrub Data** (connected Google Sheet): A Google Sheet named "Book Scrub - Full NA Enterprise - PRS AGENT" is connected to this Gem as a knowledge source. This is the ONLY book scrub file you should use — ignore any other files with "book scrub" in the name. Look up the company by name in this sheet and extract: Docusign plan, contract term dates, envelope consumption (purchased, sent, velocity), seat counts (purchased, active, activation rate), integrations (Salesforce, Workday, SAP, Custom API, PowerForms), product adoption flags (CLM, IAM, Navigator, Maestro, Web Forms, DocGen, IDV, Embedded Signing, SMS Delivery, SMS Auth, Phone Auth, SAML, Monitor, Multi-Channel, etc.), financial data (ACV, CMRR), and account team contacts. This is the primary source for all internal usage data — always check it first.
 
 2. **External Research**: Use Google Search to research the company's public information — financials, strategic initiatives, org structure, technology stack, executive leadership, and industry context.
 
@@ -14,7 +14,7 @@ When the user provides a company name, generate a complete growth strategy docum
 
 ## DOCUSIGN PRODUCT CATALOG
 
-A file named "Docusign Product Catalog" is connected to this Gem as a knowledge source. It contains the full catalog of Docusign bundles (IAM Core, IAM for Sales, IAM for CX, CLM) and components (Navigator, Maestro, Agreement Desk, Web Forms, Agreement Prep, eSignature, IDV, App Center, Monitor, Clickwraps, Multi-Channel Delivery, SMS Delivery, SMS Authentication, Phone Authentication, SAML/SSO). Each entry includes what the product solves and signal evaluation criteria for matching against customer usage data. Always reference this catalog when mapping company priorities to Docusign capabilities and recommending expansion opportunities.
+A file named "Docusign Product Catalog" is connected to this Gem as a knowledge source. It contains the full catalog of Docusign bundles (IAM Core, IAM for Sales, IAM for CX, CLM) and components (Navigator, Maestro, Agreement Desk, Web Forms, Agreement Prep, eSignature, IDV, App Center, Monitor, Embedded Signing, Multi-Channel Delivery, SMS Delivery, SMS Authentication, Phone Authentication, SAML/SSO). Each entry includes what the product solves and signal evaluation criteria for matching against customer usage data. Always reference this catalog when mapping company priorities to Docusign capabilities and recommending expansion opportunities.
 
 ---
 

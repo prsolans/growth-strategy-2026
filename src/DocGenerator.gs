@@ -935,7 +935,7 @@ function addBigBetInitiativesSection(body, data, bigBets, accountProfile, contra
       }
     }
     if (parts.length === 0) {
-      return bet.sizeAndScope || (bet.impact && bet.impact.estimatedAnnualValue) || '—';
+      return bet.sizeAndScope || bet.estimatedAnnualValue || '—';
     }
     return parts.join(' | ');
   }
@@ -1000,6 +1000,11 @@ function addBigBetInitiativesSection(body, data, bigBets, accountProfile, contra
         mCell.setPaddingRight(8);
       }
     }
+
+    // Teal styling on the "Timing" label cell (row 1, col 0) — matches LTOM "Docusign Today" header
+    var timingLabelCell = matrixTable.getRow(1).getCell(0);
+    timingLabelCell.setBackgroundColor(DOCUSIGN_TODAY_BG);
+    timingLabelCell.editAsText().setForegroundColor(DOCUSIGN_TODAY_FG);
 
     addSpacer(body);
   }
@@ -2258,7 +2263,7 @@ function addAgreementLandscapeSection(body, data, agreementLandscape, businessMa
   var guideRows = [
     ['Quadrant', 'Description'],
     ['HV/HC \u2014 High Vol / High Cx', 'Strategic agreements \u2014 highest Docusign value. CLM, Navigator, Maestro opportunities.'],
-    ['HV/LC \u2014 High Vol / Low Cx', 'Transactional agreements \u2014 eSignature, Clickwraps, Bulk Send, automation.'],
+    ['HV/LC \u2014 High Vol / Low Cx', 'Transactional agreements \u2014 eSignature, Embedded Signing, Bulk Send, automation.'],
     ['LV/HC \u2014 Low Vol / High Cx', 'Specialized agreements \u2014 CLM, Document Generation, ID Verification.'],
     ['LV/LC \u2014 Low Vol / Low Cx', 'Standard agreements \u2014 eSignature, templates, PowerForms.']
   ];

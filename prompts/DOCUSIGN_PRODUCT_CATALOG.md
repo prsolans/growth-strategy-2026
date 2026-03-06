@@ -186,15 +186,15 @@ Admin visibility into account activity, API usage, and security events.
 
 ---
 
-### Clickwraps
+### Embedded Signing
 
 Click-to-agree for standard terms, privacy policies, and disclosures.
 
 **Problems it solves:** No audit trail for terms acceptance, manual terms management, compliance gaps on standard agreements.
 
 **Signal evaluation:**
-- Strong: Clickwraps not active AND (webapp sends > 1,000 OR ecommerce/SaaS industry)
-- Moderate: Clickwraps not active
+- Strong: Embedded Signing not active AND (webapp sends > 1,000 OR ecommerce/SaaS industry)
+- Moderate: Embedded Signing not active
 
 ---
 
