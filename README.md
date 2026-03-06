@@ -1,4 +1,4 @@
-# 1Growth Strategy Report Generator
+# Growth Strategy Report Generator
 
 A Google Apps Script tool that generates comprehensive, AI-researched growth strategy Google Docs for Docusign customer accounts. It reads internal bookscrub usage data, enriches it with public data sources, runs a 7-call sequential/parallel LLM research pipeline, and produces a branded, multi-section strategic document saved to Google Drive.
 
@@ -91,12 +91,17 @@ flowchart LR
         C7["Call 7<br/>Big Bet Initiatives<br/><br/>One initiative per BU<br/>title · solution · rationale<br/>estimatedAnnualValue · score"]
     end
 
-    C1 --> C2 & C3 & C4
-    C2 & C3 & C4 --> C5
-    C5 --> C6 & C7
+    C1 --> C2
+    C1 --> C3
+    C1 --> C4
+    C2 --> C5
+    C3 --> C5
+    C4 --> C5
+    C5 --> C6
+    C5 --> C7
 
-    C3 -. "parse fail → retry" .-> C3R["Call 3 Retry<br/>simplified prompt<br/>~20s"]
-    C3R -. "double fail → deterministic" .-> FB["Fallback Agreement Landscape<br/>generated from industry config<br/>no LLM required"]
+    C3 -. "parse fail, retry" .-> C3R["Call 3 Retry<br/>simplified prompt<br/>~20s"]
+    C3R -. "double fail, deterministic" .-> FB["Fallback Agreement Landscape<br/>generated from industry config<br/>no LLM required"]
 ```
 
 
@@ -152,7 +157,9 @@ flowchart LR
     EVAL --> MOD["Moderate Signal<br/>Not in use,<br/>weaker indicator"]
     EVAL --> USE["In Use<br/>Already purchased<br/>or detected active"]
 
-    STRONG & MOD & USE --> SUMMARY["Signal summary injected into<br/>Priority Map + Big Bets prompts"]
+    STRONG --> SUMMARY["Signal summary injected into<br/>Priority Map + Big Bets prompts"]
+    MOD --> SUMMARY
+    USE --> SUMMARY
 
     SUMMARY --> GUARDRAIL["LLM guardrail:<br/>Never recommend In Use products<br/>as core Big Bet opportunities"]
 ```
@@ -179,7 +186,8 @@ flowchart TD
     STATUS -- yes --> MARK_DONE["Set row to done<br/>write doc URL"]
     STATUS -- no --> MARK_FAIL["Set row to failed<br/>write error message"]
 
-    MARK_DONE & MARK_FAIL --> MORE{"More<br/>pending rows?"}
+    MARK_DONE --> MORE{"More<br/>pending rows?"}
+    MARK_FAIL --> MORE
     MORE -- yes --> WAIT["Wait for next<br/>5-min trigger fire"]
     MORE -- no --> CLEANUP["Delete trigger · release lock<br/>Batch complete"]
 
