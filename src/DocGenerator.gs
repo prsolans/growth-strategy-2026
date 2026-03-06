@@ -585,7 +585,8 @@ function addDocumentHeader(body, companyName, isProspect) {
   dateCellText.setItalic(true);
   dateCellText.setForegroundColor('#666666');
   dateCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
-  dateCell.setPaddingTop(2);
+  dateCell.setVerticalAlignment(DocumentApp.VerticalAlignment.TOP);
+  dateCell.setPaddingTop(8);
   dateCell.setPaddingBottom(8);
   dateCell.setPaddingRight(0);
 
