@@ -503,7 +503,7 @@ function addDocumentHeader(body, companyName, isProspect) {
   var logoBlob = null;
   try {
     var logoBytes = Utilities.base64Decode(DOCUSIGN_LOGO_BASE64);
-    logoBlob = Utilities.newBlob(logoBytes, 'image/jpeg', 'docusign-logo.jpg');
+    logoBlob = Utilities.newBlob(logoBytes, 'image/png', 'docusign-logo.png');
   } catch (e) {
     Logger.log('[Header] Logo decode failed: ' + e.message);
   }
