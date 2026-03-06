@@ -510,8 +510,8 @@ function addDocumentHeader(body, companyName, isProspect) {
 
   // Build table: 3 cols x 2 rows
   var tableData = [
-    ['', 'Growth Strategy', ''],
-    [label, 'Growth Strategy Report', dateStr]
+    ['', label, ''],
+    ['', 'Growth Strategy Report', dateStr]
   ];
   var table = body.appendTable(tableData);
   table.setBorderColor('#FFFFFF');
@@ -532,7 +532,7 @@ function addDocumentHeader(body, companyName, isProspect) {
   logoPara.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
   if (logoBlob) {
     try {
-      logoPara.appendInlineImage(logoBlob).setHeight(30).setWidth(103);
+      logoPara.appendInlineImage(logoBlob).setHeight(24).setWidth(119);
     } catch (e) {
       Logger.log('[Header] Logo insert failed: ' + e.message);
       logoPara.appendText('Docusign').editAsText().setBold(true);
@@ -559,13 +559,9 @@ function addDocumentHeader(body, companyName, isProspect) {
   // ── Row 1 ────────────────────────────────────────────────────────────
   var row1 = table.getRow(1);
 
-  // Col 0: company name, bold
+  // Col 0: empty (company name moved to row 0 title)
   var nameCell = row1.getCell(0);
-  var nameText = nameCell.editAsText();
-  nameText.setFontSize(10);
-  nameText.setBold(true);
-  nameText.setForegroundColor('#333333');
-  nameCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.LEFT);
+  nameCell.getChild(0).asParagraph().clear();
   nameCell.setPaddingTop(2);
   nameCell.setPaddingBottom(8);
   nameCell.setPaddingLeft(0);
