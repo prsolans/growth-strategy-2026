@@ -193,6 +193,15 @@ function parseMoneyValue(val) {
  */
 function createBarChart(departments) {
   if (!departments || departments.length === 0) return null;
+  // Skip chart if fewer than 3 departments have parseable monetary values — not worth the 6s temp-sheet overhead
+  var parseableCount = 0;
+  for (var pi = 0; pi < departments.length; pi++) {
+    if (parseMoneyValue(departments[pi].estimatedAnnualValue) > 0) parseableCount++;
+  }
+  if (parseableCount < 3) {
+    Logger.log('[Chart] Skipping bar chart — fewer than 3 departments have parseable values (' + parseableCount + ')');
+    return null;
+  }
   var ss = null;
   try {
     ss = createTempSheet('barchart');
@@ -2301,10 +2310,11 @@ function addAgreementLandscapeSection(body, data, agreementLandscape, businessMa
   var headerRow = table.getRow(0);
   for (var hc = 0; hc < numCols; hc++) {
     var hCell = headerRow.getCell(hc);
+    var hCellText = hCell.editAsText();
     hCell.setBackgroundColor(HEADER_BG);
-    hCell.editAsText().setForegroundColor(HEADER_FG);
-    hCell.editAsText().setBold(true);
-    hCell.editAsText().setFontSize(10);
+    hCellText.setForegroundColor(HEADER_FG);
+    hCellText.setBold(true);
+    hCellText.setFontSize(10);
     hCell.setPaddingTop(6);
     hCell.setPaddingBottom(6);
     hCell.setPaddingLeft(8);
@@ -2317,10 +2327,11 @@ function addAgreementLandscapeSection(body, data, agreementLandscape, businessMa
     var bg = (r % 2 === 0) ? TABLE_ALT_BG : '#FFFFFF';
     for (var c = 0; c < numCols; c++) {
       var dataCell = row.getCell(c);
+      var dataCellText = dataCell.editAsText();
       dataCell.setBackgroundColor(bg);
-      dataCell.editAsText().setFontSize(10);
-      dataCell.editAsText().setBold(false);
-      dataCell.editAsText().setForegroundColor('#333333');
+      dataCellText.setFontSize(10);
+      dataCellText.setBold(false);
+      dataCellText.setForegroundColor('#333333');
       dataCell.setPaddingTop(4);
       dataCell.setPaddingBottom(4);
       dataCell.setPaddingLeft(8);
@@ -2332,9 +2343,10 @@ function addAgreementLandscapeSection(body, data, agreementLandscape, businessMa
     var typeValue = typeCell.getText().trim();
     var typeColor = CONTRACT_TYPE_COLORS[typeValue];
     if (typeColor) {
+      var typeCellText = typeCell.editAsText();
       typeCell.setBackgroundColor(typeColor.bg);
-      typeCell.editAsText().setForegroundColor(typeColor.fg);
-      typeCell.editAsText().setBold(true);
+      typeCellText.setForegroundColor(typeColor.fg);
+      typeCellText.setBold(true);
     }
   }
 
@@ -3081,11 +3093,12 @@ function addStyledTable(body, rows) {
   var headerRow = table.getRow(0);
   for (var c = 0; c < numCols; c++) {
     var cell = headerRow.getCell(c);
+    var cellText = cell.editAsText();
     cell.setBackgroundColor(HEADER_BG);
-    cell.editAsText().setForegroundColor(HEADER_FG);
-    cell.editAsText().setBold(true);
-    cell.editAsText().setItalic(false);
-    cell.editAsText().setFontSize(10);
+    cellText.setForegroundColor(HEADER_FG);
+    cellText.setBold(true);
+    cellText.setItalic(false);
+    cellText.setFontSize(10);
     cell.setPaddingTop(6);
     cell.setPaddingBottom(6);
     cell.setPaddingLeft(8);
@@ -3098,20 +3111,16 @@ function addStyledTable(body, rows) {
     var bg = (r % 2 === 0) ? TABLE_ALT_BG : '#FFFFFF';
     for (var c2 = 0; c2 < numCols; c2++) {
       var dataCell = row.getCell(c2);
+      var dataCellText = dataCell.editAsText();
       dataCell.setBackgroundColor(bg);
-      dataCell.editAsText().setFontSize(10);
-      dataCell.editAsText().setBold(false);
-      dataCell.editAsText().setItalic(false);
-      dataCell.editAsText().setForegroundColor('#333333');
+      dataCellText.setFontSize(10);
+      dataCellText.setBold(numCols === 2 && c2 === 0);
+      dataCellText.setItalic(false);
+      dataCellText.setForegroundColor('#333333');
       dataCell.setPaddingTop(4);
       dataCell.setPaddingBottom(4);
       dataCell.setPaddingLeft(8);
       dataCell.setPaddingRight(8);
-
-      // Bold the first column in two-column tables (label column)
-      if (numCols === 2 && c2 === 0) {
-        dataCell.editAsText().setBold(true);
-      }
     }
   }
 

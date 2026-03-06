@@ -176,14 +176,18 @@ function tryParseJson(text) {
   try {
     return cleanCitations(JSON.parse(cleaned));
   } catch(e) {
-    // Try to find JSON object in the text
-    var start = cleaned.indexOf('{');
-    var end = cleaned.lastIndexOf('}');
-    if (start !== -1 && end !== -1 && end > start) {
+    // Scan each { position forward until we find a parseable JSON object.
+    // This rescues JSON embedded after prose preambles (e.g. LLM disclaimer then valid JSON).
+    var searchPos = 0;
+    while (true) {
+      var start = cleaned.indexOf('{', searchPos);
+      if (start === -1) break;
+      var end = cleaned.lastIndexOf('}');
+      if (end <= start) break;
       try {
         return cleanCitations(JSON.parse(cleaned.substring(start, end + 1)));
       } catch(e2) {
-        return null;
+        searchPos = start + 1; // advance past this { and try next candidate
       }
     }
     return null;
@@ -850,7 +854,10 @@ function buildCall3Request(companyName, industry, accountProfile) {
     '- Sort by combined score (volume + complexity) descending\n' +
     '- category: "Internal" for employee/inter-company agreements, "External" for customer/vendor/partner\n' +
     '- contractType: "Negotiated" (custom terms), "Non-negotiated" (standard/click), "Form-based" (templates), "Regulatory" (compliance-driven)\n' +
-    '- Include a mix of internal and external agreements across multiple BUs';
+    '- Include a mix of internal and external agreements across multiple BUs\n' +
+    'IMPORTANT: Never include disclaimers, caveats, or explanations about data availability. ' +
+    'If specific data is unavailable, generate realistic estimates based on industry knowledge and company type. ' +
+    'Start your response immediately with { and return ONLY valid JSON — no preamble, no prose.';
 
   Logger.log('[Research] buildCall3Request: Agreement Landscape for "' + companyName + '"');
   return buildLLMRequest(systemPrompt, userPrompt);
