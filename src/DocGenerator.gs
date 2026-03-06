@@ -508,6 +508,14 @@ function addDocumentHeader(body, companyName, isProspect) {
     Logger.log('[Header] Logo decode failed: ' + e.message);
   }
 
+  // Collapse the default empty paragraph Google Docs inserts before any appended content
+  var defaultPara = body.getChild(0);
+  if (defaultPara && defaultPara.getType() === DocumentApp.ElementType.PARAGRAPH) {
+    defaultPara.asParagraph().setSpacingBefore(0);
+    defaultPara.asParagraph().setSpacingAfter(0);
+    defaultPara.asParagraph().editAsText().setFontSize(1);
+  }
+
   // ── Row 0: 2-col table — Logo (left) | Date (right) ─────────────────
   var topTable = body.appendTable([['', dateStr]]);
   topTable.setBorderColor('#FFFFFF');
@@ -3076,6 +3084,7 @@ function addSectionHeading(body, text) {
   heading.editAsText().setFontSize(22);
   heading.editAsText().setBold(false);
   heading.editAsText().setItalic(false);
+  heading.setSpacingBefore(0);
   heading.setSpacingAfter(12);
   // Insert a reset paragraph so the next append doesn't inherit heading style
   var reset = body.appendParagraph('');
