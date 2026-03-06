@@ -516,20 +516,11 @@ function addDocumentHeader(body, companyName, isProspect) {
     defaultPara.asParagraph().editAsText().setFontSize(1);
   }
 
-  // ── Row 0: 2-col table — Logo (left) | Date (right) ─────────────────
-  var topTable = body.appendTable([['', dateStr]]);
-  topTable.setBorderColor('#FFFFFF');
-  topTable.setBorderWidth(0);
-  topTable.setColumnWidth(0, 160);
-  topTable.setColumnWidth(1, 356);
-
-  var topRow = topTable.getRow(0);
-
-  // Col 0: Docusign logo
-  var logoCell = topRow.getCell(0);
-  var logoPara = logoCell.getChild(0).asParagraph();
-  logoPara.clear();
+  // ── Logo ──────────────────────────────────────────────────────────────
+  var logoPara = body.appendParagraph('');
   logoPara.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
+  logoPara.setSpacingBefore(4);
+  logoPara.setSpacingAfter(4);
   if (logoBlob) {
     try {
       logoPara.appendInlineImage(logoBlob).setHeight(24).setWidth(119);
@@ -538,26 +529,8 @@ function addDocumentHeader(body, companyName, isProspect) {
       logoPara.appendText('Docusign').editAsText().setBold(true);
     }
   }
-  logoCell.setVerticalAlignment(DocumentApp.VerticalAlignment.TOP);
-  logoCell.setPaddingTop(8);
-  logoCell.setPaddingBottom(8);
-  logoCell.setPaddingLeft(0);
-  logoCell.setPaddingRight(0);
 
-  // Col 1: date, italic grey right-aligned
-  var dateCell = topRow.getCell(1);
-  var dateCellText = dateCell.editAsText();
-  dateCellText.setFontSize(9);
-  dateCellText.setBold(false);
-  dateCellText.setItalic(true);
-  dateCellText.setForegroundColor('#666666');
-  dateCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
-  dateCell.setVerticalAlignment(DocumentApp.VerticalAlignment.TOP);
-  dateCell.setPaddingTop(8);
-  dateCell.setPaddingBottom(8);
-  dateCell.setPaddingRight(0);
-
-  // ── Row 1: Company name — full-width centered paragraph ───────────────
+  // ── Company name ──────────────────────────────────────────────────────
   var namePara = body.appendParagraph(label);
   namePara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
   namePara.setSpacingBefore(8);
@@ -567,16 +540,27 @@ function addDocumentHeader(body, companyName, isProspect) {
   nameText.setBold(true);
   nameText.setForegroundColor(DOCUSIGN_PURPLE);
 
-  // ── Row 1 subhead: "Growth Strategy Report" ───────────────────────────
+  // ── Subhead ───────────────────────────────────────────────────────────
   var subPara = body.appendParagraph('Growth Strategy Report');
   subPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
   subPara.setSpacingBefore(0);
-  subPara.setSpacingAfter(12);
+  subPara.setSpacingAfter(2);
   var subText = subPara.editAsText();
   subText.setFontSize(10);
   subText.setBold(false);
   subText.setItalic(true);
   subText.setForegroundColor('#666666');
+
+  // ── Date ──────────────────────────────────────────────────────────────
+  var datePara = body.appendParagraph(dateStr);
+  datePara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  datePara.setSpacingBefore(0);
+  datePara.setSpacingAfter(12);
+  var dateText = datePara.editAsText();
+  dateText.setFontSize(9);
+  dateText.setBold(false);
+  dateText.setItalic(true);
+  dateText.setForegroundColor('#666666');
 
   // ── Divider ───────────────────────────────────────────────────────────
   body.appendHorizontalRule();
