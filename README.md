@@ -1,4 +1,4 @@
-# Growth Strategy Report Generator
+# 1Growth Strategy Report Generator
 
 A Google Apps Script tool that generates comprehensive, AI-researched growth strategy Google Docs for Docusign customer accounts. It reads internal bookscrub usage data, enriches it with public data sources, runs a 7-call sequential/parallel LLM research pipeline, and produces a branded, multi-section strategic document saved to Google Drive.
 
@@ -13,13 +13,13 @@ graph TB
     TRIGGER["👤 Sales Rep<br/>triggers via Genius Bar<br/>or direct menu"]
 
     subgraph SOURCES["Data Sources"]
-        INTERNAL["📊 Internal Docusign Data<br/><i>Book of Business / Bookscrub</i><br/>Envelopes · Seats · Products<br/>Usage signals · Contract details"]
-        PUBLIC["🌐 Public Data Sources<br/><i>Wikipedia · Wikidata · SEC EDGAR</i><br/>Company overviews · Financials<br/>Segment revenue · Employee counts"]
+        INTERNAL["📊 Internal Docusign Data<br/>Book of Business / Bookscrub<br/>Envelopes · Seats · Products<br/>Usage signals · Contract details"]
+        PUBLIC["🌐 Public Data Sources<br/>Wikipedia · Wikidata · SEC EDGAR<br/>Company overviews · Financials<br/>Segment revenue · Employee counts"]
     end
 
     subgraph PIPELINE["AI Research Pipeline"]
         ENRICH["Data Enrichment<br/>Anchor LLM to verified facts<br/>Overwrite hallucinations with<br/>real company data"]
-        LLM["7 LLM Research Calls<br/><i>Bing-grounded GPT-4o</i><br/>Sequential + parallel execution<br/>~2 min end-to-end"]
+        LLM["7 LLM Research Calls<br/>Bing-grounded GPT-4o<br/>Sequential + parallel execution<br/>~2 min end-to-end"]
         SIGNALS["Product Signal Matching<br/>15 products scored against usage<br/>Strong / Moderate / In Use<br/>Injected into LLM as guardrails"]
     end
 
@@ -34,15 +34,9 @@ graph TB
     SIGNALS --> LLM
     ENRICH --> LLM
     LLM --> OUTPUT
-
-    style TRIGGER fill:#1B0B3B,color:#ffffff
-    style INTERNAL fill:#00695C,color:#ffffff
-    style PUBLIC fill:#00695C,color:#ffffff
-    style ENRICH fill:#2d6a9f,color:#ffffff
-    style SIGNALS fill:#2d6a9f,color:#ffffff
-    style LLM fill:#1B0B3B,color:#ffffff
-    style DOC fill:#00B388,color:#ffffff
 ```
+
+
 
 ---
 
@@ -68,13 +62,9 @@ flowchart TD
 
     L --> M["Build Google Doc<br/>header + 6 front sections<br/>+ appendix"]
     M --> N["Save to Drive<br/>return doc URL"]
-
-    style G fill:#1B0B3B,color:#ffffff
-    style H fill:#1B0B3B,color:#ffffff
-    style K fill:#1B0B3B,color:#ffffff
-    style L fill:#1B0B3B,color:#ffffff
-    style N fill:#00B388,color:#ffffff
 ```
+
+
 
 ---
 
@@ -107,17 +97,9 @@ flowchart LR
 
     C3 -. "parse fail → retry" .-> C3R["Call 3 Retry<br/>simplified prompt<br/>~20s"]
     C3R -. "double fail → deterministic" .-> FB["Fallback Agreement Landscape<br/>generated from industry config<br/>no LLM required"]
-
-    style C1 fill:#1B0B3B,color:#ffffff
-    style C2 fill:#1B0B3B,color:#ffffff
-    style C3 fill:#1B0B3B,color:#ffffff
-    style C4 fill:#1B0B3B,color:#ffffff
-    style C5 fill:#00B388,color:#ffffff
-    style C6 fill:#1B0B3B,color:#ffffff
-    style C7 fill:#1B0B3B,color:#ffffff
-    style C3R fill:#2d6a9f,color:#ffffff
-    style FB fill:#888888,color:#ffffff
 ```
+
+
 
 ---
 
@@ -128,12 +110,12 @@ flowchart TD
     HDR["🏷 Branded Header<br/>Docusign logo · company name · generated date"]
 
     subgraph FRONT["Front Matter — 6 Sections"]
-        S1["Section 1 — Docusign Today<br/>Contract table · seat and envelope metrics<br/><i>Source: internal data only</i>"]
-        S2["Section 2 — Product Adoption Opportunity<br/>Signal-matched product recommendations<br/><i>Source: internal data only</i>"]
-        S3["Section 3 — Account Health<br/>6-indicator health scorecard<br/><i>Source: internal data only</i>"]
-        S4["Section 4 — Strategic Initiatives<br/>Executive briefing · priorities<br/><i>Source: AI — Call 6</i>"]
-        S5["Section 5 — Long-Term Opportunity Map<br/>Big Bets per BU · LTOM matrix<br/><i>Source: AI — Calls 5 + 7</i>"]
-        S6["Section 6 — Top 3 Big Bets<br/>Transposed summary matrix<br/><i>Source: AI — Call 7</i>"]
+        S1["Section 1 — Docusign Today<br/>Contract table · seat and envelope metrics<br/>Source: internal data only"]
+        S2["Section 2 — Product Adoption Opportunity<br/>Signal-matched product recommendations<br/>Source: internal data only"]
+        S3["Section 3 — Account Health<br/>6-indicator health scorecard<br/>Source: internal data only"]
+        S4["Section 4 — Strategic Initiatives<br/>Executive briefing · priorities<br/>Source: AI — Call 6"]
+        S5["Section 5 — Long-Term Opportunity Map<br/>Big Bets per BU · LTOM matrix<br/>Source: AI — Calls 5 + 7"]
+        S6["Section 6 — Top 3 Big Bets<br/>Transposed summary matrix<br/>Source: AI — Call 7"]
     end
 
     subgraph APP["Appendix — Supporting Detail"]
@@ -150,25 +132,9 @@ flowchart TD
     end
 
     HDR --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> APP
-
-    style HDR fill:#1B0B3B,color:#ffffff
-    style S1 fill:#00695C,color:#ffffff
-    style S2 fill:#00695C,color:#ffffff
-    style S3 fill:#00695C,color:#ffffff
-    style S4 fill:#1B0B3B,color:#ffffff
-    style S5 fill:#1B0B3B,color:#ffffff
-    style S6 fill:#1B0B3B,color:#ffffff
-    style A1 fill:#2d6a9f,color:#ffffff
-    style A2 fill:#2d6a9f,color:#ffffff
-    style A3 fill:#2d6a9f,color:#ffffff
-    style A4 fill:#2d6a9f,color:#ffffff
-    style A5 fill:#2d6a9f,color:#ffffff
-    style A6 fill:#2d6a9f,color:#ffffff
-    style A7 fill:#2d6a9f,color:#ffffff
-    style A8 fill:#2d6a9f,color:#ffffff
-    style A9 fill:#2d6a9f,color:#ffffff
-    style A10 fill:#2d6a9f,color:#ffffff
 ```
+
+
 
 ---
 
@@ -189,13 +155,9 @@ flowchart LR
     STRONG & MOD & USE --> SUMMARY["Signal summary injected into<br/>Priority Map + Big Bets prompts"]
 
     SUMMARY --> GUARDRAIL["LLM guardrail:<br/>Never recommend In Use products<br/>as core Big Bet opportunities"]
-
-    style RAW fill:#00695C,color:#ffffff
-    style STRONG fill:#1B0B3B,color:#ffffff
-    style MOD fill:#2d6a9f,color:#ffffff
-    style USE fill:#888888,color:#ffffff
-    style GUARDRAIL fill:#1B0B3B,color:#ffffff
 ```
+
+
 
 ---
 
@@ -209,41 +171,39 @@ flowchart TD
     LOCK --> TRIGGER["Create time-based trigger<br/>fires every 5 minutes"]
 
     TRIGGER --> CHUNK["Chunk execution fires"]
-    CHUNK --> STUCK["Mark stuck 'running' rows as 'failed'<br/>prevents duplicate doc generation"]
+    CHUNK --> STUCK["Mark stuck running rows as failed<br/>prevents duplicate doc generation"]
     STUCK --> LOOP["Process up to 2 pending rows<br/>per trigger fire"]
 
     LOOP --> GEN["Generate report<br/>~2 min per company"]
     GEN --> STATUS{"Success?"}
-    STATUS -- yes --> MARK_DONE["Set row → done<br/>write doc URL"]
-    STATUS -- no --> MARK_FAIL["Set row → failed<br/>write error message"]
+    STATUS -- yes --> MARK_DONE["Set row to done<br/>write doc URL"]
+    STATUS -- no --> MARK_FAIL["Set row to failed<br/>write error message"]
 
     MARK_DONE & MARK_FAIL --> MORE{"More<br/>pending rows?"}
     MORE -- yes --> WAIT["Wait for next<br/>5-min trigger fire"]
     MORE -- no --> CLEANUP["Delete trigger · release lock<br/>Batch complete"]
 
     WAIT --> CHUNK
-
-    style START fill:#1B0B3B,color:#ffffff
-    style GEN fill:#1B0B3B,color:#ffffff
-    style MARK_DONE fill:#00695C,color:#ffffff
-    style MARK_FAIL fill:#888888,color:#ffffff
-    style CLEANUP fill:#00B388,color:#ffffff
 ```
+
+
 
 ---
 
 ## File Reference
 
-| File | Role |
-|---|---|
-| `src/Config.gs` | LLM endpoint, `COLUMN_GROUPS`, `DOCUSIGN_CATALOG`, `BASE_AGREEMENTS`, `INDUSTRY_AGREEMENTS`, logo base64 |
-| `src/DataExtractor.gs` | Bookscrub sheet parsing, signal matching, `summarizeForLLM()`, deterministic agreement fallback |
-| `src/Researcher.gs` | All 7 LLM calls, `callLLMJson()`, `callLLMJsonParallel()`, `tryParseJson()`, `cleanCitations()` |
-| `src/DocGenerator.gs` | `generateGrowthStrategyDoc()` orchestration, `addDocumentHeader()`, all section builders, chart helpers |
-| `src/Menu.gs` | `onOpen()`, company picker dialog, settings prompts, `testGenerate()` |
-| `src/DataEnricher.gs` | Wikipedia / Wikidata / SEC EDGAR enrichment (controlled by `ENRICHMENT_ENABLED` in Config.gs) |
-| `src/BatchRunner.gs` | Unattended bulk generation via time-based triggers and LockService |
-| `workers/sec-edgar-proxy/` | Cloudflare Worker that proxies SEC EDGAR API calls to avoid CORS restrictions from GAS |
+
+| File                       | Role                                                                                                     |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `src/Config.gs`            | LLM endpoint, `COLUMN_GROUPS`, `DOCUSIGN_CATALOG`, `BASE_AGREEMENTS`, `INDUSTRY_AGREEMENTS`, logo base64 |
+| `src/DataExtractor.gs`     | Bookscrub sheet parsing, signal matching, `summarizeForLLM()`, deterministic agreement fallback          |
+| `src/Researcher.gs`        | All 7 LLM calls, `callLLMJson()`, `callLLMJsonParallel()`, `tryParseJson()`, `cleanCitations()`          |
+| `src/DocGenerator.gs`      | `generateGrowthStrategyDoc()` orchestration, `addDocumentHeader()`, all section builders, chart helpers  |
+| `src/Menu.gs`              | `onOpen()`, company picker dialog, settings prompts, `testGenerate()`                                    |
+| `src/DataEnricher.gs`      | Wikipedia / Wikidata / SEC EDGAR enrichment (controlled by `ENRICHMENT_ENABLED` in Config.gs)            |
+| `src/BatchRunner.gs`       | Unattended bulk generation via time-based triggers and LockService                                       |
+| `workers/sec-edgar-proxy/` | Cloudflare Worker that proxies SEC EDGAR API calls to avoid CORS restrictions from GAS                   |
+
 
 ---
 
@@ -262,9 +222,12 @@ cd workers/sec-edgar-proxy && npm run deploy
 
 **Required Script Properties** (set via **Growth Strategy > Settings** menu):
 
-| Property | Description |
-|---|---|
-| `INFRA_API_KEY` | API key for the internal LLM endpoint |
-| `INFRA_API_USER` | API user for the internal LLM endpoint |
-| `OUTPUT_FOLDER_ID` | Google Drive folder ID where docs are saved |
-| `SEC_PROXY_URL` | URL of the deployed Cloudflare Worker (optional) |
+
+| Property           | Description                                      |
+| ------------------ | ------------------------------------------------ |
+| `INFRA_API_KEY`    | API key for the internal LLM endpoint            |
+| `INFRA_API_USER`   | API user for the internal LLM endpoint           |
+| `OUTPUT_FOLDER_ID` | Google Drive folder ID where docs are saved      |
+| `SEC_PROXY_URL`    | URL of the deployed Cloudflare Worker (optional) |
+
+
