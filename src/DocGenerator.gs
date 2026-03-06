@@ -508,25 +508,17 @@ function addDocumentHeader(body, companyName, isProspect) {
     Logger.log('[Header] Logo decode failed: ' + e.message);
   }
 
-  // Build table: 3 cols x 2 rows
-  var tableData = [
-    ['', label, ''],
-    ['', 'Growth Strategy Report', dateStr]
-  ];
-  var table = body.appendTable(tableData);
-  table.setBorderColor('#FFFFFF');
-  table.setBorderWidth(0);
+  // ── Row 0: 2-col table — Logo (left) | Date (right) ─────────────────
+  var topTable = body.appendTable([['', dateStr]]);
+  topTable.setBorderColor('#FFFFFF');
+  topTable.setBorderWidth(0);
+  topTable.setColumnWidth(0, 160);
+  topTable.setColumnWidth(1, 356);
 
-  // Column widths: ~30 / 40 / 30 split of 516pt page width
-  table.setColumnWidth(0, 155);
-  table.setColumnWidth(1, 206);
-  table.setColumnWidth(2, 155);
+  var topRow = topTable.getRow(0);
 
-  // ── Row 0 ────────────────────────────────────────────────────────────
-  var row0 = table.getRow(0);
-
-  // Col 0: Docusign logo (replaces placeholder text)
-  var logoCell = row0.getCell(0);
+  // Col 0: Docusign logo
+  var logoCell = topRow.getCell(0);
   var logoPara = logoCell.getChild(0).asParagraph();
   logoPara.clear();
   logoPara.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
@@ -538,47 +530,14 @@ function addDocumentHeader(body, companyName, isProspect) {
       logoPara.appendText('Docusign').editAsText().setBold(true);
     }
   }
+  logoCell.setVerticalAlignment(DocumentApp.VerticalAlignment.TOP);
   logoCell.setPaddingTop(8);
-  logoCell.setPaddingBottom(4);
+  logoCell.setPaddingBottom(8);
   logoCell.setPaddingLeft(0);
   logoCell.setPaddingRight(0);
 
-  // Col 1: "Growth Strategy" bold purple centered
-  var titleCell = row0.getCell(1);
-  var titleText = titleCell.editAsText();
-  titleText.setFontSize(20);
-  titleText.setBold(true);
-  titleText.setForegroundColor(DOCUSIGN_PURPLE);
-  titleCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-  titleCell.setPaddingTop(8);
-  titleCell.setPaddingBottom(4);
-
-  // Col 2: empty balancing cell
-  row0.getCell(2).getChild(0).asParagraph().clear();
-
-  // ── Row 1 ────────────────────────────────────────────────────────────
-  var row1 = table.getRow(1);
-
-  // Col 0: empty (company name moved to row 0 title)
-  var nameCell = row1.getCell(0);
-  nameCell.getChild(0).asParagraph().clear();
-  nameCell.setPaddingTop(2);
-  nameCell.setPaddingBottom(8);
-  nameCell.setPaddingLeft(0);
-
-  // Col 1: "Growth Strategy Report" italic grey centered
-  var subtitleCell = row1.getCell(1);
-  var subtitleText = subtitleCell.editAsText();
-  subtitleText.setFontSize(9);
-  subtitleText.setBold(false);
-  subtitleText.setItalic(true);
-  subtitleText.setForegroundColor('#666666');
-  subtitleCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-  subtitleCell.setPaddingTop(2);
-  subtitleCell.setPaddingBottom(8);
-
-  // Col 2: date, italic grey right-aligned
-  var dateCell = row1.getCell(2);
+  // Col 1: date, italic grey right-aligned
+  var dateCell = topRow.getCell(1);
   var dateCellText = dateCell.editAsText();
   dateCellText.setFontSize(9);
   dateCellText.setBold(false);
@@ -589,6 +548,27 @@ function addDocumentHeader(body, companyName, isProspect) {
   dateCell.setPaddingTop(8);
   dateCell.setPaddingBottom(8);
   dateCell.setPaddingRight(0);
+
+  // ── Row 1: Company name — full-width centered paragraph ───────────────
+  var namePara = body.appendParagraph(label);
+  namePara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  namePara.setSpacingBefore(8);
+  namePara.setSpacingAfter(2);
+  var nameText = namePara.editAsText();
+  nameText.setFontSize(22);
+  nameText.setBold(true);
+  nameText.setForegroundColor(DOCUSIGN_PURPLE);
+
+  // ── Row 1 subhead: "Growth Strategy Report" ───────────────────────────
+  var subPara = body.appendParagraph('Growth Strategy Report');
+  subPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  subPara.setSpacingBefore(0);
+  subPara.setSpacingAfter(12);
+  var subText = subPara.editAsText();
+  subText.setFontSize(10);
+  subText.setBold(false);
+  subText.setItalic(true);
+  subText.setForegroundColor('#666666');
 
   // ── Divider ───────────────────────────────────────────────────────────
   body.appendHorizontalRule();
