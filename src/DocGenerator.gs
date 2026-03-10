@@ -529,7 +529,7 @@ function addDocumentHeader(body, companyName, isProspect) {
   logoPara.setSpacingAfter(4);
   if (logoBlob) {
     try {
-      logoPara.appendInlineImage(logoBlob).setWidth(102).setHeight(21);
+      logoPara.appendInlineImage(logoBlob).setWidth(112).setHeight(23);
     } catch (e) {
       Logger.log('[Header] Logo insert failed: ' + e.message);
       logoPara.appendText('Docusign').editAsText().setBold(true);
@@ -541,7 +541,7 @@ function addDocumentHeader(body, companyName, isProspect) {
   if (badgeBlob) {
     try {
       logoPara.appendText(' ');
-      logoPara.appendInlineImage(badgeBlob).setWidth(87).setHeight(23);
+      logoPara.appendInlineImage(badgeBlob).setWidth(96).setHeight(25);
     } catch (e) {
       Logger.log('[Header] Badge insert failed: ' + e.message);
     }
