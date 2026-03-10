@@ -8,6 +8,7 @@ function onOpen() {
     .addItem('Generate for Company...', 'showCompanyPicker')
     .addItem('Generate for Prospect...', 'showProspectDialog')
     .addSeparator()
+    .addItem('Refresh Company Names', 'refreshCompanyNames')
     .addItem('Batch Generate All...', 'batchGenerateAll')
     .addItem('Stop Batch', 'stopBatch')
     .addSeparator()
@@ -202,6 +203,45 @@ function showProspectDialog() {
     .setTitle('Prospect Strategy Generator');
 
   SpreadsheetApp.getUi().showModalDialog(ui, 'Prospect Strategy Generator');
+}
+
+// ── Company Name Refresh ───────────────────────────────────────────────
+
+/**
+ * Populate (or backfill) the COMPANY_NAME column for all rows in the active sheet.
+ * Blank cells are filled by parsing ACCOUNT_NAME_PLAN_TERM; manually-edited cells
+ * (non-blank) are left untouched.
+ *
+ * Use this before a batch run to auto-generate names, review/correct them in col HV,
+ * then kick off Batch Generate All.
+ */
+function refreshCompanyNames() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BOOKSCRUB_SHEET_NAME);
+  var headerIndex = buildHeaderIndex(sheet);
+  ensureCompanyNameColumn(sheet, headerIndex);
+  var nameCol = headerIndex[COMPANY_NAME_COL];
+  var count = sheet.getLastRow() - 1;
+  SpreadsheetApp.getActiveSpreadsheet().toast(
+    'COMPANY_NAME column refreshed. ' + count + ' rows — review col ' +
+    columnLetter(nameCol + 1) + ' before running the batch.',
+    'Company Names Ready',
+    8
+  );
+}
+
+/**
+ * Convert a 1-based column number to a letter (e.g. 234 → "HV").
+ * @param {number} n  1-based column number
+ * @returns {string}
+ */
+function columnLetter(n) {
+  var s = '';
+  while (n > 0) {
+    var rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
 }
 
 // ── Batch Generation ───────────────────────────────────────────────────

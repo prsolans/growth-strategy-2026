@@ -499,13 +499,19 @@ function addDocumentHeader(body, companyName, isProspect) {
   var label = (isProspect ? '[PROSPECT] ' : '') + companyName;
   var dateStr = 'Generated ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMMM d, yyyy');
 
-  // Decode logo blob from base64 constant in Config.gs
+  // Decode logo blobs from base64 constants in Config.gs
   var logoBlob = null;
   try {
-    var logoBytes = Utilities.base64Decode(DOCUSIGN_LOGO_BASE64);
-    logoBlob = Utilities.newBlob(logoBytes, 'image/png', 'docusign-logo.png');
+    logoBlob = Utilities.newBlob(Utilities.base64Decode(DOCUSIGN_LOGO_BASE64), 'image/png', 'docusign-logo.png');
   } catch (e) {
     Logger.log('[Header] Logo decode failed: ' + e.message);
+  }
+
+  var badgeBlob = null;
+  try {
+    badgeBlob = Utilities.newBlob(Utilities.base64Decode(GENIUS_BAR_LOGO_BASE64), 'image/png', 'genius-bar.png');
+  } catch (e) {
+    Logger.log('[Header] Badge decode failed: ' + e.message);
   }
 
   // Collapse the default empty paragraph Google Docs inserts before any appended content
@@ -523,10 +529,21 @@ function addDocumentHeader(body, companyName, isProspect) {
   logoPara.setSpacingAfter(4);
   if (logoBlob) {
     try {
-      logoPara.appendInlineImage(logoBlob).setHeight(24).setWidth(119);
+      logoPara.appendInlineImage(logoBlob).setWidth(89).setHeight(18);
     } catch (e) {
       Logger.log('[Header] Logo insert failed: ' + e.message);
       logoPara.appendText('Docusign').editAsText().setBold(true);
+    }
+  }
+
+  // ── Genius Bar badge (inline image, right of logo) ────────────────────
+  // 1.05in × 0.28in → 76pt × 20pt
+  if (badgeBlob) {
+    try {
+      logoPara.appendText(' ');
+      logoPara.appendInlineImage(badgeBlob).setWidth(76).setHeight(20);
+    } catch (e) {
+      Logger.log('[Header] Badge insert failed: ' + e.message);
     }
   }
 

@@ -3,6 +3,7 @@
  */
 
 var COMPANY_NAME_COL = 'COMPANY_NAME';
+var BOOKSCRUB_SHEET_NAME = 'Full Data';
 
 /**
  * Extract just the company name from the ACCOUNT_NAME_PLAN_TERM field.
@@ -23,34 +24,60 @@ function extractCompanyName(raw) {
 }
 
 /**
- * Ensure a COMPANY_NAME column exists in the sheet.
- * If missing, adds it as the last column and populates it by parsing
- * ACCOUNT_NAME_PLAN_TERM for every row. Only runs once per sheet.
+ * Ensure a COMPANY_NAME column exists in the sheet and all rows have a value.
+ * - If the column is missing, creates it as the last column and populates all rows.
+ * - If the column already exists, fills in any blank cells (e.g. newly added rows).
+ * Manually-edited cells (non-blank) are never overwritten.
  *
  * @param {Sheet} sheet
  * @param {Object} headerIndex  Current header-to-column map (mutated in place if column is added)
  */
 function ensureCompanyNameColumn(sheet, headerIndex) {
-  if (headerIndex[COMPANY_NAME_COL] !== undefined) {
-    Logger.log('[DataExtractor] COMPANY_NAME column already exists at index ' + headerIndex[COMPANY_NAME_COL]);
-    return;
-  }
-
   var sourceCol = headerIndex['ACCOUNT_NAME_PLAN_TERM'];
   if (sourceCol === undefined) {
     throw new Error('Column ACCOUNT_NAME_PLAN_TERM not found — cannot create COMPANY_NAME.');
   }
 
+  var numRows = sheet.getLastRow();
+
+  if (headerIndex[COMPANY_NAME_COL] !== undefined) {
+    // Column exists — backfill any blank cells introduced by new rows
+    var nameColIdx = headerIndex[COMPANY_NAME_COL]; // 0-based
+    if (numRows < 2) return;
+
+    var rawValues  = sheet.getRange(2, sourceCol + 1,  numRows - 1, 1).getValues();
+    var nameValues = sheet.getRange(2, nameColIdx + 1, numRows - 1, 1).getValues();
+
+    var updates = [];
+    var updateRows = [];
+    for (var i = 0; i < nameValues.length; i++) {
+      if (String(nameValues[i][0]).trim() === '') {
+        updates.push([extractCompanyName(rawValues[i][0])]);
+        updateRows.push(i);
+      }
+    }
+
+    if (updates.length === 0) {
+      Logger.log('[DataExtractor] COMPANY_NAME column up to date — no blank cells found.');
+      return;
+    }
+
+    // Write blanks individually (rows may not be contiguous)
+    for (var j = 0; j < updateRows.length; j++) {
+      sheet.getRange(updateRows[j] + 2, nameColIdx + 1).setValue(updates[j][0]);
+    }
+    Logger.log('[DataExtractor] Backfilled ' + updates.length + ' blank COMPANY_NAME cell(s).');
+    return;
+  }
+
+  // Column doesn't exist — create it and populate all rows
   var lastCol = sheet.getLastColumn();
   var newColIdx = lastCol + 1;
-  var numRows = sheet.getLastRow();
 
   Logger.log('[DataExtractor] Creating COMPANY_NAME column at position ' + newColIdx + '...');
 
-  // Write header
   sheet.getRange(1, newColIdx).setValue(COMPANY_NAME_COL);
 
-  // Read all raw names and write parsed names in one batch
   if (numRows > 1) {
     var rawValues = sheet.getRange(2, sourceCol + 1, numRows - 1, 1).getValues();
     var parsed = rawValues.map(function(row) {
@@ -59,7 +86,6 @@ function ensureCompanyNameColumn(sheet, headerIndex) {
     sheet.getRange(2, newColIdx, parsed.length, 1).setValues(parsed);
   }
 
-  // Update the header index so the rest of the run can use it
   headerIndex[COMPANY_NAME_COL] = newColIdx - 1; // 0-based
   Logger.log('[DataExtractor] COMPANY_NAME column created and populated (' + (numRows - 1) + ' rows)');
 }
@@ -188,7 +214,7 @@ function productInUse(row, headerIndex, purchasedCol, usedCol) {
  * @returns {string[]}
  */
 function getCompanyNames() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BOOKSCRUB_SHEET_NAME);
   var headerIndex = buildHeaderIndex(sheet);
   ensureCompanyNameColumn(sheet, headerIndex);
 
@@ -212,7 +238,7 @@ function getCompanyNames() {
  */
 function getCompanyData(companyName, isProspect) {
   Logger.log('[DataExtractor] getCompanyData called for: "' + companyName + '" (isProspect=' + !!isProspect + ')');
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BOOKSCRUB_SHEET_NAME);
   Logger.log('[DataExtractor] Active sheet: "' + sheet.getName() + '" (' + sheet.getLastRow() + ' rows, ' + sheet.getLastColumn() + ' cols)');
   var headerIndex = buildHeaderIndex(sheet);
   ensureCompanyNameColumn(sheet, headerIndex);
