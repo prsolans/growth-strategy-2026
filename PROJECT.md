@@ -39,4 +39,8 @@ Current phases (in order):
 4. Performance optimization
 
 ## Current focus
-Collecting and normalizing bookscrub data for 200 additional companies ahead of batch report generation.
+PRS-44 (data collection & normalization) is actively in progress — loading 200 company names and confirming DS data coverage with Angel. Batch generation (PRS-38) is blocked on this completing.
+
+## Open questions
+- **Gong API access**: Is there an internal Gong integration available for tooling? What access level would be needed to pull call data per account?
+- **Angel DS coverage**: What is the current status of DS data coverage for the 200 new accounts? Are there gaps that will affect batch generation?
