@@ -1247,6 +1247,18 @@ function addDocusignTodayContractSection(body, data) {
     ['Cost per Seat',          data.financial.costPerSeat ? '$' + data.financial.costPerSeat.toFixed(2) : 'N/A']
   ];
   addStyledTable(body, contractRows);
+
+  // If the term appears elapsed, the bookscrub dates likely reflect a sub-account
+  // rather than the enterprise-level renewal visible in Salesforce.
+  if (data.contract.percentComplete > 100) {
+    var dateNote = body.appendParagraph(
+      '\u26A0\uFE0F  Contract dates are sourced from the bookscrub and reflect this specific Docusign account record. ' +
+      'For enterprises with multiple accounts, the term shown may not match the primary renewal date in Salesforce. ' +
+      'Verify the renewal date directly before presenting to stakeholders.'
+    );
+    dateNote.editAsText().setFontSize(9).setForegroundColor('#92400E').setItalic(true);
+    dateNote.setSpacingBefore(4).setSpacingAfter(0);
+  }
 }
 
 /**

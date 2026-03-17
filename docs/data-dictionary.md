@@ -50,9 +50,9 @@ Plan type, term dates, and time remaining. Drives the health scorecard's renewal
 | `ACCOUNT_PLAN` | Docusign plan tier (e.g., Business Pro, Enterprise Pro) | Displayed in Docusign Footprint; included in LLM summary |
 | `DOCUSIGN_ACCOUNT_PLAN_NAME` | Full plan name | Displayed in Docusign Footprint |
 | `CHARGE_MODEL` | Seat-based or envelope-based billing | Health scorecard: determines whether seat or envelope metrics are the primary health indicator |
-| `TERM_START_DATE` | Contract start date | Displayed in Docusign Footprint; used to calculate term completion |
-| `TERM_END_DATE` | Contract end date | Health scorecard: drives renewal proximity indicator |
-| `TERM_END_FYQ` | Fiscal year quarter of renewal | Displayed in health scorecard renewal proximity detail |
+| `TERM_START_DATE` | Contract start date for this specific Docusign account | Displayed in Docusign Footprint; used to calculate term completion. **Note:** For enterprises with multiple Docusign accounts, this reflects the sub-account term, not the enterprise-level renewal date in Salesforce. |
+| `TERM_END_DATE` | Contract end date for this specific Docusign account | Health scorecard: drives renewal proximity indicator. **Known limitation:** May diverge from the Salesforce renewal date for multi-account enterprises. When the term appears elapsed (PERCENTAGE_TERM_COMPLETED > 100), a disclaimer is shown in the generated doc directing reps to verify in Salesforce. |
+| `TERM_END_FYQ` | Fiscal year quarter of renewal | Displayed in health scorecard renewal proximity detail. Derived from TERM_END_DATE — inherits the same sub-account limitation. |
 | `DAYS_USED` | Days elapsed since term start | Displayed in Docusign Footprint |
 | `DAYS_LEFT` | Days remaining until renewal | Displayed in Docusign Footprint |
 | `PERCENTAGE_TERM_COMPLETED` | Percentage of the contract term elapsed | Health scorecard: combined with consumption data to calculate pacing ratio |
