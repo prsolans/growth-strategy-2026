@@ -1143,7 +1143,8 @@ function summarizeForLLM(data, productSignals) {
   lines.push('Country: ' + data.context.country);
   lines.push('Docusign Plan: ' + data.contract.plan);
   lines.push('Contract Term: ' + data.contract.termStart + ' to ' + data.contract.termEnd);
-  lines.push('Term Completion: ' + data.contract.percentComplete.toFixed(1) + '%');
+  var termPct = data.contract.percentComplete;
+  lines.push('Term Completion: ' + (termPct > 100 ? 'Term elapsed (' + termPct.toFixed(1) + '%)' : termPct.toFixed(1) + '%'));
   lines.push('Envelopes Purchased: ' + data.consumption.envelopesPurchased.toLocaleString());
   lines.push('Envelopes Sent: ' + data.consumption.envelopesSent.toLocaleString());
   lines.push('Consumption Pacing: ' + data.consumption.consumptionPerformance.toFixed(1) + '%');

@@ -1232,7 +1232,7 @@ function addDocusignTodayContractSection(body, data) {
     ['Field', 'Value'],
     ['Docusign Plan',          data.contract.plan || 'N/A'],
     ['Contract Term',          formatDate(data.contract.termStart) + ' - ' + formatDate(data.contract.termEnd)],
-    ['Term Completion',        formatPct(data.contract.percentComplete)],
+    ['Term Completion',        formatTermCompletion(data.contract.percentComplete)],
     ['Days Used / Left',       data.contract.daysUsed + ' / ' + data.contract.daysLeft],
     ['Months Left',            String(data.contract.monthsLeft)],
     ['Renewal FYQ',            data.contract.termEndFyq || 'N/A'],
@@ -1828,7 +1828,7 @@ function addDocusignTodaySection(body, data, strategy, isProspect) {
     ['Field', 'Value'],
     ['Docusign Plan',          data.contract.plan || 'N/A'],
     ['Contract Term',          formatDate(data.contract.termStart) + ' - ' + formatDate(data.contract.termEnd)],
-    ['Term Completion',        formatPct(data.contract.percentComplete)],
+    ['Term Completion',        formatTermCompletion(data.contract.percentComplete)],
     ['Days Used / Left',       data.contract.daysUsed + ' / ' + data.contract.daysLeft],
     ['Months Left',            String(data.contract.monthsLeft)],
     ['Renewal FYQ',            data.contract.termEndFyq || 'N/A'],
@@ -1998,7 +1998,11 @@ function analyzeAccountHealth(data) {
   var isSeatModel = (data.contract.chargeModel || '').toUpperCase() === 'SEAT';
 
   // ── 1. Consumption Pacing ───────────────────────────────────────
-  var termPct = data.contract.percentComplete;
+  var rawTermPct = data.contract.percentComplete;
+  var termElapsed = rawTermPct > 100;
+  var termPct = termElapsed ? 100 : rawTermPct;   // cap at 100 for pacing ratio
+  var termNote = termElapsed ? ' Contract term has elapsed (' + rawTermPct.toFixed(0) + '% completed).' : '';
+
   var consumptionPct = data.consumption.envelopesPurchased > 0
     ? (data.consumption.envelopesSent / data.consumption.envelopesPurchased) * 100
     : null;
@@ -2007,17 +2011,17 @@ function analyzeAccountHealth(data) {
     var pacingRatio = consumptionPct / termPct;
     if (pacingRatio >= 0.9) {
       results.consumptionPacing = assessHealth('green', 'On Track',
-        'Consumption at ' + consumptionPct.toFixed(0) + '% vs ' + termPct.toFixed(0) + '% through term (' + pacingRatio.toFixed(2) + 'x ratio).');
+        'Consumption at ' + consumptionPct.toFixed(0) + '% vs ' + termPct.toFixed(0) + '% through term (' + pacingRatio.toFixed(2) + 'x ratio).' + termNote);
     } else if (pacingRatio >= 0.6) {
       results.consumptionPacing = assessHealth('yellow', 'Slightly Behind',
-        'Consumption at ' + consumptionPct.toFixed(0) + '% vs ' + termPct.toFixed(0) + '% through term (' + pacingRatio.toFixed(2) + 'x ratio). May catch up with seasonal patterns.');
+        'Consumption at ' + consumptionPct.toFixed(0) + '% vs ' + termPct.toFixed(0) + '% through term (' + pacingRatio.toFixed(2) + 'x ratio). May catch up with seasonal patterns.' + termNote);
     } else {
       results.consumptionPacing = assessHealth('red', 'Significantly Behind',
-        'Consumption at ' + consumptionPct.toFixed(0) + '% vs ' + termPct.toFixed(0) + '% through term (' + pacingRatio.toFixed(2) + 'x ratio). Risk of over-purchase or dormant use cases.');
+        'Consumption at ' + consumptionPct.toFixed(0) + '% vs ' + termPct.toFixed(0) + '% through term (' + pacingRatio.toFixed(2) + 'x ratio). Risk of over-purchase or dormant use cases.' + termNote);
     }
   } else {
     results.consumptionPacing = assessHealth('gray', 'No Data',
-      'No envelope consumption data yet. Account is ' + (data.contract.daysUsed || 0) + ' days into term.');
+      'No envelope consumption data yet. Account is ' + (data.contract.daysUsed || 0) + ' days into term.' + termNote);
   }
 
   // ── 2. Usage Trend ──────────────────────────────────────────────
@@ -3258,4 +3262,13 @@ function formatPct(n, decimals) {
   var num = Number(n);
   if (isNaN(num)) return 'N/A';
   return num.toFixed(decimals !== undefined ? decimals : 1) + '%';
+}
+
+// Term completion display: shows normally up to 100%; flags elapsed contracts.
+function formatTermCompletion(n) {
+  if (n === null || n === undefined || n === '') return 'N/A';
+  var num = Number(n);
+  if (isNaN(num)) return 'N/A';
+  if (num > 100) return 'Term elapsed (' + num.toFixed(1) + '%)';
+  return num.toFixed(1) + '%';
 }
