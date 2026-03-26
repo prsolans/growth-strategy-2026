@@ -368,8 +368,8 @@ function getGtmGroupData(gtmGroupName) {
     accounts:     accounts,
 
     identity: {
-      name:               gtmGroupName,
-      rawName:            gtmGroupName,
+      name:               primary.identity.name,
+      rawName:            primary.identity.rawName,
       sfdcParentId:       primary.identity.sfdcParentId,
       siteId:             '',
       docusignAccountId:  '',
