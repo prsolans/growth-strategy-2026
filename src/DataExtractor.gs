@@ -239,8 +239,14 @@ function getCompanyNames() {
 function getGtmGroupNames() {
   var sheet = SpreadsheetApp.openById('1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk').getSheetByName(BOOKSCRUB_SHEET_NAME);
   var headerIndex = buildHeaderIndex(sheet);
+
+  // a) confirm GTM_GROUP column was found
   var groupNameCol = headerIndex['GTM_GROUP'];
-  if (groupNameCol === undefined) return [];
+  Logger.log('[GTMGroup] getGtmGroupNames: GTM_GROUP col index = ' + groupNameCol);
+  if (groupNameCol === undefined) {
+    Logger.log('[GTMGroup] ERROR: GTM_GROUP column not found. Available keys: ' + Object.keys(headerIndex).join(', '));
+    return [];
+  }
 
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
   var seen = {};
@@ -252,6 +258,7 @@ function getGtmGroupNames() {
       names.push(name);
     }
   }
+  Logger.log('[GTMGroup] getGtmGroupNames: found ' + names.length + ' distinct groups: ' + names.sort().join(', '));
   return names.sort();
 }
 
@@ -266,27 +273,54 @@ function getGtmGroupNames() {
  * @returns {Object} merged data object (isGtmGroup: true, accounts: [...])
  */
 function getGtmGroupData(gtmGroupName) {
+  // a) confirm what value we received
+  Logger.log('[GTMGroup] getGtmGroupData called with: "' + gtmGroupName + '"');
+
   var sheet = SpreadsheetApp.openById('1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk').getSheetByName(BOOKSCRUB_SHEET_NAME);
   var headerIndex = buildHeaderIndex(sheet);
   ensureCompanyNameColumn(sheet, headerIndex);
 
+  // b) confirm GTM_GROUP column was found
   var groupNameCol = headerIndex['GTM_GROUP'];
   var nameCol = headerIndex[COMPANY_NAME_COL];
+  Logger.log('[GTMGroup] GTM_GROUP col index = ' + groupNameCol + ' | COMPANY_NAME col index = ' + nameCol);
   if (groupNameCol === undefined) throw new Error('GTM_GROUP column not found in sheet.');
 
+  var sfidCol = headerIndex['SALESFORCE_ACCOUNT_ID'];
+
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var companyNames = [];
+  Logger.log('[GTMGroup] Total data rows to scan: ' + rows.length);
+
+  // c) collect matching rows; deduplicate by SALESFORCE_ACCOUNT_ID to avoid
+  //    counting the same account twice when a name appears in multiple rows
+  var matchedAccounts = [];
+  var seenIds = {};
   for (var r = 0; r < rows.length; r++) {
-    if (String(rows[r][groupNameCol]).trim() === gtmGroupName) {
-      var n = String(rows[r][nameCol]).trim();
-      if (n) companyNames.push(n);
+    var cellValue = String(rows[r][groupNameCol]).trim();
+    var compName  = String(rows[r][nameCol]).trim();
+    if (cellValue === gtmGroupName) {
+      var sfid = sfidCol !== undefined ? String(rows[r][sfidCol]).trim() : '';
+      var dedupeKey = sfid || compName; // fall back to name if no SFID
+      Logger.log('[GTMGroup] Row ' + (r + 2) + ' MATCH: GTM_GROUP="' + cellValue + '" | SFID="' + sfid + '" | company="' + compName + '"');
+      if (compName && !seenIds[dedupeKey]) {
+        seenIds[dedupeKey] = true;
+        matchedAccounts.push({ name: compName, rowIndex: r, row: rows[r] });
+      } else if (seenIds[dedupeKey]) {
+        Logger.log('[GTMGroup] Row ' + (r + 2) + ' SKIPPED (duplicate SFID/name: "' + dedupeKey + '")');
+      }
+    } else if (r < 5) {
+      Logger.log('[GTMGroup] Row ' + (r + 2) + ' sample: GTM_GROUP="' + cellValue + '" | company="' + compName + '"');
     }
   }
-  if (companyNames.length === 0) throw new Error('No accounts found for GTM group: "' + gtmGroupName + '"');
-  Logger.log('[GTMGroup] Found ' + companyNames.length + ' accounts: ' + companyNames.join(', '));
 
-  // Load individual account data
-  var accounts = companyNames.map(function(name) { return getCompanyData(name, false); });
+  Logger.log('[GTMGroup] Unique accounts after dedup: ' + matchedAccounts.length + ' — ' + matchedAccounts.map(function(a) { return a.name; }).join(', '));
+  if (matchedAccounts.length === 0) throw new Error('No accounts found for GTM group: "' + gtmGroupName + '"');
+
+  // Load individual account data — pass preloaded row to skip the per-account sheet re-scan
+  var preloadedContext = { headerIndex: headerIndex };
+  var accounts = matchedAccounts.map(function(a) {
+    return getCompanyData(a.name, false, { headerIndex: headerIndex, row: a.row });
+  });
 
   // Primary = highest ACV account (drives categorical fields)
   accounts.sort(function(a, b) { return (b.financial.acv || 0) - (a.financial.acv || 0); });
@@ -472,31 +506,39 @@ function findCompanyNameByAccountId(accountId) {
  * @param {string} companyName
  * @returns {Object} structured company data
  */
-function getCompanyData(companyName, isProspect) {
+function getCompanyData(companyName, isProspect, preloadedContext) {
   Logger.log('[DataExtractor] getCompanyData called for: "' + companyName + '" (isProspect=' + !!isProspect + ')');
-  //AAH 3.23.2026
-  var sheet = SpreadsheetApp.openById ("1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk").getSheetByName(BOOKSCRUB_SHEET_NAME);
-  Logger.log('[DataExtractor] Active sheet: "' + sheet.getName() + '" (' + sheet.getLastRow() + ' rows, ' + sheet.getLastColumn() + ' cols)');
-  var headerIndex = buildHeaderIndex(sheet);
-  ensureCompanyNameColumn(sheet, headerIndex);
 
-  var nameCol = headerIndex[COMPANY_NAME_COL];
+  var headerIndex, row;
 
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  Logger.log('[DataExtractor] Loaded ' + data.length + ' data rows. Searching for "' + companyName + '"...');
-  var rowIdx = findCompanyRow(data, companyName, nameCol);
-  if (rowIdx === -1) {
-    if (isProspect) {
-      Logger.log('[DataExtractor] Company not found in sheet — returning prospect data object for "' + companyName + '"');
-      return buildProspectData(companyName);
+  if (preloadedContext && preloadedContext.row) {
+    // Fast path: caller already has the sheet loaded and the exact row — skip the full scan
+    headerIndex = preloadedContext.headerIndex;
+    row = preloadedContext.row;
+    Logger.log('[DataExtractor] Using preloaded row for "' + companyName + '" (no sheet re-scan)');
+  } else {
+    //AAH 3.23.2026
+    var sheet = SpreadsheetApp.openById('1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk').getSheetByName(BOOKSCRUB_SHEET_NAME);
+    Logger.log('[DataExtractor] Active sheet: "' + sheet.getName() + '" (' + sheet.getLastRow() + ' rows, ' + sheet.getLastColumn() + ' cols)');
+    headerIndex = buildHeaderIndex(sheet);
+    ensureCompanyNameColumn(sheet, headerIndex);
+
+    var nameCol = headerIndex[COMPANY_NAME_COL];
+    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    Logger.log('[DataExtractor] Loaded ' + data.length + ' data rows. Searching for "' + companyName + '"...');
+    var rowIdx = findCompanyRow(data, companyName, nameCol);
+    if (rowIdx === -1) {
+      if (isProspect) {
+        Logger.log('[DataExtractor] Company not found in sheet — returning prospect data object for "' + companyName + '"');
+        return buildProspectData(companyName);
+      }
+      var available = data.slice(0, 10).map(function(r) { return String(r[nameCol]).trim(); });
+      Logger.log('[DataExtractor] ERROR: Company not found. First 10 names: ' + available.join(', '));
+      throw new Error('Company "' + companyName + '" not found in sheet.');
     }
-    var available = data.slice(0, 10).map(function(r) { return String(r[nameCol]).trim(); });
-    Logger.log('[DataExtractor] ERROR: Company not found. First 10 names: ' + available.join(', '));
-    throw new Error('Company "' + companyName + '" not found in sheet.');
+    Logger.log('[DataExtractor] Found company at row ' + (rowIdx + 2) + ' (data row ' + rowIdx + ')');
+    row = data[rowIdx];
   }
-  Logger.log('[DataExtractor] Found company at row ' + (rowIdx + 2) + ' (data row ' + rowIdx + ')');
-
-  var row = data[rowIdx];
   var v = function(col) { return val(row, headerIndex, col); };
   var n = function(col) { return numVal(row, headerIndex, col); };
   var inUse = function(pCol, uCol) { return productInUse(row, headerIndex, pCol, uCol); };
