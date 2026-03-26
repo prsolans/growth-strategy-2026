@@ -215,6 +215,27 @@ function searchWikidata(companyName) {
 }
 
 /**
+ * Creates a Google Doc with the provided text and returns its URL.
+ * @param {string} content - The text to put inside the document.
+ * @param {string} fileName - (Optional) The name of the file.
+ * @return {string} The URL of the created Google Doc.
+ */
+function createDocFromText(content, fileName = "New Document") {
+  // 1. Create the new document
+  const doc = DocumentApp.create(fileName);
+  
+  // 2. Get the body of the document and add the text
+  const body = doc.getBody();
+  body.setText(content);
+  
+  // 3. Save and close to ensure all changes are committed
+  doc.saveAndClose();
+  
+  // 4. Return the link
+  return doc.getUrl();
+}
+
+/**
  * Fetch structured facts from a Wikidata entity.
  * @param {string} qid  Wikidata entity ID (e.g., "Q312")
  * @returns {Object}  { ceo, headquarters, foundingDate, ticker, secCik, industry }
@@ -231,6 +252,9 @@ function fetchWikidataFacts(qid) {
 
   var claims = data.entities[qid].claims || {};
   var result = {};
+
+  //AAH
+  //Logger.log ("[DEBUG] - Wiki response: " + createDocFromText (JSON.stringify(claims)));
 
   // P169 = CEO / head of organization
   result.ceo = getWikidataLabel(claims, 'P169');
@@ -259,6 +283,23 @@ function fetchWikidataFacts(qid) {
   return result;
 }
 
+//AHH 3.25.2026
+function extractCurrentElement(data) {
+  // Use .find() to return the first element where P582 is missing
+  var result = data.find(function(item) {
+    // Check if qualifiers exists and if P582 is NOT a key in it
+    return item.qualifiers && !item.qualifiers.hasOwnProperty('P582');
+  });
+
+  if (result) {
+    Logger.log("Found element ID: " + result.id);
+    return result;
+  } else {
+    Logger.log("No element found without P582.");
+    return null;
+  }
+}
+
 /**
  * Extract a label (entity reference) from a Wikidata claim.
  * Returns the QID label via a follow-up entity lookup.
@@ -269,8 +310,13 @@ function fetchWikidataFacts(qid) {
 function getWikidataLabel(claims, property) {
   if (!claims[property] || claims[property].length === 0) return null;
 
+  //AAH
+  //Logger.log (JSON.stringify (claims[property]));
+
   // Get the most recent / preferred value
-  var claim = claims[property][0];
+  //AAH
+  var claim = extractCurrentElement (claims[property]);
+
   var mainsnak = claim.mainsnak;
   if (!mainsnak || !mainsnak.datavalue) return null;
 
@@ -281,6 +327,11 @@ function getWikidataLabel(claims, property) {
   var url = WIKIDATA_API_URL + '?action=wbgetentities' +
     '&ids=' + entityId + '&props=labels&languages=en&format=json';
   var data = fetchPublicJson(url);
+
+  //AAH
+  //Logger.log (property);
+  //Logger.log (JSON.stringify(data));
+
   if (data && data.entities && data.entities[entityId] &&
       data.entities[entityId].labels && data.entities[entityId].labels.en) {
     return data.entities[entityId].labels.en.value;

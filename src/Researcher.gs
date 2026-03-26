@@ -1,4 +1,9 @@
-/**
+  function testByAccountId() {
+    var url = generateReportByAccountId('0014000001fvuLWAAY'); // Envista
+    Logger.log(url);
+  }
+  
+  /**
  * LLM research functions using the internal OpenAI endpoint with Bing grounding.
  */
 
@@ -28,7 +33,7 @@ function callLLM(systemPrompt, userPrompt) {
     },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true,
-    timeoutSeconds: 90
+    //timeoutSeconds: 90
   };
 
   Logger.log('[LLM] Sending request...');
@@ -223,7 +228,7 @@ function buildLLMRequest(systemPrompt, userPrompt) {
     },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true,
-    timeoutSeconds: 90
+    //timeoutSeconds: 90
   };
 }
 
@@ -364,7 +369,7 @@ function buildEnrichmentContext(enrichment) {
   lines.push('=== END VERIFIED DATA ===');
   lines.push('');
   lines.push('IMPORTANT: Use the provided verified values exactly as given. Do NOT override them with web search numbers.');
-  lines.push('Your job: add business units, SWOT, strategic initiatives, executives, tech stack, and other analytical content.');
+  lines.push('Your job: add business units, SWOT, strategic initiatives, current executives, tech stack, and other analytical content.');
 
   return lines.join('\n');
 }
@@ -530,9 +535,10 @@ function researchAccountProfile(companyName, industry, enrichment) {
     '  "technologyStack": { "crm": "CRM platform", "hr": "HR/HCM platform", "procurement": "Procurement platform", "other": ["Other system 1", "Other system 2"] },\n' +
     '  "systemsIntegrators": ["SI partner 1", "SI partner 2"]\n' +
     '}\n\n' +
+    'For executiveContacts, only use CURRENT executives. If you are not confident about the current executive name, do not include it in the response. ' + 
     'Provide approximately 5 business units. For executiveContacts, focus on CIO, CTO, CLO, CPO, CFO, ' +
     'VP of Procurement, VP of Legal, and similar roles relevant to agreement management. ' +
-    'Include at least 5 executives.\n' +
+    'Include at least 5 CURRENT executives.\n' +
     'For businessPerformance.strategicInitiatives, provide 3-5 specific initiatives with concrete descriptions and timeframes.\n' +
     'For businessPerformance.highlights, provide 5-7 specific financial or operational highlights with real numbers where available.';
 
@@ -540,6 +546,9 @@ function researchAccountProfile(companyName, industry, enrichment) {
   if (enrichmentBlock) {
     Logger.log('[Research] Call 1: Enrichment context injected (' + enrichmentBlock.length + ' chars)');
   }
+
+  Logger.log (userPrompt);
+
   return callLLMJson(systemPrompt, userPrompt);
 }
 

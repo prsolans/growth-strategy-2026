@@ -586,16 +586,58 @@ function addDocumentHeader(body, companyName, isProspect) {
   spacer.setSpacingAfter(8);
 }
 
+//AAH 3.23.2026
+function notifyUserOfProgress (email, channelId, message){
+  if (email != "" && channelId != ""){
+    var slackWebhookUrl = "https://hooks.slack.com/triggers/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";
+
+    var formData = {
+      'channelId': channelId,
+      'email' : email,
+      'message' : message
+    };
+
+    var options = {
+      'method' : 'post',
+      'contentType': 'application/json',
+      'payload' : JSON.stringify(formData)
+    };
+    var response = UrlFetchApp.fetch(slackWebhookUrl, options);
+  }
+}
+
+/**
+ * Generate a growth strategy report for the account matching the given Salesforce Account ID.
+ * Looks up the account in the Full Data sheet, then delegates to generateGrowthStrategyDoc().
+ * @param {string} salesforceAccountId  e.g. "0014x000009XXXXAAA"
+ * @returns {string} URL of the created Google Doc
+ */
+function generateReportByAccountId(salesforceAccountId, email, channelId, isProspect) {
+  Logger.log('[DocGen] generateReportByAccountId called with: ' + salesforceAccountId);
+  //AAH 3.24.2026
+  var companyName;
+  if (isProspect){
+    companyName = salesforceAccountId;
+  }
+  else{
+    companyName = findCompanyNameByAccountId(salesforceAccountId);
+  }
+  Logger.log('[DocGen] Resolved account ID "' + salesforceAccountId + '" → "' + companyName + '"');
+  return generateGrowthStrategyDoc(companyName, email, channelId, isProspect);
+}
+
 /**
  * Main entry point: generate a growth strategy doc for one company.
  * @param {string} companyName
  * @returns {string} URL of the created Google Doc
  */
-function generateGrowthStrategyDoc(companyName, isProspect) {
+function generateGrowthStrategyDoc(companyName, email, channelId, isProspect) {
   Logger.log('Starting growth strategy generation for: ' + companyName + (isProspect ? ' [PROSPECT]' : ''));
 
   // ── Step 1: Extract internal data and run signal matching ─────────
   Logger.log('Extracting sheet data...');
+  //AAH 3.23.2026
+  notifyUserOfProgress (email, channelId, "Fetching consumption data..");
   var data = getCompanyData(companyName, isProspect);
   var productSignals = generateProductSignals(data);
   var internalSummary = summarizeForLLM(data, productSignals);
@@ -604,6 +646,8 @@ function generateGrowthStrategyDoc(companyName, isProspect) {
 
   // ── Step 1.5: Enrich with public API data (SEC, Wikipedia, Wikidata) ──
   Logger.log('[DocGen] === DATA ENRICHMENT ===');
+  //AAH 3.23.2026
+  notifyUserOfProgress (email, channelId, "Fetching SEC, Wikipedia and Wikidata data..");
   var enrichment = {};
   try {
     enrichment = enrichCompanyData(data.identity.name, data.context.industry);
@@ -621,6 +665,8 @@ function generateGrowthStrategyDoc(companyName, isProspect) {
 
   // Call 1: Account Profile (with enrichment anchoring)
   Logger.log('[DocGen] === LLM CALL 1/7: Account Profile ===');
+  //AAH 3.23.2026
+  notifyUserOfProgress (email, channelId, "Researching company " + companyName + "..");
   var accountProfile;
   try {
     accountProfile = researchAccountProfile(data.identity.name, data.context.industry, enrichment);
@@ -630,6 +676,9 @@ function generateGrowthStrategyDoc(companyName, isProspect) {
     accountProfile = {};
   }
 
+  //Logger.log ("[DEBUG] - Account profile before enriching");
+  //Logger.log (JSON.stringify (accountProfile));
+
   // Post-LLM enforcement: overwrite any values the LLM got wrong
   try {
     accountProfile = enforceEnrichedData(accountProfile, enrichment);
@@ -637,7 +686,12 @@ function generateGrowthStrategyDoc(companyName, isProspect) {
     Logger.log('[DocGen] Enrichment enforcement failed (non-fatal): ' + e.message);
   }
 
+  //Logger.log ("[DEBUG] - Account profile after enriching");
+  //Logger.log (JSON.stringify (accountProfile));
+
   // Calls 2+3+4: Business Map, Agreement Landscape, Contract Commerce (PARALLEL)
+  //AAH 3.23.2026
+  notifyUserOfProgress (email, channelId, "Generating Business Map, Agreement Landscape and Contract Commerce..");
   Logger.log('[DocGen] === LLM CALLS 2+3+4/7: Business Map + Agreement Landscape + Contract Commerce (parallel) ===');
   var businessMap = {};
   var agreementLandscape = {};
@@ -713,6 +767,8 @@ function generateGrowthStrategyDoc(companyName, isProspect) {
   }
 
   // Call 5: Priority Map
+  //AAH 3.23.2026
+  notifyUserOfProgress (email, channelId, "Generating Priority Map..");
   Logger.log('[DocGen] === LLM CALL 5/7: Priority Map ===');
   var externalResearch = {
     accountProfile: accountProfile,
@@ -731,6 +787,8 @@ function generateGrowthStrategyDoc(companyName, isProspect) {
   }
 
   // Calls 6+7: Executive Briefing + Big Bet Initiatives (PARALLEL)
+  //AAH 3.23.2026
+  notifyUserOfProgress (email, channelId, "Generating Executive Briefing and Big Bet Initiatives..");
   Logger.log('[DocGen] === LLM CALLS 6+7/7: Executive Briefing + Big Bet Initiatives (parallel) ===');
   var briefing = {};
   var bigBets = {};
@@ -779,6 +837,8 @@ function generateGrowthStrategyDoc(companyName, isProspect) {
   }
 
   // ── Step 3: Create the Google Doc ─────────────────────────────────
+  //AAH 3.23.2026
+  notifyUserOfProgress (email, channelId, "Generating Final Document..");
   Logger.log('[DocGen] Creating Google Doc...');
   var docTitle = (isProspect ? '[PROSPECT] ' : '') + data.identity.name + ' | Growth Strategy';
   var doc = DocumentApp.create(docTitle);
@@ -1838,6 +1898,7 @@ function addDocusignTodaySection(body, data, strategy, isProspect) {
 
   var contractRows = [
     ['Field', 'Value'],
+    ['Salesforce Account ID',  data.identity.salesforceAccountId || 'N/A'],
     ['Docusign Plan',          data.contract.plan || 'N/A'],
     ['Contract Term',          formatDate(data.contract.termStart) + ' - ' + formatDate(data.contract.termEnd)],
     ['Term Completion',        formatTermCompletion(data.contract.percentComplete)],
@@ -1865,47 +1926,22 @@ function addDocusignTodaySection(body, data, strategy, isProspect) {
 
   var consumptionRows = [
     ['Metric', 'Value'],
-    ['Envelopes Purchased',          formatNumber(data.consumption.envelopesPurchased)],
-    ['Envelopes Sent (Total)',       formatNumber(data.consumption.envelopesSent)],
-    ['Consumption Pacing',           consumptionPct],
-    ['Usage Trend',                  data.consumption.usageTrend || 'N/A'],
-    ['Consumption Performance',      formatPct(data.consumption.consumptionPerformance)],
-    ['Projected Usage Score',        String(data.consumption.projectedUsageScore || 'N/A')],
-    ['Last 30 Days Bucket',          data.consumption.last30dBucket || 'N/A'],
-    ['Send Vitality',                String(data.consumption.sendVitality || 'N/A')],
-    ['Send Velocity (MoM)',          String(data.consumption.sendVelocityMom || 'N/A')],
-    ['Envelope Allowance',           formatNumber(data.consumption.envelopeAllowance)],
-    ['Projected Envelopes Sent',     formatNumber(data.consumption.projectedSent)],
-    ['Planned Sends',                formatNumber(data.consumption.plannedSends)]
+    ['Envelopes Purchased',    formatNumber(data.consumption.envelopesPurchased)],
+    ['Envelopes Sent (Total)', formatNumber(data.consumption.envelopesSent)],
+    ['Consumption Pacing',     consumptionPct],
+    ['Usage Trend',            data.consumption.usageTrend || 'N/A'],
+    ['Send Velocity (MoM)',    String(data.consumption.sendVelocityMom || 'N/A')]
   ];
   addStyledTable(body, consumptionRows);
-
-  // ── Send Velocity ───────────────────────────────────────────────
-  addSubHeading(body, 'Send Velocity');
-
-  var velocityRows = [
-    ['Time Period', 'Envelopes Sent'],
-    ['Last 7 Days',    formatNumber(data.consumption.sent7d)],
-    ['Last 30 Days',   formatNumber(data.consumption.sent30d)],
-    ['Last 60 Days',   formatNumber(data.consumption.sent60d)],
-    ['Last 90 Days',   formatNumber(data.consumption.sent90d)],
-    ['Last 365 Days',  formatNumber(data.consumption.sent365d)]
-  ];
-  addStyledTable(body, velocityRows);
 
   // ── Transaction Health ──────────────────────────────────────────
   addSubHeading(body, 'Transaction Health');
 
   var healthRows = [
     ['Metric', 'Value'],
-    ['Envelopes Completed',    formatNumber(data.consumption.completed)],
-    ['Completion Rate',        formatPct(data.consumption.completedRate)],
-    ['Envelopes Declined',     formatNumber(data.consumption.declined)],
-    ['% Declined',             formatPct(data.consumption.pctDeclined)],
-    ['Envelopes Voided',       formatNumber(data.consumption.voided)],
-    ['% Voided',               formatPct(data.consumption.pctVoided)],
-    ['Envelopes Expired',      formatNumber(data.consumption.expired)],
-    ['% Expired',              formatPct(data.consumption.pctExpired)]
+    ['% Declined',       formatPct(data.consumption.pctDeclined)],
+    ['% Voided',         formatPct(data.consumption.pctVoided)],
+    ['% Expired',        formatPct(data.consumption.pctExpired)]
   ];
   addStyledTable(body, healthRows);
 
@@ -1914,13 +1950,10 @@ function addDocusignTodaySection(body, data, strategy, isProspect) {
 
   var seatRows = [
     ['Metric', 'Value'],
-    ['Seats Purchased',       data.seats.unlimited ? 'Unlimited' : formatNumber(data.seats.purchased)],
-    ['Active Seats',          formatNumber(data.seats.active)],
-    ['Admin Seats',           formatNumber(data.seats.admin)],
-    ['Sender Seats',          formatNumber(data.seats.sender)],
-    ['Viewer Seats',          formatNumber(data.seats.viewer)],
-    ['Seat Activation %',     formatPct(data.seats.activationRate)],
-    ['Active Seats MoM',      String(data.seats.activeSeatsMom || 'N/A')]
+    ['Seats Purchased',  formatNumber(data.seats.purchased)],
+    ['Active Seats',     formatNumber(data.seats.active)],
+    ['Seat Activation %', formatPct(data.seats.activationRate)],
+    ['Active Seats MoM', String(data.seats.activeSeatsMom || 'N/A')]
   ];
   addStyledTable(body, seatRows);
 
@@ -1929,16 +1962,14 @@ function addDocusignTodaySection(body, data, strategy, isProspect) {
 
   var intRows = [
     ['Integration', 'Envelopes'],
-    ['Salesforce',        formatNumber(data.integrations.salesforce)],
-    ['Workday',           formatNumber(data.integrations.workday)],
-    ['SAP',               formatNumber(data.integrations.sap)],
-    ['Custom API',        formatNumber(data.integrations.customApi) + (data.integrations.pctCustomApi ? ' (' + formatPct(data.integrations.pctCustomApi) + ')' : '')],
-    ['PowerForms',        formatNumber(data.integrations.powerforms)],
-    ['Bulk Send',         formatNumber(data.integrations.bulkSend)],
-    ['Mobile Signs',      formatNumber(data.integrations.mobileSigns)],
-    ['Non-Mobile Signs',  formatNumber(data.integrations.nonMobileSigns)],
-    ['Web App Sends (Annual)',     formatNumber(data.integrations.webappSends)],
-    ['Automation Sends (Annual)',  formatNumber(data.integrations.automationSends)]
+    ['Salesforce',                formatNumber(data.integrations.salesforce)],
+    ['Workday',                   formatNumber(data.integrations.workday)],
+    ['SAP',                       formatNumber(data.integrations.sap)],
+    ['Custom API',                formatNumber(data.integrations.customApi) + (data.integrations.pctCustomApi ? ' (' + formatPct(data.integrations.pctCustomApi) + ')' : '')],
+    ['PowerForms',                formatNumber(data.integrations.powerforms)],
+    ['Bulk Send',                 formatNumber(data.integrations.bulkSend)],
+    ['Web App Sends (Annual)',    formatNumber(data.integrations.webappSends)],
+    ['Automation Sends (Annual)', formatNumber(data.integrations.automationSends)]
   ];
   addStyledTable(body, intRows);
 
@@ -2054,7 +2085,7 @@ function analyzeAccountHealth(data) {
 
   // ── 3. Send Velocity MoM ───────────────────────────────────────
   var velMom = data.consumption.sendVelocityMom;
-  if (velMom !== 0 && velMom !== null && velMom !== undefined) {
+  if (velMom !== null && velMom !== undefined) {
     if (velMom > 10) {
       results.sendVelocity = assessHealth('green', 'Accelerating',
         'Send volume up ' + velMom + '% month-over-month. Usage is growing.');
@@ -2095,7 +2126,7 @@ function analyzeAccountHealth(data) {
 
   // ── 5. Active Seats MoM ────────────────────────────────────────
   var seatMom = data.seats.activeSeatsMom;
-  if (seatMom !== 0 && seatMom !== null && seatMom !== undefined) {
+  if (seatMom !== null && seatMom !== undefined) {
     if (seatMom > 0) {
       results.seatGrowth = assessHealth('green', 'Growing',
         'Active seats up ' + seatMom + '% month-over-month. Organic expansion happening.');

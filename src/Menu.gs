@@ -125,7 +125,7 @@ function showCompanyPicker() {
     '      document.getElementById("status").innerText = "Error: " + err.message;' +
     '      btnEl.disabled = false;' +
     '    })' +
-    '    .generateGrowthStrategyDoc(selected);' +
+    '    .generateAndLog(selected, false);' +
     '}' +
     '' +
     'searchEl.focus();' +
@@ -191,7 +191,7 @@ function showProspectDialog() {
     '      document.getElementById("status").innerText = "Error: " + err.message;' +
     '      btnEl.disabled = false;' +
     '    })' +
-    '    .generateGrowthStrategyDoc(name, true);' +
+    '    .generateAndLog(name, true);' +
     '}' +
     '' +
     'nameEl.focus();' +
@@ -242,6 +242,94 @@ function columnLetter(n) {
     n = Math.floor((n - 1) / 26);
   }
   return s;
+}
+
+// ── Single-generation logging ──────────────────────────────────────────
+
+/**
+ * Wrapper called by the company picker and prospect dialogs.
+ * Delegates to generateGrowthStrategyDoc() and logs the result to Batch Status.
+ *
+ * @param {string}  companyName
+ * @param {boolean} isProspect
+ * @returns {string} doc URL
+ */
+function generateAndLog(companyName, isProspect) {
+  var docUrl, errorMsg;
+  try {
+    docUrl = generateGrowthStrategyDoc(companyName, "", "", isProspect);
+    logToStatusSheet(companyName, isProspect, 'done', docUrl, '');
+    return docUrl;
+  } catch (e) {
+    errorMsg = e.message || String(e);
+    logToStatusSheet(companyName, isProspect, 'error', '', errorMsg);
+    throw e;
+  }
+}
+
+/**
+ * Upsert a row in the Batch Status sheet for a single-run generation.
+ * If a row already exists for this company it is updated in place; otherwise a new row is appended.
+ * Creates the sheet with the standard header if it doesn't exist yet.
+ *
+ * @param {string}  companyName
+ * @param {boolean} isProspect
+ * @param {string}  status      'done' | 'error'
+ * @param {string}  docUrl
+ * @param {string}  error
+ */
+function logToStatusSheet(companyName, isProspect, status, docUrl, error) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(BATCH_SHEET_NAME);
+
+  // Create the sheet with the standard header if it doesn't exist yet
+  if (!sheet) {
+    sheet = ss.insertSheet(BATCH_SHEET_NAME);
+    var hdr = sheet.getRange(1, 1, 1, 5);
+    hdr.setValues([['COMPANY_NAME', 'STATUS', 'DOC_URL', 'RUN_AT', 'ERROR']]);
+    hdr.setFontWeight('bold');
+    hdr.setBackground('#1B0B3B');
+    hdr.setFontColor('#FFFFFF');
+    sheet.setColumnWidth(BATCH_COL_COMPANY, 280);
+    sheet.setColumnWidth(BATCH_COL_STATUS,  90);
+    sheet.setColumnWidth(BATCH_COL_DOC_URL, 320);
+    sheet.setColumnWidth(BATCH_COL_RUN_AT,  160);
+    sheet.setColumnWidth(BATCH_COL_ERROR,   300);
+    sheet.setFrozenRows(1);
+  }
+
+  var displayName = isProspect ? '[PROSPECT] ' + companyName : companyName;
+  var runAt = new Date();
+  var lastRow = sheet.getLastRow();
+
+  var newRow = [displayName, status, docUrl, runAt, error];
+
+  if (lastRow > 1) {
+    var names = sheet.getRange(2, BATCH_COL_COMPANY, lastRow - 1, 1).getValues();
+
+    // Update existing row in place (name unchanged, so position stays correct)
+    for (var i = 0; i < names.length; i++) {
+      if (String(names[i][0]).trim() === displayName) {
+        sheet.getRange(i + 2, 1, 1, 5).setValues([newRow]);
+        return;
+      }
+    }
+
+    // Insert at the correct alphabetical position
+    var insertAt = lastRow + 1; // default: after last row
+    var key = displayName.toLowerCase();
+    for (var j = 0; j < names.length; j++) {
+      if (String(names[j][0]).toLowerCase() > key) {
+        insertAt = j + 2;
+        break;
+      }
+    }
+    sheet.insertRowBefore(insertAt);
+    sheet.getRange(insertAt, 1, 1, 5).setValues([newRow]);
+  } else {
+    // Sheet is empty (header only) — just write to row 2
+    sheet.getRange(2, 1, 1, 5).setValues([newRow]);
+  }
 }
 
 // ── Batch Generation ───────────────────────────────────────────────────

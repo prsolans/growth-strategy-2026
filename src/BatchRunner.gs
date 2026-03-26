@@ -208,7 +208,7 @@ function _batchGenerateChunkBody() {
     Logger.log('[Batch] Processing row ' + rowNum + ': ' + companyName);
 
     try {
-      var docUrl = generateGrowthStrategyDoc(companyName);
+      var docUrl = generateGrowthStrategyDoc(companyName, "", "", false);
       batchSheet.getRange(rowNum, BATCH_COL_STATUS).setValue('done');
       batchSheet.getRange(rowNum, BATCH_COL_DOC_URL).setValue(docUrl);
       batchSheet.getRange(rowNum, BATCH_COL_RUN_AT).setValue(new Date());

@@ -214,7 +214,9 @@ function productInUse(row, headerIndex, purchasedCol, usedCol) {
  * @returns {string[]}
  */
 function getCompanyNames() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BOOKSCRUB_SHEET_NAME);
+  //AAH 3.23.2026
+  var sheet = SpreadsheetApp.openById ("1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk").getSheetByName(BOOKSCRUB_SHEET_NAME);
+
   var headerIndex = buildHeaderIndex(sheet);
   ensureCompanyNameColumn(sheet, headerIndex);
 
@@ -230,6 +232,34 @@ function getCompanyNames() {
 }
 
 /**
+ * Look up a company name by Salesforce Account ID.
+ * @param {string} accountId  Value from the SALESFORCE_ACCOUNT_ID column
+ * @returns {string} company name (COMPANY_NAME column value)
+ * @throws if the account ID is not found
+ */
+function findCompanyNameByAccountId(accountId) {
+  var target = String(accountId).trim();
+  //AAH 3.23.2026
+  var sheet = SpreadsheetApp.openById ("1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk").getSheetByName(BOOKSCRUB_SHEET_NAME);
+  var headerIndex = buildHeaderIndex(sheet);
+  ensureCompanyNameColumn(sheet, headerIndex);
+
+  var accountIdCol = headerIndex['SALESFORCE_ACCOUNT_ID'];
+  if (accountIdCol === undefined) {
+    throw new Error('SALESFORCE_ACCOUNT_ID column not found in "' + BOOKSCRUB_SHEET_NAME + '" sheet.');
+  }
+  var nameCol = headerIndex[COMPANY_NAME_COL];
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+
+  for (var r = 0; r < data.length; r++) {
+    if (String(data[r][accountIdCol]).trim() === target) {
+      return String(data[r][nameCol]).trim();
+    }
+  }
+  throw new Error('No row found with SALESFORCE_ACCOUNT_ID = "' + accountId + '".');
+}
+
+/**
  * Main extraction function. Returns a structured object with all relevant data
  * for the given company.
  *
@@ -238,7 +268,8 @@ function getCompanyNames() {
  */
 function getCompanyData(companyName, isProspect) {
   Logger.log('[DataExtractor] getCompanyData called for: "' + companyName + '" (isProspect=' + !!isProspect + ')');
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BOOKSCRUB_SHEET_NAME);
+  //AAH 3.23.2026
+  var sheet = SpreadsheetApp.openById ("1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk").getSheetByName(BOOKSCRUB_SHEET_NAME);
   Logger.log('[DataExtractor] Active sheet: "' + sheet.getName() + '" (' + sheet.getLastRow() + ' rows, ' + sheet.getLastColumn() + ' cols)');
   var headerIndex = buildHeaderIndex(sheet);
   ensureCompanyNameColumn(sheet, headerIndex);
@@ -391,7 +422,7 @@ function getCompanyData(companyName, isProspect) {
       projectedUsageScore:   n('PROJECTED_USAGE_SCORE'),
       last30dBucket:         v('LAST_30_DAYS_PERFORMANCE_BUCKET'),
       sendVitality:          n('SEND_VITALITY'),
-      sendVelocityMom:       n('SEND_VELOCITY_MOM'),
+      sendVelocityMom:       v('SEND_VELOCITY_MOM') !== '' ? n('SEND_VELOCITY_MOM') : null,
       completed:             n('ENVELOPES_COMPLETED'),
       completedRate:         n('ENVELOPES_COMPLETED_RATE'),
       declined:              n('ENVELOPES_DECLINED'),
@@ -431,7 +462,7 @@ function getCompanyData(companyName, isProspect) {
       sender:         n('SENDER_SEATS'),
       activationRate: n('PERCENTAGE_SVA'),
       evaRate:        n('PERCENTAGE_EVA'),
-      activeSeatsMom: n('ACTIVE_SEATS_MOM'),
+      activeSeatsMom: v('ACTIVE_SEATS_MOM') !== '' ? n('ACTIVE_SEATS_MOM') : null,
       unlimited:      String(v('IS_UNLIMITED_SEATS')).toUpperCase() === 'TRUE'
     },
 
@@ -1149,7 +1180,6 @@ function summarizeForLLM(data, productSignals) {
   lines.push('Envelopes Sent: ' + data.consumption.envelopesSent.toLocaleString());
   lines.push('Consumption Pacing: ' + data.consumption.consumptionPerformance.toFixed(1) + '%');
   lines.push('Usage Trend: ' + data.consumption.usageTrend);
-  lines.push('Completion Rate: ' + data.consumption.completedRate.toFixed(1) + '%');
   lines.push('Seats Purchased: ' + data.seats.purchased);
   lines.push('Active Seats: ' + data.seats.active);
   lines.push('Seat Activation: ' + data.seats.activationRate.toFixed(1) + '%');
