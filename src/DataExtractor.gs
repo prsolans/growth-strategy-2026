@@ -232,14 +232,14 @@ function getCompanyNames() {
 }
 
 /**
- * Returns the sorted list of distinct GTM_GROUP_NAME values in the bookscrub sheet.
+ * Returns the sorted list of distinct GTM_GROUP values in the bookscrub sheet.
  * Used to populate the GTM Group picker dialog.
  * @returns {string[]}
  */
 function getGtmGroupNames() {
   var sheet = SpreadsheetApp.openById('1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk').getSheetByName(BOOKSCRUB_SHEET_NAME);
   var headerIndex = buildHeaderIndex(sheet);
-  var groupNameCol = headerIndex['GTM_GROUP_NAME'];
+  var groupNameCol = headerIndex['GTM_GROUP'];
   if (groupNameCol === undefined) return [];
 
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
@@ -270,9 +270,9 @@ function getGtmGroupData(gtmGroupName) {
   var headerIndex = buildHeaderIndex(sheet);
   ensureCompanyNameColumn(sheet, headerIndex);
 
-  var groupNameCol = headerIndex['GTM_GROUP_NAME'];
+  var groupNameCol = headerIndex['GTM_GROUP'];
   var nameCol = headerIndex[COMPANY_NAME_COL];
-  if (groupNameCol === undefined) throw new Error('GTM_GROUP_NAME column not found in sheet.');
+  if (groupNameCol === undefined) throw new Error('GTM_GROUP column not found in sheet.');
 
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
   var companyNames = [];
