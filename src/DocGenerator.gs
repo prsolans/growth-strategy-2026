@@ -627,18 +627,32 @@ function generateReportByAccountId(salesforceAccountId, email, channelId, isPros
 }
 
 /**
+ * Generate a growth strategy doc for all accounts in a GTM group.
+ * Merges account data via getGtmGroupData() and delegates to generateGrowthStrategyDoc().
+ * @param {string} gtmGroupName  Value of GTM_GROUP_NAME column
+ * @param {string} email         Optional — for Slack progress notifications
+ * @param {string} channelId     Optional — for Slack progress notifications
+ * @returns {string} URL of the created Google Doc
+ */
+function generateGrowthStrategyDocForGroup(gtmGroupName, email, channelId) {
+  Logger.log('[DocGen] generateGrowthStrategyDocForGroup called for: ' + gtmGroupName);
+  var groupData = getGtmGroupData(gtmGroupName);
+  return generateGrowthStrategyDoc(gtmGroupName, email || '', channelId || '', false, groupData);
+}
+
+/**
  * Main entry point: generate a growth strategy doc for one company.
  * @param {string} companyName
  * @returns {string} URL of the created Google Doc
  */
-function generateGrowthStrategyDoc(companyName, email, channelId, isProspect) {
+function generateGrowthStrategyDoc(companyName, email, channelId, isProspect, prebuiltData) {
   Logger.log('Starting growth strategy generation for: ' + companyName + (isProspect ? ' [PROSPECT]' : ''));
 
   // ── Step 1: Extract internal data and run signal matching ─────────
   Logger.log('Extracting sheet data...');
   //AAH 3.23.2026
   notifyUserOfProgress (email, channelId, "Fetching consumption data..");
-  var data = getCompanyData(companyName, isProspect);
+  var data = prebuiltData || getCompanyData(companyName, isProspect);
   var productSignals = generateProductSignals(data);
   var internalSummary = summarizeForLLM(data, productSignals);
   Logger.log('[DocGen] Internal data extracted. Industry: ' + data.context.industry +
@@ -1894,28 +1908,70 @@ function addDocusignTodaySection(body, data, strategy, isProspect) {
 
   if (!isProspect) {
   // ── Contract & Account ──────────────────────────────────────────
-  addSubHeading(body, 'Contract & Account');
+  if (data.isGtmGroup && data.accounts && data.accounts.length > 0) {
+    // GTM group: show a per-account summary table, then group-level context
+    addSubHeading(body, 'Accounts in GTM Group (' + data.accounts.length + ')');
+    var groupHeader = ['Account', 'Plan', 'Contract Term', 'Term %', 'ACV', 'Seats (Purch / Active)', 'Envelopes Sent'];
+    var groupRows = [groupHeader];
+    data.accounts.forEach(function(acc) {
+      var term = formatDate(acc.contract.termStart) + ' – ' + formatDate(acc.contract.termEnd);
+      var acv = acc.financial.acv ? '$' + formatNumber(acc.financial.acv) : 'N/A';
+      var seats = formatNumber(acc.seats.purchased) + ' / ' + formatNumber(acc.seats.active);
+      groupRows.push([
+        acc.identity.name,
+        acc.contract.plan || 'N/A',
+        term,
+        formatTermCompletion(acc.contract.percentComplete),
+        acv,
+        seats,
+        formatNumber(acc.consumption.envelopesSent)
+      ]);
+    });
+    // Append group totals row
+    groupRows.push([
+      'GROUP TOTAL',
+      '—',
+      '—',
+      '—',
+      '$' + formatNumber(data.financial.acv),
+      formatNumber(data.seats.purchased) + ' / ' + formatNumber(data.seats.active),
+      formatNumber(data.consumption.envelopesSent)
+    ]);
+    addStyledTable(body, groupRows);
 
-  var contractRows = [
-    ['Field', 'Value'],
-    ['Salesforce Account ID',  data.identity.salesforceAccountId || 'N/A'],
-    ['Docusign Plan',          data.contract.plan || 'N/A'],
-    ['Contract Term',          formatDate(data.contract.termStart) + ' - ' + formatDate(data.contract.termEnd)],
-    ['Term Completion',        formatTermCompletion(data.contract.percentComplete)],
-    ['Days Used / Left',       data.contract.daysUsed + ' / ' + data.contract.daysLeft],
-    ['Months Left',            String(data.contract.monthsLeft)],
-    ['Renewal FYQ',            data.contract.termEndFyq || 'N/A'],
-    ['Multi-Year Ramp',        data.contract.isMultiYearRamp ? 'Yes' : 'No'],
-    ['Charge Model',           data.contract.chargeModel || 'N/A'],
-    ['Sales Channel',          data.context.salesChannel || 'N/A'],
-    ['Industry',               data.context.industry || 'N/A'],
-    ['Country',                data.context.country || 'N/A'],
-    ['ACV',                    '$' + formatNumber(data.financial.acv)],
-    ['CMRR',                   data.financial.cmrr || 'N/A'],
-    ['Cost per Envelope',      data.financial.costPerEnvelope ? '$' + data.financial.costPerEnvelope.toFixed(3) : 'N/A'],
-    ['Cost per Seat',          data.financial.costPerSeat ? '$' + data.financial.costPerSeat.toFixed(2) : 'N/A']
-  ];
-  addStyledTable(body, contractRows);
+    // Group-level context row
+    addSubHeading(body, 'Group Context');
+    var ctxRows = [
+      ['Field', 'Value'],
+      ['Industry',      data.context.industry || 'N/A'],
+      ['Region',        data.context.region || 'N/A'],
+      ['Sales Channel', data.context.salesChannel || 'N/A'],
+      ['Total ACV',     '$' + formatNumber(data.financial.acv)]
+    ];
+    addStyledTable(body, ctxRows);
+  } else {
+    addSubHeading(body, 'Contract & Account');
+    var contractRows = [
+      ['Field', 'Value'],
+      ['Salesforce Account ID',  data.identity.salesforceAccountId || 'N/A'],
+      ['Docusign Plan',          data.contract.plan || 'N/A'],
+      ['Contract Term',          formatDate(data.contract.termStart) + ' - ' + formatDate(data.contract.termEnd)],
+      ['Term Completion',        formatTermCompletion(data.contract.percentComplete)],
+      ['Days Used / Left',       data.contract.daysUsed + ' / ' + data.contract.daysLeft],
+      ['Months Left',            String(data.contract.monthsLeft)],
+      ['Renewal FYQ',            data.contract.termEndFyq || 'N/A'],
+      ['Multi-Year Ramp',        data.contract.isMultiYearRamp ? 'Yes' : 'No'],
+      ['Charge Model',           data.contract.chargeModel || 'N/A'],
+      ['Sales Channel',          data.context.salesChannel || 'N/A'],
+      ['Industry',               data.context.industry || 'N/A'],
+      ['Country',                data.context.country || 'N/A'],
+      ['ACV',                    '$' + formatNumber(data.financial.acv)],
+      ['CMRR',                   data.financial.cmrr || 'N/A'],
+      ['Cost per Envelope',      data.financial.costPerEnvelope ? '$' + data.financial.costPerEnvelope.toFixed(3) : 'N/A'],
+      ['Cost per Seat',          data.financial.costPerSeat ? '$' + data.financial.costPerSeat.toFixed(2) : 'N/A']
+    ];
+    addStyledTable(body, contractRows);
+  }
 
   // ── Consumption & Usage ─────────────────────────────────────────
   addSubHeading(body, 'Consumption & Usage');

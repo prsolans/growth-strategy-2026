@@ -232,6 +232,212 @@ function getCompanyNames() {
 }
 
 /**
+ * Returns the sorted list of distinct GTM_GROUP_NAME values in the bookscrub sheet.
+ * Used to populate the GTM Group picker dialog.
+ * @returns {string[]}
+ */
+function getGtmGroupNames() {
+  var sheet = SpreadsheetApp.openById('1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk').getSheetByName(BOOKSCRUB_SHEET_NAME);
+  var headerIndex = buildHeaderIndex(sheet);
+  var groupNameCol = headerIndex['GTM_GROUP_NAME'];
+  if (groupNameCol === undefined) return [];
+
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var seen = {};
+  var names = [];
+  for (var r = 0; r < rows.length; r++) {
+    var name = String(rows[r][groupNameCol]).trim();
+    if (name && !seen[name]) {
+      seen[name] = true;
+      names.push(name);
+    }
+  }
+  return names.sort();
+}
+
+/**
+ * Loads data for every account in a GTM group and returns a single merged
+ * data object that has the same shape as getCompanyData(). Numeric fields are
+ * summed; percentage/rate fields are recalculated from the sums; categorical
+ * fields are taken from the primary (highest-ACV) account. An `accounts[]`
+ * array of individual data objects is attached for per-account table rendering.
+ *
+ * @param {string} gtmGroupName  Value of the GTM_GROUP_NAME column
+ * @returns {Object} merged data object (isGtmGroup: true, accounts: [...])
+ */
+function getGtmGroupData(gtmGroupName) {
+  var sheet = SpreadsheetApp.openById('1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk').getSheetByName(BOOKSCRUB_SHEET_NAME);
+  var headerIndex = buildHeaderIndex(sheet);
+  ensureCompanyNameColumn(sheet, headerIndex);
+
+  var groupNameCol = headerIndex['GTM_GROUP_NAME'];
+  var nameCol = headerIndex[COMPANY_NAME_COL];
+  if (groupNameCol === undefined) throw new Error('GTM_GROUP_NAME column not found in sheet.');
+
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var companyNames = [];
+  for (var r = 0; r < rows.length; r++) {
+    if (String(rows[r][groupNameCol]).trim() === gtmGroupName) {
+      var n = String(rows[r][nameCol]).trim();
+      if (n) companyNames.push(n);
+    }
+  }
+  if (companyNames.length === 0) throw new Error('No accounts found for GTM group: "' + gtmGroupName + '"');
+  Logger.log('[GTMGroup] Found ' + companyNames.length + ' accounts: ' + companyNames.join(', '));
+
+  // Load individual account data
+  var accounts = companyNames.map(function(name) { return getCompanyData(name, false); });
+
+  // Primary = highest ACV account (drives categorical fields)
+  accounts.sort(function(a, b) { return (b.financial.acv || 0) - (a.financial.acv || 0); });
+  var primary = accounts[0];
+
+  // Helper: sum a numeric field across all accounts
+  function sum(getter) {
+    return accounts.reduce(function(t, a) { return t + (getter(a) || 0); }, 0);
+  }
+
+  // Pre-compute shared denominators
+  var totalEnvSent      = sum(function(a) { return a.consumption.envelopesSent; });
+  var totalEnvPurchased = sum(function(a) { return a.consumption.envelopesPurchased; });
+  var totalCompleted    = sum(function(a) { return a.consumption.completed; });
+  var totalDeclined     = sum(function(a) { return a.consumption.declined; });
+  var totalVoided       = sum(function(a) { return a.consumption.voided; });
+  var totalExpired      = sum(function(a) { return a.consumption.expired; });
+  var totalCustomApi    = sum(function(a) { return a.integrations.customApi; });
+  var totalSeatsActive  = sum(function(a) { return a.seats.active; });
+  var totalSeatsPurch   = sum(function(a) { return a.seats.purchased; });
+
+  // Union active products across all accounts
+  var allActive = {};
+  var allProducts = {};
+  accounts.forEach(function(acc) {
+    acc.activeProducts.forEach(function(p) { allActive[p] = true; });
+    Object.keys(acc.products).forEach(function(p) {
+      if (!allProducts[p]) {
+        allProducts[p] = JSON.parse(JSON.stringify(acc.products[p]));
+      } else if (acc.products[p].inUse) {
+        allProducts[p].inUse = true;
+      }
+    });
+  });
+
+  // Count integration types active in any account
+  var intFields = ['salesforce', 'workday', 'sap', 'customApi', 'powerforms', 'bulkSend'];
+  var intCount = intFields.filter(function(f) {
+    return accounts.some(function(a) { return (a.integrations[f] || 0) > 0; });
+  }).length;
+
+  return {
+    isGtmGroup:   true,
+    gtmGroupName: gtmGroupName,
+    accounts:     accounts,
+
+    identity: {
+      name:               gtmGroupName,
+      rawName:            gtmGroupName,
+      sfdcParentId:       primary.identity.sfdcParentId,
+      siteId:             '',
+      docusignAccountId:  '',
+      salesforceAccountId: '',
+      sfdcUrl:            ''
+    },
+
+    context: {
+      industry:      primary.context.industry,
+      country:       primary.context.country,
+      salesChannel:  primary.context.salesChannel,
+      region:        primary.context.region,
+      gtmGroup:      primary.context.gtmGroup,
+      gtmGroupName:  gtmGroupName,
+      partnerAccount: primary.context.partnerAccount
+    },
+
+    // Contract fields are shown per-account; this placeholder keeps callers safe
+    contract: {
+      plan: '', planName: '', chargeModel: '',
+      termStart: '', termEnd: '', termEndFyq: '',
+      daysUsed: 0, daysLeft: 0, percentComplete: 0,
+      monthsLeft: 0, isMultiYearRamp: false
+    },
+
+    consumption: {
+      envelopesPurchased:    totalEnvPurchased,
+      envelopesSent:         totalEnvSent,
+      sent7d:                sum(function(a) { return a.consumption.sent7d; }),
+      sent30d:               sum(function(a) { return a.consumption.sent30d; }),
+      sent60d:               sum(function(a) { return a.consumption.sent60d; }),
+      sent90d:               sum(function(a) { return a.consumption.sent90d; }),
+      sent365d:              sum(function(a) { return a.consumption.sent365d; }),
+      envelopesExpected:     sum(function(a) { return a.consumption.envelopesExpected; }),
+      consumptionPerformance: totalEnvPurchased > 0 ? (totalEnvSent / totalEnvPurchased) * 100 : 0,
+      usageTrend:            primary.consumption.usageTrend,
+      usageTrendSeat:        primary.consumption.usageTrendSeat,
+      projectedUsageScore:   null,
+      last30dBucket:         primary.consumption.last30dBucket,
+      sendVitality:          null,
+      sendVelocityMom:       null,
+      completed:             totalCompleted,
+      completedRate:         totalEnvSent > 0 ? (totalCompleted / totalEnvSent) * 100 : 0,
+      declined:              totalDeclined,
+      voided:                totalVoided,
+      expired:               totalExpired,
+      pctDeclined:           totalEnvSent > 0 ? (totalDeclined / totalEnvSent) * 100 : 0,
+      pctVoided:             totalEnvSent > 0 ? (totalVoided / totalEnvSent) * 100 : 0,
+      pctExpired:            totalEnvSent > 0 ? (totalExpired / totalEnvSent) * 100 : 0,
+      usageVsExpected:       0,
+      pctUsageVsExpected:    0,
+      projectedSent:         sum(function(a) { return a.consumption.projectedSent; }),
+      envelopeAllowance:     sum(function(a) { return a.consumption.envelopeAllowance; }),
+      plannedSends:          sum(function(a) { return a.consumption.plannedSends; }),
+      plannedPerDay:         sum(function(a) { return a.consumption.plannedPerDay; })
+    },
+
+    integrations: {
+      salesforce:     sum(function(a) { return a.integrations.salesforce; }),
+      workday:        sum(function(a) { return a.integrations.workday; }),
+      sap:            sum(function(a) { return a.integrations.sap; }),
+      customApi:      totalCustomApi,
+      pctCustomApi:   totalEnvSent > 0 ? (totalCustomApi / totalEnvSent) * 100 : 0,
+      powerforms:     sum(function(a) { return a.integrations.powerforms; }),
+      bulkSend:       sum(function(a) { return a.integrations.bulkSend; }),
+      mobileSigns:    sum(function(a) { return a.integrations.mobileSigns; }),
+      nonMobileSigns: sum(function(a) { return a.integrations.nonMobileSigns; }),
+      webappSends:    sum(function(a) { return a.integrations.webappSends; }),
+      automationSends: sum(function(a) { return a.integrations.automationSends; }),
+      count:          intCount
+    },
+
+    seats: {
+      purchased:      totalSeatsPurch,
+      active:         totalSeatsActive,
+      admin:          sum(function(a) { return a.seats.admin; }),
+      viewer:         sum(function(a) { return a.seats.viewer; }),
+      sender:         sum(function(a) { return a.seats.sender; }),
+      activationRate: totalSeatsPurch > 0 ? (totalSeatsActive / totalSeatsPurch) * 100 : 0,
+      evaRate:        0,
+      activeSeatsMom: null,
+      unlimited:      accounts.some(function(a) { return a.seats.unlimited; })
+    },
+
+    financial: {
+      cmrr:            primary.financial.cmrr,
+      acv:             sum(function(a) { return a.financial.acv; }),
+      currency:        primary.financial.currency,
+      costPerEnvelope: null,
+      costPerSeat:     null,
+      reportingMrr:    sum(function(a) { return a.financial.reportingMrr; })
+    },
+
+    products:        allProducts,
+    activeProducts:  Object.keys(allActive),
+    inactiveProducts: [],
+
+    people: primary.people
+  };
+}
+
+/**
  * Look up a company name by Salesforce Account ID.
  * @param {string} accountId  Value from the SALESFORCE_ACCOUNT_ID column
  * @returns {string} company name (COMPANY_NAME column value)

@@ -6,6 +6,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Growth Strategy')
     .addItem('Generate for Company...', 'showCompanyPicker')
+    .addItem('Generate for GTM Group...', 'showGtmGroupPicker')
     .addItem('Generate for Prospect...', 'showProspectDialog')
     .addSeparator()
     .addItem('Refresh Company Names', 'refreshCompanyNames')
@@ -203,6 +204,148 @@ function showProspectDialog() {
     .setTitle('Prospect Strategy Generator');
 
   SpreadsheetApp.getUi().showModalDialog(ui, 'Prospect Strategy Generator');
+}
+
+// ── GTM Group Picker ───────────────────────────────────────────────────
+
+/**
+ * Show a searchable dialog to pick a GTM group and generate a combined report.
+ */
+function showGtmGroupPicker() {
+  var names = getGtmGroupNames();
+  if (names.length === 0) {
+    SpreadsheetApp.getUi().alert('No GTM_GROUP_NAME values found in the sheet.');
+    return;
+  }
+
+  var namesJson = JSON.stringify(names);
+
+  var html = '<style>' +
+    'body { font-family: Arial, sans-serif; padding: 16px; }' +
+    '.search-wrap { position: relative; }' +
+    '#search { width: 100%; padding: 10px 12px; font-size: 14px; border: 2px solid #ccc; ' +
+    '  border-radius: 6px; box-sizing: border-box; outline: none; }' +
+    '#search:focus { border-color: #1B0B3B; }' +
+    '#results { position: absolute; top: 100%; left: 0; right: 0; max-height: 180px; ' +
+    '  overflow-y: auto; background: white; border: 1px solid #ddd; border-top: none; ' +
+    '  border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none; z-index: 10; }' +
+    '#results div { padding: 8px 12px; cursor: pointer; font-size: 13px; }' +
+    '#results div:hover, #results div.active { background: #F5F3F7; }' +
+    '#results div.active { background: #E8E4EF; }' +
+    'button { background: #1B0B3B; color: white; border: none; padding: 10px 24px; ' +
+    '  font-size: 14px; cursor: pointer; border-radius: 4px; margin-top: 12px; width: 100%; }' +
+    'button:hover { background: #2D1B5E; }' +
+    'button:disabled { background: #999; cursor: default; }' +
+    '.status { color: #666; font-size: 12px; margin-top: 8px; }' +
+    '.count { color: #999; font-size: 11px; margin-top: 4px; }' +
+    '</style>' +
+    '<div>' +
+    '<label><b>Type to search GTM groups:</b></label>' +
+    '<div class="search-wrap">' +
+    '  <input type="text" id="search" placeholder="Start typing a GTM group name..." autocomplete="off" />' +
+    '  <div id="results"></div>' +
+    '</div>' +
+    '<div class="count" id="count"></div>' +
+    '<button id="btn" onclick="generate()" disabled>Generate Group Strategy</button>' +
+    '<div id="status" class="status"></div>' +
+    '</div>' +
+    '<script>' +
+    'var ALL_NAMES = ' + namesJson + ';' +
+    'var selected = "";' +
+    'var activeIdx = -1;' +
+    'var filtered = [];' +
+    '' +
+    'var searchEl = document.getElementById("search");' +
+    'var resultsEl = document.getElementById("results");' +
+    'var btnEl = document.getElementById("btn");' +
+    'var countEl = document.getElementById("count");' +
+    '' +
+    'countEl.innerText = ALL_NAMES.length + " GTM groups in sheet";' +
+    '' +
+    'searchEl.addEventListener("input", function() {' +
+    '  var q = this.value.toLowerCase();' +
+    '  selected = "";' +
+    '  btnEl.disabled = true;' +
+    '  activeIdx = -1;' +
+    '  if (q.length < 1) { resultsEl.style.display = "none"; return; }' +
+    '  filtered = ALL_NAMES.filter(function(n) { return n.toLowerCase().indexOf(q) !== -1; });' +
+    '  if (filtered.length === 0) {' +
+    '    resultsEl.innerHTML = "<div style=\\"color:#999\\">No matches</div>";' +
+    '  } else {' +
+    '    resultsEl.innerHTML = filtered.slice(0, 50).map(function(n, i) {' +
+    '      return "<div data-idx=\\"" + i + "\\" onclick=\\"pick(this)\\">" + esc(n) + "</div>";' +
+    '    }).join("");' +
+    '  }' +
+    '  resultsEl.style.display = "block";' +
+    '});' +
+    '' +
+    'searchEl.addEventListener("keydown", function(e) {' +
+    '  var items = resultsEl.querySelectorAll("div[data-idx]");' +
+    '  if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); highlight(items); }' +
+    '  else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); highlight(items); }' +
+    '  else if (e.key === "Enter" && activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); pick(items[activeIdx]); }' +
+    '});' +
+    '' +
+    'function highlight(items) {' +
+    '  for (var i = 0; i < items.length; i++) items[i].classList.remove("active");' +
+    '  if (items[activeIdx]) { items[activeIdx].classList.add("active"); items[activeIdx].scrollIntoView({block:"nearest"}); }' +
+    '}' +
+    '' +
+    'function pick(el) {' +
+    '  selected = filtered[parseInt(el.getAttribute("data-idx"))];' +
+    '  searchEl.value = selected;' +
+    '  resultsEl.style.display = "none";' +
+    '  btnEl.disabled = false;' +
+    '  activeIdx = -1;' +
+    '}' +
+    '' +
+    'function esc(s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }' +
+    '' +
+    'function generate() {' +
+    '  if (!selected) return;' +
+    '  document.getElementById("status").innerText = "Generating... this may take a few minutes.";' +
+    '  btnEl.disabled = true;' +
+    '  google.script.run' +
+    '    .withSuccessHandler(function(url) {' +
+    '      document.getElementById("status").innerHTML = ' +
+    '        \'Done! <a href="\' + url + \'" target="_blank">Open Document</a>\';' +
+    '      btnEl.disabled = false;' +
+    '    })' +
+    '    .withFailureHandler(function(err) {' +
+    '      document.getElementById("status").innerText = "Error: " + err.message;' +
+    '      btnEl.disabled = false;' +
+    '    })' +
+    '    .generateAndLogGroup(selected);' +
+    '}' +
+    '' +
+    'searchEl.focus();' +
+    '</script>';
+
+  var ui = HtmlService.createHtmlOutput(html)
+    .setWidth(480)
+    .setHeight(280)
+    .setTitle('Generate for GTM Group');
+
+  SpreadsheetApp.getUi().showModalDialog(ui, 'Generate for GTM Group');
+}
+
+/**
+ * Wrapper called by the GTM group picker dialog.
+ * Delegates to generateGrowthStrategyDocForGroup() and logs the result.
+ * @param {string} gtmGroupName
+ * @returns {string} doc URL
+ */
+function generateAndLogGroup(gtmGroupName) {
+  var docUrl, errorMsg;
+  try {
+    docUrl = generateGrowthStrategyDocForGroup(gtmGroupName, '', '');
+    logToStatusSheet('[GTM] ' + gtmGroupName, false, 'done', docUrl, '');
+    return docUrl;
+  } catch (e) {
+    errorMsg = e.message || String(e);
+    logToStatusSheet('[GTM] ' + gtmGroupName, false, 'error', '', errorMsg);
+    throw e;
+  }
 }
 
 // ── Company Name Refresh ───────────────────────────────────────────────
