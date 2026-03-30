@@ -629,15 +629,15 @@ function generateReportByAccountId(salesforceAccountId, email, channelId, isPros
 /**
  * Generate a growth strategy doc for all accounts in a GTM group.
  * Merges account data via getGtmGroupData() and delegates to generateGrowthStrategyDoc().
- * @param {string} gtmGroupName  Value of GTM_GROUP_NAME column
- * @param {string} email         Optional — for Slack progress notifications
- * @param {string} channelId     Optional — for Slack progress notifications
+ * @param {string} gtmGroupId  Value of the GTM_GROUP column (Salesforce group ID)
+ * @param {string} email       Optional — for Slack progress notifications
+ * @param {string} channelId   Optional — for Slack progress notifications
  * @returns {string} URL of the created Google Doc
  */
-function generateGrowthStrategyDocForGroup(gtmGroupName, email, channelId) {
-  Logger.log('[DocGen] generateGrowthStrategyDocForGroup called for: ' + gtmGroupName);
-  var groupData = getGtmGroupData(gtmGroupName);
-  return generateGrowthStrategyDoc(gtmGroupName, email || '', channelId || '', false, groupData);
+function generateGrowthStrategyDocForGroup(gtmGroupId, email, channelId) {
+  Logger.log('[DocGen] generateGrowthStrategyDocForGroup called for ID: ' + gtmGroupId);
+  var groupData = getGtmGroupData(gtmGroupId);
+  return generateGrowthStrategyDoc(groupData.identity.name, email || '', channelId || '', false, groupData);
 }
 
 /**
@@ -854,7 +854,9 @@ function generateGrowthStrategyDoc(companyName, email, channelId, isProspect, pr
   //AAH 3.23.2026
   notifyUserOfProgress (email, channelId, "Generating Final Document..");
   Logger.log('[DocGen] Creating Google Doc...');
-  var docTitle = (isProspect ? '[PROSPECT] ' : '') + data.identity.name + ' | Growth Strategy';
+  var docTitle = (isProspect ? '[PROSPECT] ' : '') +
+    data.identity.name + ' | Growth Strategy' +
+    (data.isGtmGroup ? ' [GTM GROUP: ' + data.context.gtmGroup + ']' : '');
   var doc = DocumentApp.create(docTitle);
 
   // Move to configured folder
@@ -956,6 +958,123 @@ function generateGrowthStrategyDoc(companyName, email, channelId, isProspect, pr
 
   var docUrl = doc.getUrl();
   Logger.log('[DocGen] COMPLETE. Doc URL: ' + docUrl);
+  return docUrl;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// Glean Path: doc builder that consumes pre-built Glean analysis JSON
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Build the growth strategy Google Doc from a Glean V3 analysis JSON.
+ * Skips all LLM calls — the Glean agent has already performed research and
+ * synthesis. The JSON keys map directly to the existing section builder functions.
+ *
+ * @param {string}  companyName    Display name for the doc title
+ * @param {Object}  gleanAnalysis  Parsed JSON from Glean (accountProfile, businessMap,
+ *                                 agreementLandscape, contractCommerce, priorityMap,
+ *                                 briefing, bigBets)
+ * @param {Object}  data           Internal bookscrub data from getCompanyData()
+ * @param {Object}  productSignals Signal map from generateProductSignals()
+ * @param {Object}  enrichment     Public enrichment from enrichCompanyData()
+ * @param {string}  email          For Slack progress notifications (pass '' to skip)
+ * @param {string}  channelId      For Slack progress notifications (pass '' to skip)
+ * @param {boolean} isProspect
+ * @returns {string} Google Doc URL
+ */
+function generateGrowthStrategyDocFromGlean(companyName, gleanAnalysis, data, productSignals, enrichment, email, channelId, isProspect) {
+  Logger.log('[GleanDoc] Starting Glean-path doc generation for: ' + companyName +
+    (data.isGtmGroup ? ' [GTM GROUP]' : '') + (isProspect ? ' [PROSPECT]' : ''));
+
+  // ── Extract section variables from Glean analysis ─────────────────
+  var accountProfile     = (gleanAnalysis && gleanAnalysis.accountProfile)     || {};
+  var businessMap        = (gleanAnalysis && gleanAnalysis.businessMap)        || {};
+  var agreementLandscape = (gleanAnalysis && gleanAnalysis.agreementLandscape) || {};
+  var contractCommerce   = (gleanAnalysis && gleanAnalysis.contractCommerce)   || {};
+  var priorityMap        = (gleanAnalysis && gleanAnalysis.priorityMap)        || {};
+  var briefing           = (gleanAnalysis && gleanAnalysis.briefing)           || {};
+  var bigBets            = (gleanAnalysis && gleanAnalysis.bigBets)            || {};
+
+  Logger.log('[GleanDoc] Sections unpacked. accountProfile keys: ' + Object.keys(accountProfile).join(', '));
+  Logger.log('[GleanDoc] businessMap nodes: ' + (businessMap.nodes ? businessMap.nodes.length : 0));
+  Logger.log('[GleanDoc] agreementLandscape agreements: ' + (agreementLandscape.agreements ? agreementLandscape.agreements.length : 0));
+  Logger.log('[GleanDoc] bigBets: ' + (bigBets.bigBets ? bigBets.bigBets.length : 0));
+
+  // Fallback: if Glean returned no agreements, use deterministic generator
+  if (!agreementLandscape.agreements || agreementLandscape.agreements.length === 0) {
+    Logger.log('[GleanDoc] No agreements in Glean response — using deterministic fallback.');
+    agreementLandscape = generateFallbackAgreementLandscape(data, accountProfile, businessMap);
+    Logger.log('[GleanDoc] Fallback generated ' + agreementLandscape.agreements.length + ' agreements.');
+  }
+
+  // ── Create the Google Doc ─────────────────────────────────────────
+  notifyUserOfProgress(email, channelId, 'Generating Final Document..');
+
+  var docTitle = (isProspect ? '[PROSPECT] ' : '') +
+    data.identity.name + ' | Growth Strategy' +
+    (data.isGtmGroup ? ' [GTM GROUP: ' + data.context.gtmGroup + ']' : '');
+  var doc = DocumentApp.create(docTitle);
+
+  try {
+    var folderId = getOutputFolder();
+    var file = DriveApp.getFileById(doc.getId());
+    DriveApp.getFolderById(folderId).addFile(file);
+    DriveApp.getRootFolder().removeFile(file);
+  } catch (e) {
+    Logger.log('[GleanDoc] Could not move to output folder: ' + e.message + '. Doc stays in root.');
+  }
+
+  var body = doc.getBody();
+  body.setMarginTop(36);
+  body.setMarginBottom(36);
+  body.setMarginLeft(48);
+  body.setMarginRight(48);
+
+  // ── Primary sections (front material only — no appendix) ─────────
+  Logger.log('[GleanDoc] Building document header');
+  addDocumentHeader(body, data.identity.name, isProspect);
+
+  if (!isProspect) {
+    Logger.log('[GleanDoc] Building: Docusign Today Contract');
+    addDocusignTodayContractSection(body, data);
+    body.appendPageBreak();
+
+    Logger.log('[GleanDoc] Building: Product Adoption');
+    addProductAdoptionSection(body, data);
+    body.appendPageBreak();
+
+    Logger.log('[GleanDoc] Building: Account Health');
+    addAccountHealthSection(body, data, false);
+    body.appendPageBreak();
+  }
+
+  Logger.log('[GleanDoc] Building: Strategic Initiatives');
+  addStrategicInitiativesSection(body, data, briefing);
+  if (briefing && briefing.priorities && briefing.priorities.length > 0) {
+    body.appendPageBreak();
+  }
+
+  Logger.log('[GleanDoc] Building: Long Term Opportunity Map');
+  addLongTermOpportunityMapSection(body, data, accountProfile, enrichment, businessMap, bigBets);
+  body.appendPageBreak();
+
+  Logger.log('[GleanDoc] Building: Big Bet Initiatives');
+  addBigBetInitiativesSection(body, data, bigBets, accountProfile, contractCommerce);
+  body.appendPageBreak();
+
+  Logger.log('[GleanDoc] Building: Big Bet Detail');
+  addBigBetsDetailSection(body, data, bigBets);
+  body.appendPageBreak();
+
+  Logger.log('[GleanDoc] Building: Executive Meeting Briefing');
+  addExecutiveBriefingSection(body, data, briefing);
+
+  Logger.log('[GleanDoc] Saving and closing doc...');
+  doc.saveAndClose();
+
+  var docUrl = doc.getUrl();
+  Logger.log('[GleanDoc] COMPLETE. Doc URL: ' + docUrl);
   return docUrl;
 }
 
@@ -1301,6 +1420,65 @@ function addDocusignTodayContractSection(body, data) {
   addSectionDescription(body, 'Sources: Internal Docusign Book of Business. All metrics are verified internal data.');
   addSourceNote(body, 'Source: Docusign Book of Business · Internal account data');
 
+  if (data.isGtmGroup && data.accounts && data.accounts.length > 0) {
+    // GTM GROUP: show per-account summary, group context, and consumption — no Contract & Account
+    addSubHeading(body, 'Accounts in GTM Group (' + data.accounts.length + ')');
+    var groupHeader = ['Account', 'Plan', 'Contract Term', 'Term %', 'ACV', 'Seats (Purch / Active)', 'Envelopes Sent'];
+    var groupRows = [groupHeader];
+    data.accounts.forEach(function(acc) {
+      var term = formatDate(acc.contract.termStart) + ' \u2013 ' + formatDate(acc.contract.termEnd);
+      var acv = acc.financial.acv ? '$' + formatNumber(acc.financial.acv) : 'N/A';
+      var seats = formatNumber(acc.seats.purchased) + ' / ' + formatNumber(acc.seats.active);
+      groupRows.push([
+        acc.identity.name,
+        acc.contract.plan || 'N/A',
+        term,
+        formatTermCompletion(acc.contract.percentComplete),
+        acv,
+        seats,
+        formatNumber(acc.consumption.envelopesSent)
+      ]);
+    });
+    groupRows.push([
+      'GROUP TOTAL', '—', '—', '—',
+      '$' + formatNumber(data.financial.acv),
+      formatNumber(data.seats.purchased) + ' / ' + formatNumber(data.seats.active),
+      formatNumber(data.consumption.envelopesSent)
+    ]);
+    addStyledTable(body, groupRows);
+
+    addSubHeading(body, 'Group Context');
+    addStyledTable(body, [
+      ['Field', 'Value'],
+      ['Industry',      data.context.industry || 'N/A'],
+      ['Region',        data.context.region || 'N/A'],
+      ['Sales Channel', data.context.salesChannel || 'N/A'],
+      ['Total ACV',     '$' + formatNumber(data.financial.acv)]
+    ]);
+
+    addSubHeading(body, 'Consumption & Usage');
+    var consRows = [['Account', 'Env Purchased', 'Env Sent', 'Pacing %', 'Usage Trend']];
+    var totalPurch = 0, totalSent = 0;
+    data.accounts.forEach(function(acc) {
+      var purch = acc.consumption.envelopesPurchased || 0;
+      var sent  = acc.consumption.envelopesSent || 0;
+      var pacing = purch > 0 ? ((sent / purch) * 100).toFixed(1) + '%' : 'N/A';
+      totalPurch += purch;
+      totalSent  += sent;
+      consRows.push([
+        acc.identity.name,
+        formatNumber(purch),
+        formatNumber(sent),
+        pacing,
+        acc.consumption.usageTrend || 'N/A'
+      ]);
+    });
+    var groupPacing = totalPurch > 0 ? ((totalSent / totalPurch) * 100).toFixed(1) + '%' : 'N/A';
+    consRows.push(['GROUP TOTAL', formatNumber(totalPurch), formatNumber(totalSent), groupPacing, '—']);
+    addStyledTable(body, consRows);
+    return;
+  }
+
   addSubHeading(body, 'Contract & Account');
   var contractRows = [
     ['Field', 'Value'],
@@ -1322,8 +1500,6 @@ function addDocusignTodayContractSection(body, data) {
   ];
   addStyledTable(body, contractRows);
 
-  // If the term appears elapsed, the bookscrub dates likely reflect a sub-account
-  // rather than the enterprise-level renewal visible in Salesforce.
   if (data.contract.percentComplete > 100) {
     var dateNote = body.appendParagraph(
       '\u26A0\uFE0F  Contract dates are sourced from the bookscrub and reflect this specific Docusign account record. ' +
@@ -1343,8 +1519,27 @@ function addProductAdoptionSection(body, data) {
   addSectionDescription(body, 'Sources: Internal Docusign Book of Business (product activation data). Unused products represent upsell and expansion opportunities.');
   addSourceNote(body, 'Source: Docusign Book of Business · Product activation data');
 
-  var activeText  = data.activeProducts.length   > 0 ? data.activeProducts.map(function(p) { return '\u2022 ' + p; }).join('\n')   : 'None';
-  var unusedText  = data.inactiveProducts.length > 0 ? data.inactiveProducts.map(function(p) { return '\u2022 ' + p; }).join('\n') : 'All products active';
+  var activeText;
+  var unusedProducts;
+  if (data.isGtmGroup && data.accounts && data.accounts.length > 0) {
+    var productCounts = {};
+    data.accounts.forEach(function(acc) {
+      acc.activeProducts.forEach(function(p) { productCounts[p] = (productCounts[p] || 0) + 1; });
+    });
+    activeText = data.activeProducts.length > 0
+      ? data.activeProducts.map(function(p) { return '\u2022 ' + p + ' (' + (productCounts[p] || 0) + ')'; }).join('\n')
+      : 'None';
+    // Derive unused as all known products not in the active union
+    unusedProducts = Object.keys(data.products || {}).filter(function(p) {
+      return !productCounts[p];
+    }).sort();
+  } else {
+    activeText = data.activeProducts.length > 0
+      ? data.activeProducts.map(function(p) { return '\u2022 ' + p; }).join('\n')
+      : 'None';
+    unusedProducts = data.inactiveProducts;
+  }
+  var unusedText = unusedProducts.length > 0 ? unusedProducts.map(function(p) { return '\u2022 ' + p; }).join('\n') : 'All products active';
 
   var ptTable = body.appendTable([
     ['Active Products', 'Unused / Available for Expansion'],
@@ -1908,48 +2103,8 @@ function addDocusignTodaySection(body, data, strategy, isProspect) {
 
   if (!isProspect) {
   // ── Contract & Account ──────────────────────────────────────────
-  if (data.isGtmGroup && data.accounts && data.accounts.length > 0) {
-    // GTM group: show a per-account summary table, then group-level context
-    addSubHeading(body, 'Accounts in GTM Group (' + data.accounts.length + ')');
-    var groupHeader = ['Account', 'Plan', 'Contract Term', 'Term %', 'ACV', 'Seats (Purch / Active)', 'Envelopes Sent'];
-    var groupRows = [groupHeader];
-    data.accounts.forEach(function(acc) {
-      var term = formatDate(acc.contract.termStart) + ' – ' + formatDate(acc.contract.termEnd);
-      var acv = acc.financial.acv ? '$' + formatNumber(acc.financial.acv) : 'N/A';
-      var seats = formatNumber(acc.seats.purchased) + ' / ' + formatNumber(acc.seats.active);
-      groupRows.push([
-        acc.identity.name,
-        acc.contract.plan || 'N/A',
-        term,
-        formatTermCompletion(acc.contract.percentComplete),
-        acv,
-        seats,
-        formatNumber(acc.consumption.envelopesSent)
-      ]);
-    });
-    // Append group totals row
-    groupRows.push([
-      'GROUP TOTAL',
-      '—',
-      '—',
-      '—',
-      '$' + formatNumber(data.financial.acv),
-      formatNumber(data.seats.purchased) + ' / ' + formatNumber(data.seats.active),
-      formatNumber(data.consumption.envelopesSent)
-    ]);
-    addStyledTable(body, groupRows);
-
-    // Group-level context row
-    addSubHeading(body, 'Group Context');
-    var ctxRows = [
-      ['Field', 'Value'],
-      ['Industry',      data.context.industry || 'N/A'],
-      ['Region',        data.context.region || 'N/A'],
-      ['Sales Channel', data.context.salesChannel || 'N/A'],
-      ['Total ACV',     '$' + formatNumber(data.financial.acv)]
-    ];
-    addStyledTable(body, ctxRows);
-  } else {
+  // GTM groups: Accounts, Group Context, and Consumption tables are in Section 1 — skip here.
+  if (!data.isGtmGroup) {
     addSubHeading(body, 'Contract & Account');
     var contractRows = [
       ['Field', 'Value'],
@@ -1974,21 +2129,22 @@ function addDocusignTodaySection(body, data, strategy, isProspect) {
   }
 
   // ── Consumption & Usage ─────────────────────────────────────────
-  addSubHeading(body, 'Consumption & Usage');
-
-  var consumptionPct = data.consumption.envelopesPurchased > 0
-    ? ((data.consumption.envelopesSent / data.consumption.envelopesPurchased) * 100).toFixed(1) + '%'
-    : 'N/A';
-
-  var consumptionRows = [
-    ['Metric', 'Value'],
-    ['Envelopes Purchased',    formatNumber(data.consumption.envelopesPurchased)],
-    ['Envelopes Sent (Total)', formatNumber(data.consumption.envelopesSent)],
-    ['Consumption Pacing',     consumptionPct],
-    ['Usage Trend',            data.consumption.usageTrend || 'N/A'],
-    ['Send Velocity (MoM)',    String(data.consumption.sendVelocityMom || 'N/A')]
-  ];
-  addStyledTable(body, consumptionRows);
+  // GTM groups: already rendered in the top block above; skip here.
+  if (!data.isGtmGroup) {
+    addSubHeading(body, 'Consumption & Usage');
+    var consumptionPct = data.consumption.envelopesPurchased > 0
+      ? ((data.consumption.envelopesSent / data.consumption.envelopesPurchased) * 100).toFixed(1) + '%'
+      : 'N/A';
+    var consumptionRows = [
+      ['Metric', 'Value'],
+      ['Envelopes Purchased',    formatNumber(data.consumption.envelopesPurchased)],
+      ['Envelopes Sent (Total)', formatNumber(data.consumption.envelopesSent)],
+      ['Consumption Pacing',     consumptionPct],
+      ['Usage Trend',            data.consumption.usageTrend || 'N/A'],
+      ['Send Velocity (MoM)',    String(data.consumption.sendVelocityMom || 'N/A')]
+    ];
+    addStyledTable(body, consumptionRows);
+  }
 
   // ── Transaction Health ──────────────────────────────────────────
   addSubHeading(body, 'Transaction Health');
@@ -2288,10 +2444,8 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
   addSectionDescription(body, 'Sources: Internal Docusign account metrics processed through rule-based scoring. Health indicators (green/yellow/red) are computed deterministically from consumption pacing, usage trends, seat activation, and renewal proximity. No AI estimation involved.');
   addSourceNote(body, 'Source: Docusign Book of Business · Health indicators computed from internal account metrics');
 
-  var health = analyzeAccountHealth(data);
-
-  // ── Summary Scorecard ──────────────────────────────────────────
-  addSubHeading(body, 'Health Scorecard');
+  // GTM groups: account health not shown — per-account data in Docusign Footprint is sufficient.
+  if (data.isGtmGroup) return;
 
   var indicatorOrder = [
     { key: 'consumptionPacing', name: 'Consumption Pacing' },
@@ -2305,6 +2459,67 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
     { key: 'renewalProximity',  name: 'Renewal Proximity' },
     { key: 'chargeModel',       name: 'Charge Model' }
   ];
+
+  // ── GTM Group: compact summary table (now unreachable — kept for safety) ──
+  if (data.isGtmGroup && data.accounts && data.accounts.length > 0) {
+    addSubHeading(body, 'Health Summary by Account');
+    var summaryRows = [['Account', 'Healthy', 'Watch', 'Concern', 'Status']];
+    data.accounts.forEach(function(acc) {
+      var h = analyzeAccountHealth(acc);
+      var green = 0, yellow = 0, red = 0;
+      indicatorOrder.forEach(function(ind) {
+        if (!h[ind.key]) return;
+        if (h[ind.key].status === 'green') green++;
+        else if (h[ind.key].status === 'yellow') yellow++;
+        else if (h[ind.key].status === 'red') red++;
+      });
+      var status = red > 0 ? 'At Risk' : yellow > 0 ? 'Watch' : 'Healthy';
+      summaryRows.push([acc.identity.name, String(green), String(yellow), String(red), status]);
+    });
+
+    var summaryTable = body.appendTable(summaryRows);
+    summaryTable.setBorderColor('#CCCCCC');
+    summaryTable.setBorderWidth(1);
+    var PAGE_WIDTH = 516;
+    var colWidths = [210, 60, 60, 70, 80];
+    colWidths.forEach(function(w, i) { summaryTable.setColumnWidth(i, w); });
+
+    // Header row
+    var hdr = summaryTable.getRow(0);
+    for (var c = 0; c < 5; c++) {
+      var hCell = hdr.getCell(c);
+      hCell.setBackgroundColor(HEADER_BG);
+      hCell.editAsText().setForegroundColor(HEADER_FG);
+      hCell.editAsText().setBold(true);
+      hCell.editAsText().setFontSize(10);
+      hCell.setPaddingTop(6); hCell.setPaddingBottom(6);
+      hCell.setPaddingLeft(8); hCell.setPaddingRight(8);
+    }
+
+    // Data rows — color the Status column
+    for (var r = 1; r < summaryTable.getNumRows(); r++) {
+      var row = summaryTable.getRow(r);
+      var statusVal = summaryRows[r][4];
+      var statusBg = statusVal === 'At Risk' ? HEALTH_RED : statusVal === 'Watch' ? HEALTH_YELLOW : HEALTH_GREEN;
+      var statusFg = statusVal === 'At Risk' ? LABEL_RED  : statusVal === 'Watch' ? LABEL_YELLOW  : LABEL_GREEN;
+      for (var c2 = 0; c2 < 5; c2++) {
+        var cell = row.getCell(c2);
+        cell.setBackgroundColor(c2 === 4 ? statusBg : '#FFFFFF');
+        cell.editAsText().setFontSize(10);
+        cell.editAsText().setBold(c2 === 0 || c2 === 4);
+        cell.editAsText().setForegroundColor(c2 === 4 ? statusFg : '#333333');
+        cell.setPaddingTop(4); cell.setPaddingBottom(4);
+        cell.setPaddingLeft(8); cell.setPaddingRight(8);
+      }
+    }
+    addSpacer(body);
+    return;
+  }
+
+  // ── Single account: full scorecard ──────────────────────────────
+  var health = analyzeAccountHealth(data);
+
+  addSubHeading(body, 'Health Scorecard');
 
   var scorecardRows = [['Indicator', 'Status', 'Assessment']];
   var greenCount = 0, yellowCount = 0, redCount = 0, grayCount = 0;
@@ -2354,35 +2569,26 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
                      h.status === 'yellow' ? LABEL_YELLOW :
                      h.status === 'gray' ? LABEL_GRAY : LABEL_RED;
 
-    // Indicator name column
     var nameCell = row.getCell(0);
     nameCell.setBackgroundColor('#FFFFFF');
     nameCell.editAsText().setBold(true);
     nameCell.editAsText().setFontSize(10);
-    nameCell.setPaddingTop(4);
-    nameCell.setPaddingBottom(4);
-    nameCell.setPaddingLeft(8);
-    nameCell.setPaddingRight(8);
+    nameCell.setPaddingTop(4); nameCell.setPaddingBottom(4);
+    nameCell.setPaddingLeft(8); nameCell.setPaddingRight(8);
 
-    // Status column — colored background
     var statusCell = row.getCell(1);
     statusCell.setBackgroundColor(bgColor);
     statusCell.editAsText().setForegroundColor(labelColor);
     statusCell.editAsText().setBold(true);
     statusCell.editAsText().setFontSize(10);
-    statusCell.setPaddingTop(4);
-    statusCell.setPaddingBottom(4);
-    statusCell.setPaddingLeft(8);
-    statusCell.setPaddingRight(8);
+    statusCell.setPaddingTop(4); statusCell.setPaddingBottom(4);
+    statusCell.setPaddingLeft(8); statusCell.setPaddingRight(8);
 
-    // Detail column
     var detailCell = row.getCell(2);
     detailCell.setBackgroundColor('#FFFFFF');
     detailCell.editAsText().setFontSize(9);
-    detailCell.setPaddingTop(4);
-    detailCell.setPaddingBottom(4);
-    detailCell.setPaddingLeft(8);
-    detailCell.setPaddingRight(8);
+    detailCell.setPaddingTop(4); detailCell.setPaddingBottom(4);
+    detailCell.setPaddingLeft(8); detailCell.setPaddingRight(8);
   });
 
   // ── Overall Assessment ─────────────────────────────────────────
@@ -2391,19 +2597,13 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
 
   var total = greenCount + yellowCount + redCount + grayCount;
   var summaryText = greenCount + ' healthy, ' + yellowCount + ' watch, ' + redCount + ' concern';
-  if (grayCount > 0) {
-    summaryText += ', ' + grayCount + ' no data';
-  }
+  if (grayCount > 0) summaryText += ', ' + grayCount + ' no data';
   summaryText += ' — out of ' + total + ' indicators evaluated.';
   var overallPara = addBodyText(body, summaryText);
   overallPara.editAsText().setBold(true);
 
-  // Build narrative
   var narrativeLines = [];
-
-  if (health.chargeModel) {
-    narrativeLines.push(health.chargeModel.detail);
-  }
+  if (health.chargeModel) narrativeLines.push(health.chargeModel.detail);
 
   if (redCount === 0) {
     narrativeLines.push('No critical health concerns detected. Focus on expansion opportunities.');
@@ -2418,7 +2618,6 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
     }
   });
 
-  // Growth opportunity callout
   if (health.productBreadth && health.productBreadth.status !== 'green') {
     narrativeLines.push('');
     narrativeLines.push('Growth Opportunity: ' + data.inactiveProducts.length + ' Docusign products are not yet adopted. ' +
@@ -2430,9 +2629,7 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
     narrativeLines.push('Retention Risk: No integrations detected. Recommend prioritizing Salesforce or API integration to increase switching cost.');
   }
 
-  narrativeLines.forEach(function(line) {
-    addBodyText(body, line);
-  });
+  narrativeLines.forEach(function(line) { addBodyText(body, line); });
 }
 
 

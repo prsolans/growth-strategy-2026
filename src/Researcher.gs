@@ -1,9 +1,4 @@
-  function testByAccountId() {
-    var url = generateReportByAccountId('0014000001fvuLWAAY'); // Envista
-    Logger.log(url);
-  }
-  
-  /**
+/**
  * LLM research functions using the internal OpenAI endpoint with Bing grounding.
  */
 
@@ -33,7 +28,6 @@ function callLLM(systemPrompt, userPrompt) {
     },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true,
-    //timeoutSeconds: 90
   };
 
   Logger.log('[LLM] Sending request...');
@@ -228,7 +222,6 @@ function buildLLMRequest(systemPrompt, userPrompt) {
     },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true,
-    //timeoutSeconds: 90
   };
 }
 

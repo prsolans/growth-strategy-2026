@@ -33,14 +33,16 @@ A complete phase requires:
 - [ ] Acceptance criteria are specific and verifiable
 
 Current phases (in order):
-1. Data collection & company name normalization
-2. Batch report generation (200 companies)
-3. Genius Bar integration (on-demand generation via sales infrastructure)
-4. Performance optimization
+1. Data collection & company name normalization — ✅ Done (PRS-44 closed)
+2. Batch report generation (200 companies) — ✅ Done (PRS-38 closed)
+3. Genius Bar integration (on-demand generation via sales infrastructure) — PRS-45, In Progress
+4. Platform optimization / Glean — PRS-108 (test full report flow in Glean)
 
 ## Current focus
-PRS-44 (data collection & normalization) is actively in progress — loading 200 company names and confirming DS data coverage with Angel. Batch generation (PRS-38) is blocked on this completing.
+PRS-107 (GTM_GROUP-based report generation) is the active priority — due 2026-03-30. PRS-110 (add new accounts) and PRS-45 (Genius Bar integration) are both blocked on PRS-107 completing.
+
+PRS-45 is in progress for individual company and prospect reports. Final acceptance requires GTM_GROUP support (PRS-107) and confirmed writeback of report URL to the bookscrub spreadsheet.
 
 ## Open questions
-- **Gong API access**: Is there an internal Gong integration available for tooling? What access level would be needed to pull call data per account?
-- **Angel DS coverage**: What is the current status of DS data coverage for the 200 new accounts? Are there gaps that will affect batch generation?
+- **Gong API access**: Is there an internal Gong integration available for tooling? What access level would be needed to pull call data per account? (See PRS-50)
+- **100 Handshakes**: API-driven org chart enrichment opportunity. (See PRS-102)
