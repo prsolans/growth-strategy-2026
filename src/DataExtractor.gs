@@ -326,6 +326,15 @@ function productInUse(row, headerIndex, purchasedCol, usedCol) {
  * @returns {string[]}
  */
 function getCompanyNames() {
+  // Check CacheService first (survives across executions; TTL 6 hours)
+  var svcCache = CacheService.getScriptCache();
+  var cached = svcCache.get('companyNames');
+  if (cached) {
+    var names = JSON.parse(cached);
+    Logger.log('[DataExtractor] getCompanyNames: CacheService hit (' + names.length + ' names)');
+    return names;
+  }
+
   var cache = _loadSheet();
   var nameCol = cache.headerIndex[COMPANY_NAME_COL];
   var names = [];
@@ -334,7 +343,34 @@ function getCompanyNames() {
     if (name) names.push(name);
   }
   Logger.log('[DataExtractor] Found ' + names.length + ' companies');
+
+  // Store in CacheService — max 100KB per entry, 6 hour TTL
+  try {
+    var json = JSON.stringify(names);
+    if (json.length < 90000) {
+      svcCache.put('companyNames', json, 21600);
+      Logger.log('[DataExtractor] getCompanyNames: cached (' + json.length + ' bytes)');
+    } else {
+      Logger.log('[DataExtractor] getCompanyNames: list too large to cache (' + json.length + ' bytes)');
+    }
+  } catch (e) {
+    Logger.log('[DataExtractor] getCompanyNames: cache put failed (non-fatal): ' + e.message);
+  }
+
   return names;
+}
+
+/**
+ * Invalidate the CacheService name + group caches.
+ * Call this after refreshCompanyNames() or any structural sheet change.
+ */
+function invalidatePickerCache() {
+  try {
+    CacheService.getScriptCache().removeAll(['companyNames', 'gtmGroupIds']);
+    Logger.log('[DataExtractor] Picker cache invalidated.');
+  } catch (e) {
+    Logger.log('[DataExtractor] Cache invalidation failed (non-fatal): ' + e.message);
+  }
 }
 
 /**
@@ -343,6 +379,15 @@ function getCompanyNames() {
  * @returns {string[]}
  */
 function getGtmGroupIds() {
+  // Check CacheService first
+  var svcCache = CacheService.getScriptCache();
+  var cached = svcCache.get('gtmGroupIds');
+  if (cached) {
+    var ids = JSON.parse(cached);
+    Logger.log('[GTMGroup] getGtmGroupIds: CacheService hit (' + ids.length + ' groups)');
+    return ids;
+  }
+
   var cache = _loadSheet();
   var groupIdCol = cache.headerIndex['GTM_GROUP'];
   Logger.log('[GTMGroup] getGtmGroupIds: GTM_GROUP col index = ' + groupIdCol);
@@ -352,6 +397,14 @@ function getGtmGroupIds() {
   }
   var ids = Object.keys(cache.groupMap).sort();
   Logger.log('[GTMGroup] getGtmGroupIds: found ' + ids.length + ' distinct group IDs: ' + ids.join(', '));
+
+  try {
+    var json = JSON.stringify(ids);
+    svcCache.put('gtmGroupIds', json, 21600);
+  } catch (e) {
+    Logger.log('[GTMGroup] getGtmGroupIds: cache put failed (non-fatal): ' + e.message);
+  }
+
   return ids;
 }
 

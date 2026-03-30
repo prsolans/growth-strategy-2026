@@ -28,125 +28,137 @@ function onOpen() {
     .addToUi();
 }
 
+// ── Shared picker HTML builder ─────────────────────────────────────────
+
 /**
- * Show a dialog to pick a company name from the sheet.
+ * Build the HTML for a searchable picker dialog.
+ * The dialog opens immediately; names are loaded async via google.script.run.
+ *
+ * @param {Object} opts
+ *   badge         {string|null}  Badge text (null = no badge)
+ *   badgeBg       {string}       Badge background color  (default #E8F4FD)
+ *   badgeFg       {string}       Badge text color        (default #0A6EBD)
+ *   label         {string}       Input label
+ *   placeholder   {string}       Input placeholder text
+ *   buttonText    {string}       Submit button label
+ *   buttonColor   {string}       Button background color
+ *   buttonHover   {string}       Button hover color
+ *   serverFetchFn {string}       GAS function name → returns string[]
+ *   countSuffix   {string}       e.g. "companies in sheet"
+ *   generateFn    {string}       GAS function to call on submit
+ *   generateArgs  {string}       JS arg expression e.g. "selected, false"
+ *   statusMsg     {string}       Message shown while generating
+ *   returnsUrl    {boolean}      true = success handler renders link; false = plain "Done!"
+ *   note          {string|null}  Optional small note below button
  */
-function showCompanyPicker() {
-  var names = getCompanyNames();
-  if (names.length === 0) {
-    SpreadsheetApp.getUi().alert('No company names found in column ACCOUNT_NAME_PLAN_TERM.');
-    return;
-  }
+function _buildPickerHtml(opts) {
+  var badge = opts.badge ? (
+    '<div style="display:inline-block;background:' + (opts.badgeBg || '#E8F4FD') + ';color:' +
+    (opts.badgeFg || '#0A6EBD') + ';font-size:11px;padding:2px 7px;border-radius:10px;margin-bottom:10px">' +
+    opts.badge + '</div>'
+  ) : '';
+  var note = opts.note
+    ? '<div style="color:#888;font-size:11px;margin-top:6px">' + opts.note + '</div>'
+    : '';
+  var successBody = opts.returnsUrl === false
+    ? '"Done! Check the alert for the doc link."'
+    : '\'Done! <a href="\'+url+\'" target="_blank">Open Document</a>\'';
 
-  var namesJson = JSON.stringify(names);
-
-  var html = '<style>' +
-    'body { font-family: Arial, sans-serif; padding: 16px; }' +
-    '.search-wrap { position: relative; }' +
-    '#search { width: 100%; padding: 10px 12px; font-size: 14px; border: 2px solid #ccc; ' +
-    '  border-radius: 6px; box-sizing: border-box; outline: none; }' +
-    '#search:focus { border-color: #1B0B3B; }' +
-    '#results { position: absolute; top: 100%; left: 0; right: 0; max-height: 180px; ' +
-    '  overflow-y: auto; background: white; border: 1px solid #ddd; border-top: none; ' +
-    '  border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none; z-index: 10; }' +
-    '#results div { padding: 8px 12px; cursor: pointer; font-size: 13px; }' +
-    '#results div:hover, #results div.active { background: #F5F3F7; }' +
-    '#results div.active { background: #E8E4EF; }' +
-    'button { background: #1B0B3B; color: white; border: none; padding: 10px 24px; ' +
-    '  font-size: 14px; cursor: pointer; border-radius: 4px; margin-top: 12px; width: 100%; }' +
-    'button:hover { background: #2D1B5E; }' +
-    'button:disabled { background: #999; cursor: default; }' +
-    '.status { color: #666; font-size: 12px; margin-top: 8px; }' +
-    '.count { color: #999; font-size: 11px; margin-top: 4px; }' +
+  return '<style>' +
+    'body{font-family:Arial,sans-serif;padding:16px}' +
+    '.w{position:relative}' +
+    '#s{width:100%;padding:10px 12px;font-size:14px;border:2px solid #ccc;border-radius:6px;box-sizing:border-box;outline:none}' +
+    '#s:focus{border-color:#1B0B3B}' +
+    '#s:disabled{background:#f5f5f5;color:#aaa}' +
+    '#r{position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:white;' +
+    'border:1px solid #ddd;border-top:none;border-radius:0 0 6px 6px;' +
+    'box-shadow:0 4px 12px rgba(0,0,0,.1);display:none;z-index:10}' +
+    '#r div{padding:8px 12px;cursor:pointer;font-size:13px}' +
+    '#r div:hover,#r div.a{background:#F5F3F7}' +
+    '#r div.a{background:#E8E4EF}' +
+    '#b{background:' + opts.buttonColor + ';color:white;border:none;padding:10px 24px;' +
+    'font-size:14px;cursor:pointer;border-radius:4px;margin-top:12px;width:100%}' +
+    '#b:hover{background:' + opts.buttonHover + '}' +
+    '#b:disabled{background:#999;cursor:default}' +
+    '.st{color:#666;font-size:12px;margin-top:8px}' +
+    '.ct{color:#999;font-size:11px;margin-top:4px}' +
     '</style>' +
     '<div>' +
-    '<label><b>Type to search:</b></label>' +
-    '<div class="search-wrap">' +
-    '  <input type="text" id="search" placeholder="Start typing a company name..." autocomplete="off" />' +
-    '  <div id="results"></div>' +
-    '</div>' +
-    '<div class="count" id="count"></div>' +
-    '<button id="btn" onclick="generate()" disabled>Generate Growth Strategy</button>' +
-    '<div id="status" class="status"></div>' +
+    badge +
+    '<label><b>' + opts.label + '</b></label>' +
+    '<div class="w"><input type="text" id="s" placeholder="' + opts.placeholder + '" autocomplete="off" disabled>' +
+    '<div id="r"></div></div>' +
+    '<div class="ct" id="ct">Loading...</div>' +
+    '<button id="b" onclick="go()" disabled>' + opts.buttonText + '</button>' +
+    '<div id="st" class="st"></div>' +
+    note +
     '</div>' +
     '<script>' +
-    'var ALL_NAMES = ' + namesJson + ';' +
-    'var selected = "";' +
-    'var activeIdx = -1;' +
-    'var filtered = [];' +
-    '' +
-    'var searchEl = document.getElementById("search");' +
-    'var resultsEl = document.getElementById("results");' +
-    'var btnEl = document.getElementById("btn");' +
-    'var countEl = document.getElementById("count");' +
-    '' +
-    'countEl.innerText = ALL_NAMES.length + " companies in sheet";' +
-    '' +
-    'searchEl.addEventListener("input", function() {' +
-    '  var q = this.value.toLowerCase();' +
-    '  selected = "";' +
-    '  btnEl.disabled = true;' +
-    '  activeIdx = -1;' +
-    '  if (q.length < 1) { resultsEl.style.display = "none"; return; }' +
-    '  filtered = ALL_NAMES.filter(function(n) { return n.toLowerCase().indexOf(q) !== -1; });' +
-    '  if (filtered.length === 0) {' +
-    '    resultsEl.innerHTML = "<div style=\\"color:#999\\">No matches</div>";' +
-    '  } else {' +
-    '    resultsEl.innerHTML = filtered.slice(0, 50).map(function(n, i) {' +
-    '      return "<div data-idx=\\"" + i + "\\" onclick=\\"pick(this)\\">" + esc(n) + "</div>";' +
-    '    }).join("");' +
-    '  }' +
-    '  resultsEl.style.display = "block";' +
-    '});' +
-    '' +
-    'searchEl.addEventListener("keydown", function(e) {' +
-    '  var items = resultsEl.querySelectorAll("div[data-idx]");' +
-    '  if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); highlight(items); }' +
-    '  else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); highlight(items); }' +
-    '  else if (e.key === "Enter" && activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); pick(items[activeIdx]); }' +
-    '});' +
-    '' +
-    'function highlight(items) {' +
-    '  for (var i = 0; i < items.length; i++) items[i].classList.remove("active");' +
-    '  if (items[activeIdx]) { items[activeIdx].classList.add("active"); items[activeIdx].scrollIntoView({block:"nearest"}); }' +
-    '}' +
-    '' +
-    'function pick(el) {' +
-    '  selected = filtered[parseInt(el.getAttribute("data-idx"))];' +
-    '  searchEl.value = selected;' +
-    '  resultsEl.style.display = "none";' +
-    '  btnEl.disabled = false;' +
-    '  activeIdx = -1;' +
-    '}' +
-    '' +
-    'function esc(s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }' +
-    '' +
-    'function generate() {' +
-    '  if (!selected) return;' +
-    '  document.getElementById("status").innerText = "Generating... this may take a minute.";' +
-    '  btnEl.disabled = true;' +
+    'var N=[],sel="",ai=-1,flt=[];' +
+    'var se=document.getElementById("s"),re=document.getElementById("r"),' +
+    'be=document.getElementById("b"),ce=document.getElementById("ct");' +
+    'window.onload=function(){' +
     '  google.script.run' +
-    '    .withSuccessHandler(function(url) {' +
-    '      document.getElementById("status").innerHTML = ' +
-    '        \'Done! <a href="\' + url + \'" target="_blank">Open Document</a>\';' +
-    '      btnEl.disabled = false;' +
+    '    .withSuccessHandler(function(list){' +
+    '      N=list;ce.innerText=list.length+" ' + opts.countSuffix + '";' +
+    '      se.disabled=false;se.focus();' +
     '    })' +
-    '    .withFailureHandler(function(err) {' +
-    '      document.getElementById("status").innerText = "Error: " + err.message;' +
-    '      btnEl.disabled = false;' +
+    '    .withFailureHandler(function(e){ce.innerText="Error loading: "+e.message;})' +
+    '    .' + opts.serverFetchFn + '();' +
+    '};' +
+    'se.addEventListener("input",function(){' +
+    '  var q=this.value.toLowerCase();sel="";be.disabled=true;ai=-1;' +
+    '  if(q.length<1){re.style.display="none";return;}' +
+    '  flt=N.filter(function(n){return n.toLowerCase().indexOf(q)!==-1;});' +
+    '  re.innerHTML=flt.length===0?"<div style=\\"color:#999\\">No matches</div>"' +
+    '    :flt.slice(0,50).map(function(n,i){return"<div data-i=\\""+i+"\\" onclick=\\"pick(this)\\">"+esc(n)+"</div>";}).join("");' +
+    '  re.style.display="block";' +
+    '});' +
+    'se.addEventListener("keydown",function(e){' +
+    '  var it=re.querySelectorAll("div[data-i]");' +
+    '  if(e.key==="ArrowDown"){e.preventDefault();ai=Math.min(ai+1,it.length-1);hl(it);}' +
+    '  else if(e.key==="ArrowUp"){e.preventDefault();ai=Math.max(ai-1,0);hl(it);}' +
+    '  else if(e.key==="Enter"&&ai>=0&&it[ai]){e.preventDefault();pick(it[ai]);}' +
+    '});' +
+    'function hl(it){for(var i=0;i<it.length;i++)it[i].classList.remove("a");' +
+    '  if(it[ai]){it[ai].classList.add("a");it[ai].scrollIntoView({block:"nearest"});}}' +
+    'function pick(el){sel=flt[parseInt(el.getAttribute("data-i"))];se.value=sel;re.style.display="none";be.disabled=false;ai=-1;}' +
+    'function esc(s){var d=document.createElement("div");d.textContent=s;return d.innerHTML;}' +
+    'function go(){' +
+    '  if(!sel)return;' +
+    '  document.getElementById("st").innerText="' + opts.statusMsg + '";' +
+    '  be.disabled=true;' +
+    '  google.script.run' +
+    '    .withSuccessHandler(function(url){' +
+    '      document.getElementById("st").innerHTML=' + successBody + ';' +
+    '      be.disabled=false;' +
     '    })' +
-    '    .generateAndLog(selected, false);' +
+    '    .withFailureHandler(function(e){' +
+    '      document.getElementById("st").innerText="Error: "+e.message;' +
+    '      be.disabled=false;' +
+    '    })' +
+    '    .' + opts.generateFn + '(' + opts.generateArgs + ');' +
     '}' +
-    '' +
-    'searchEl.focus();' +
     '</script>';
+}
 
-  var ui = HtmlService.createHtmlOutput(html)
-    .setWidth(450)
-    .setHeight(280)
-    .setTitle('Growth Strategy Generator');
+// ── Picker dialogs ──────────────────────────────────────────────────────
 
-  SpreadsheetApp.getUi().showModalDialog(ui, 'Growth Strategy Generator');
+/**
+ * Show a dialog to pick a company name from the sheet.
+ * Names are loaded asynchronously after the dialog opens — no "Running Script" wait.
+ */
+function showCompanyPicker() {
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(_buildPickerHtml({
+      badge: null, label: 'Type to search:', placeholder: 'Start typing a company name...',
+      buttonText: 'Generate Growth Strategy', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
+      serverFetchFn: 'getCompanyNames', countSuffix: 'companies in sheet',
+      generateFn: 'generateAndLog', generateArgs: 'sel, false',
+      statusMsg: 'Generating... this may take a minute.', returnsUrl: true
+    })).setWidth(450).setHeight(280),
+    'Growth Strategy Generator'
+  );
 }
 
 /**
@@ -219,99 +231,16 @@ function showProspectDialog() {
 
 /**
  * Company picker that routes to the Glean agent instead of the GAS LLM path.
- * Identical UI to showCompanyPicker() but calls generateAndLogViaGlean().
  */
 function showGleanCompanyPicker() {
-  var names = getCompanyNames();
-  if (names.length === 0) {
-    SpreadsheetApp.getUi().alert('No company names found in column ACCOUNT_NAME_PLAN_TERM.');
-    return;
-  }
-
-  var namesJson = JSON.stringify(names);
-
-  var html = '<style>' +
-    'body { font-family: Arial, sans-serif; padding: 16px; }' +
-    '.search-wrap { position: relative; }' +
-    '#search { width: 100%; padding: 10px 12px; font-size: 14px; border: 2px solid #ccc; ' +
-    '  border-radius: 6px; box-sizing: border-box; outline: none; }' +
-    '#search:focus { border-color: #1B0B3B; }' +
-    '#results { position: absolute; top: 100%; left: 0; right: 0; max-height: 180px; ' +
-    '  overflow-y: auto; background: white; border: 1px solid #ddd; border-top: none; ' +
-    '  border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none; z-index: 10; }' +
-    '#results div { padding: 8px 12px; cursor: pointer; font-size: 13px; }' +
-    '#results div:hover, #results div.active { background: #F5F3F7; }' +
-    '#results div.active { background: #E8E4EF; }' +
-    'button { background: #0A6EBD; color: white; border: none; padding: 10px 24px; ' +
-    '  font-size: 14px; cursor: pointer; border-radius: 4px; margin-top: 12px; width: 100%; }' +
-    'button:hover { background: #0857A0; }' +
-    'button:disabled { background: #999; cursor: default; }' +
-    '.status { color: #666; font-size: 12px; margin-top: 8px; }' +
-    '.count { color: #999; font-size: 11px; margin-top: 4px; }' +
-    '.badge { display: inline-block; background: #E8F4FD; color: #0A6EBD; ' +
-    '  font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-bottom: 10px; }' +
-    '</style>' +
-    '<div>' +
-    '<div class="badge">⚡ Glean Agent</div>' +
-    '<label><b>Type to search:</b></label>' +
-    '<div class="search-wrap">' +
-    '  <input type="text" id="search" placeholder="Start typing a company name..." autocomplete="off" />' +
-    '  <div id="results"></div>' +
-    '</div>' +
-    '<div class="count" id="count"></div>' +
-    '<button id="btn" onclick="generate()" disabled>Generate via Glean</button>' +
-    '<div id="status" class="status"></div>' +
-    '</div>' +
-    '<script>' +
-    'var ALL_NAMES = ' + namesJson + ';' +
-    'var selected = "";' +
-    'var activeIdx = -1;' +
-    'var filtered = [];' +
-    'var searchEl = document.getElementById("search");' +
-    'var resultsEl = document.getElementById("results");' +
-    'var btnEl = document.getElementById("btn");' +
-    'var countEl = document.getElementById("count");' +
-    'countEl.innerText = ALL_NAMES.length + " companies in sheet";' +
-    'searchEl.addEventListener("input", function() {' +
-    '  var q = this.value.toLowerCase(); selected = ""; btnEl.disabled = true; activeIdx = -1;' +
-    '  if (q.length < 1) { resultsEl.style.display = "none"; return; }' +
-    '  filtered = ALL_NAMES.filter(function(n) { return n.toLowerCase().indexOf(q) !== -1; });' +
-    '  resultsEl.innerHTML = filtered.length === 0 ? "<div style=\\"color:#999\\">No matches</div>" :' +
-    '    filtered.slice(0, 50).map(function(n, i) { return "<div data-idx=\\"" + i + "\\" onclick=\\"pick(this)\\">" + esc(n) + "</div>"; }).join("");' +
-    '  resultsEl.style.display = "block";' +
-    '});' +
-    'searchEl.addEventListener("keydown", function(e) {' +
-    '  var items = resultsEl.querySelectorAll("div[data-idx]");' +
-    '  if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); highlight(items); }' +
-    '  else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); highlight(items); }' +
-    '  else if (e.key === "Enter" && activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); pick(items[activeIdx]); }' +
-    '});' +
-    'function highlight(items) {' +
-    '  for (var i = 0; i < items.length; i++) items[i].classList.remove("active");' +
-    '  if (items[activeIdx]) { items[activeIdx].classList.add("active"); items[activeIdx].scrollIntoView({block:"nearest"}); }' +
-    '}' +
-    'function pick(el) { selected = filtered[parseInt(el.getAttribute("data-idx"))]; searchEl.value = selected; resultsEl.style.display = "none"; btnEl.disabled = false; activeIdx = -1; }' +
-    'function esc(s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }' +
-    'function generate() {' +
-    '  if (!selected) return;' +
-    '  document.getElementById("status").innerText = "Sending to Glean... this may take 2-3 minutes.";' +
-    '  btnEl.disabled = true;' +
-    '  google.script.run' +
-    '    .withSuccessHandler(function(url) {' +
-    '      document.getElementById("status").innerHTML = \'Done! <a href="\' + url + \'" target="_blank">Open Document</a>\';' +
-    '      btnEl.disabled = false;' +
-    '    })' +
-    '    .withFailureHandler(function(err) {' +
-    '      document.getElementById("status").innerText = "Error: " + err.message;' +
-    '      btnEl.disabled = false;' +
-    '    })' +
-    '    .generateAndLogViaGlean(selected, false);' +
-    '}' +
-    'searchEl.focus();' +
-    '</script>';
-
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(html).setWidth(450).setHeight(290).setTitle('Growth Strategy via Glean'),
+    HtmlService.createHtmlOutput(_buildPickerHtml({
+      badge: '⚡ Glean Agent', label: 'Type to search:', placeholder: 'Start typing a company name...',
+      buttonText: 'Generate via Glean', buttonColor: '#0A6EBD', buttonHover: '#0857A0',
+      serverFetchFn: 'getCompanyNames', countSuffix: 'companies in sheet',
+      generateFn: 'generateAndLogViaGlean', generateArgs: 'sel, false',
+      statusMsg: 'Sending to Glean... this may take 2-3 minutes.', returnsUrl: true
+    })).setWidth(450).setHeight(290),
     'Growth Strategy via Glean'
   );
 }
@@ -320,96 +249,14 @@ function showGleanCompanyPicker() {
  * GTM group picker that routes to the Glean agent.
  */
 function showGleanGtmGroupPicker() {
-  var ids = getGtmGroupIds();
-  if (ids.length === 0) {
-    SpreadsheetApp.getUi().alert('No GTM_GROUP IDs found in the sheet.');
-    return;
-  }
-
-  var idsJson = JSON.stringify(ids);
-
-  var html = '<style>' +
-    'body { font-family: Arial, sans-serif; padding: 16px; }' +
-    '.search-wrap { position: relative; }' +
-    '#search { width: 100%; padding: 10px 12px; font-size: 14px; border: 2px solid #ccc; ' +
-    '  border-radius: 6px; box-sizing: border-box; outline: none; }' +
-    '#search:focus { border-color: #1B0B3B; }' +
-    '#results { position: absolute; top: 100%; left: 0; right: 0; max-height: 180px; ' +
-    '  overflow-y: auto; background: white; border: 1px solid #ddd; border-top: none; ' +
-    '  border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none; z-index: 10; }' +
-    '#results div { padding: 8px 12px; cursor: pointer; font-size: 13px; }' +
-    '#results div:hover, #results div.active { background: #F5F3F7; }' +
-    '#results div.active { background: #E8E4EF; }' +
-    'button { background: #0A6EBD; color: white; border: none; padding: 10px 24px; ' +
-    '  font-size: 14px; cursor: pointer; border-radius: 4px; margin-top: 12px; width: 100%; }' +
-    'button:hover { background: #0857A0; }' +
-    'button:disabled { background: #999; cursor: default; }' +
-    '.status { color: #666; font-size: 12px; margin-top: 8px; }' +
-    '.count { color: #999; font-size: 11px; margin-top: 4px; }' +
-    '.badge { display: inline-block; background: #E8F4FD; color: #0A6EBD; ' +
-    '  font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-bottom: 10px; }' +
-    '</style>' +
-    '<div>' +
-    '<div class="badge">⚡ Glean Agent</div>' +
-    '<label><b>Type to search GTM groups:</b></label>' +
-    '<div class="search-wrap">' +
-    '  <input type="text" id="search" placeholder="Start typing a GTM group ID..." autocomplete="off" />' +
-    '  <div id="results"></div>' +
-    '</div>' +
-    '<div class="count" id="count"></div>' +
-    '<button id="btn" onclick="generate()" disabled>Generate Group via Glean</button>' +
-    '<div id="status" class="status"></div>' +
-    '</div>' +
-    '<script>' +
-    'var ALL_NAMES = ' + idsJson + ';' +
-    'var selected = "";' +
-    'var activeIdx = -1;' +
-    'var filtered = [];' +
-    'var searchEl = document.getElementById("search");' +
-    'var resultsEl = document.getElementById("results");' +
-    'var btnEl = document.getElementById("btn");' +
-    'var countEl = document.getElementById("count");' +
-    'countEl.innerText = ALL_NAMES.length + " GTM groups in sheet";' +
-    'searchEl.addEventListener("input", function() {' +
-    '  var q = this.value.toLowerCase(); selected = ""; btnEl.disabled = true; activeIdx = -1;' +
-    '  if (q.length < 1) { resultsEl.style.display = "none"; return; }' +
-    '  filtered = ALL_NAMES.filter(function(n) { return n.toLowerCase().indexOf(q) !== -1; });' +
-    '  resultsEl.innerHTML = filtered.length === 0 ? "<div style=\\"color:#999\\">No matches</div>" :' +
-    '    filtered.slice(0, 50).map(function(n, i) { return "<div data-idx=\\"" + i + "\\" onclick=\\"pick(this)\\">" + esc(n) + "</div>"; }).join("");' +
-    '  resultsEl.style.display = "block";' +
-    '});' +
-    'searchEl.addEventListener("keydown", function(e) {' +
-    '  var items = resultsEl.querySelectorAll("div[data-idx]");' +
-    '  if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); highlight(items); }' +
-    '  else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); highlight(items); }' +
-    '  else if (e.key === "Enter" && activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); pick(items[activeIdx]); }' +
-    '});' +
-    'function highlight(items) {' +
-    '  for (var i = 0; i < items.length; i++) items[i].classList.remove("active");' +
-    '  if (items[activeIdx]) { items[activeIdx].classList.add("active"); items[activeIdx].scrollIntoView({block:"nearest"}); }' +
-    '}' +
-    'function pick(el) { selected = filtered[parseInt(el.getAttribute("data-idx"))]; searchEl.value = selected; resultsEl.style.display = "none"; btnEl.disabled = false; activeIdx = -1; }' +
-    'function esc(s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }' +
-    'function generate() {' +
-    '  if (!selected) return;' +
-    '  document.getElementById("status").innerText = "Sending to Glean... this may take 2-3 minutes.";' +
-    '  btnEl.disabled = true;' +
-    '  google.script.run' +
-    '    .withSuccessHandler(function(url) {' +
-    '      document.getElementById("status").innerHTML = \'Done! <a href="\' + url + \'" target="_blank">Open Document</a>\';' +
-    '      btnEl.disabled = false;' +
-    '    })' +
-    '    .withFailureHandler(function(err) {' +
-    '      document.getElementById("status").innerText = "Error: " + err.message;' +
-    '      btnEl.disabled = false;' +
-    '    })' +
-    '    .generateAndLogGroupViaGlean(selected);' +
-    '}' +
-    'searchEl.focus();' +
-    '</script>';
-
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(html).setWidth(480).setHeight(290).setTitle('GTM Group via Glean'),
+    HtmlService.createHtmlOutput(_buildPickerHtml({
+      badge: '⚡ Glean Agent', label: 'Type to search GTM groups:', placeholder: 'Start typing a GTM group ID...',
+      buttonText: 'Generate Group via Glean', buttonColor: '#0A6EBD', buttonHover: '#0857A0',
+      serverFetchFn: 'getGtmGroupIds', countSuffix: 'GTM groups in sheet',
+      generateFn: 'generateAndLogGroupViaGlean', generateArgs: 'sel',
+      statusMsg: 'Sending to Glean... this may take 2-3 minutes.', returnsUrl: true
+    })).setWidth(480).setHeight(290),
     'GTM Group via Glean'
   );
 }
@@ -420,121 +267,16 @@ function showGleanGtmGroupPicker() {
  * Show a searchable dialog to pick a GTM group and generate a combined report.
  */
 function showGtmGroupPicker() {
-  var names = getGtmGroupIds();
-  if (names.length === 0) {
-    SpreadsheetApp.getUi().alert('No GTM_GROUP IDs found in the sheet.');
-    return;
-  }
-
-  var namesJson = JSON.stringify(names);
-
-  var html = '<style>' +
-    'body { font-family: Arial, sans-serif; padding: 16px; }' +
-    '.search-wrap { position: relative; }' +
-    '#search { width: 100%; padding: 10px 12px; font-size: 14px; border: 2px solid #ccc; ' +
-    '  border-radius: 6px; box-sizing: border-box; outline: none; }' +
-    '#search:focus { border-color: #1B0B3B; }' +
-    '#results { position: absolute; top: 100%; left: 0; right: 0; max-height: 180px; ' +
-    '  overflow-y: auto; background: white; border: 1px solid #ddd; border-top: none; ' +
-    '  border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none; z-index: 10; }' +
-    '#results div { padding: 8px 12px; cursor: pointer; font-size: 13px; }' +
-    '#results div:hover, #results div.active { background: #F5F3F7; }' +
-    '#results div.active { background: #E8E4EF; }' +
-    'button { background: #1B0B3B; color: white; border: none; padding: 10px 24px; ' +
-    '  font-size: 14px; cursor: pointer; border-radius: 4px; margin-top: 12px; width: 100%; }' +
-    'button:hover { background: #2D1B5E; }' +
-    'button:disabled { background: #999; cursor: default; }' +
-    '.status { color: #666; font-size: 12px; margin-top: 8px; }' +
-    '.count { color: #999; font-size: 11px; margin-top: 4px; }' +
-    '</style>' +
-    '<div>' +
-    '<label><b>Type to search GTM groups:</b></label>' +
-    '<div class="search-wrap">' +
-    '  <input type="text" id="search" placeholder="Start typing a GTM group name..." autocomplete="off" />' +
-    '  <div id="results"></div>' +
-    '</div>' +
-    '<div class="count" id="count"></div>' +
-    '<button id="btn" onclick="generate()" disabled>Generate Group Strategy</button>' +
-    '<div id="status" class="status"></div>' +
-    '</div>' +
-    '<script>' +
-    'var ALL_NAMES = ' + namesJson + ';' +
-    'var selected = "";' +
-    'var activeIdx = -1;' +
-    'var filtered = [];' +
-    '' +
-    'var searchEl = document.getElementById("search");' +
-    'var resultsEl = document.getElementById("results");' +
-    'var btnEl = document.getElementById("btn");' +
-    'var countEl = document.getElementById("count");' +
-    '' +
-    'countEl.innerText = ALL_NAMES.length + " GTM groups in sheet";' +
-    '' +
-    'searchEl.addEventListener("input", function() {' +
-    '  var q = this.value.toLowerCase();' +
-    '  selected = "";' +
-    '  btnEl.disabled = true;' +
-    '  activeIdx = -1;' +
-    '  if (q.length < 1) { resultsEl.style.display = "none"; return; }' +
-    '  filtered = ALL_NAMES.filter(function(n) { return n.toLowerCase().indexOf(q) !== -1; });' +
-    '  if (filtered.length === 0) {' +
-    '    resultsEl.innerHTML = "<div style=\\"color:#999\\">No matches</div>";' +
-    '  } else {' +
-    '    resultsEl.innerHTML = filtered.slice(0, 50).map(function(n, i) {' +
-    '      return "<div data-idx=\\"" + i + "\\" onclick=\\"pick(this)\\">" + esc(n) + "</div>";' +
-    '    }).join("");' +
-    '  }' +
-    '  resultsEl.style.display = "block";' +
-    '});' +
-    '' +
-    'searchEl.addEventListener("keydown", function(e) {' +
-    '  var items = resultsEl.querySelectorAll("div[data-idx]");' +
-    '  if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); highlight(items); }' +
-    '  else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); highlight(items); }' +
-    '  else if (e.key === "Enter" && activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); pick(items[activeIdx]); }' +
-    '});' +
-    '' +
-    'function highlight(items) {' +
-    '  for (var i = 0; i < items.length; i++) items[i].classList.remove("active");' +
-    '  if (items[activeIdx]) { items[activeIdx].classList.add("active"); items[activeIdx].scrollIntoView({block:"nearest"}); }' +
-    '}' +
-    '' +
-    'function pick(el) {' +
-    '  selected = filtered[parseInt(el.getAttribute("data-idx"))];' +
-    '  searchEl.value = selected;' +
-    '  resultsEl.style.display = "none";' +
-    '  btnEl.disabled = false;' +
-    '  activeIdx = -1;' +
-    '}' +
-    '' +
-    'function esc(s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }' +
-    '' +
-    'function generate() {' +
-    '  if (!selected) return;' +
-    '  document.getElementById("status").innerText = "Generating... this may take a few minutes.";' +
-    '  btnEl.disabled = true;' +
-    '  google.script.run' +
-    '    .withSuccessHandler(function(url) {' +
-    '      document.getElementById("status").innerHTML = ' +
-    '        \'Done! <a href="\' + url + \'" target="_blank">Open Document</a>\';' +
-    '      btnEl.disabled = false;' +
-    '    })' +
-    '    .withFailureHandler(function(err) {' +
-    '      document.getElementById("status").innerText = "Error: " + err.message;' +
-    '      btnEl.disabled = false;' +
-    '    })' +
-    '    .generateAndLogGroup(selected);' +
-    '}' +
-    '' +
-    'searchEl.focus();' +
-    '</script>';
-
-  var ui = HtmlService.createHtmlOutput(html)
-    .setWidth(480)
-    .setHeight(280)
-    .setTitle('Generate for GTM Group');
-
-  SpreadsheetApp.getUi().showModalDialog(ui, 'Generate for GTM Group');
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(_buildPickerHtml({
+      badge: null, label: 'Type to search GTM groups:', placeholder: 'Start typing a GTM group ID...',
+      buttonText: 'Generate Group Strategy', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
+      serverFetchFn: 'getGtmGroupIds', countSuffix: 'GTM groups in sheet',
+      generateFn: 'generateAndLogGroup', generateArgs: 'sel',
+      statusMsg: 'Generating... this may take a few minutes.', returnsUrl: true
+    })).setWidth(480).setHeight(280),
+    'Generate for GTM Group'
+  );
 }
 
 /**
@@ -572,6 +314,7 @@ function refreshCompanyNames() {
   ensureCompanyNameColumn(sheet, headerIndex);
   var nameCol = headerIndex[COMPANY_NAME_COL];
   var count = sheet.getLastRow() - 1;
+  invalidatePickerCache(); // clear stale name list from CacheService
   SpreadsheetApp.getActiveSpreadsheet().toast(
     'COMPANY_NAME column refreshed. ' + count + ' rows — review col ' +
     columnLetter(nameCol + 1) + ' before running the batch.',
@@ -854,98 +597,17 @@ function promptOutputFolder() {
  * to a Google Doc for any company in the sheet.
  */
 function showGleanExportPicker() {
-  var names = getCompanyNames();
-  if (names.length === 0) {
-    SpreadsheetApp.getUi().alert('No company names found in column ACCOUNT_NAME_PLAN_TERM.');
-    return;
-  }
-
-  var namesJson = JSON.stringify(names);
-
-  var html = '<style>' +
-    'body { font-family: Arial, sans-serif; padding: 16px; }' +
-    '.search-wrap { position: relative; }' +
-    '#search { width: 100%; padding: 10px 12px; font-size: 14px; border: 2px solid #ccc; ' +
-    '  border-radius: 6px; box-sizing: border-box; outline: none; }' +
-    '#search:focus { border-color: #1B0B3B; }' +
-    '#results { position: absolute; top: 100%; left: 0; right: 0; max-height: 180px; ' +
-    '  overflow-y: auto; background: white; border: 1px solid #ddd; border-top: none; ' +
-    '  border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none; z-index: 10; }' +
-    '#results div { padding: 8px 12px; cursor: pointer; font-size: 13px; }' +
-    '#results div:hover, #results div.active { background: #F5F3F7; }' +
-    '#results div.active { background: #E8E4EF; }' +
-    'button { background: #1B6B3A; color: white; border: none; padding: 10px 24px; ' +
-    '  font-size: 14px; cursor: pointer; border-radius: 4px; margin-top: 12px; width: 100%; }' +
-    'button:hover { background: #145530; }' +
-    'button:disabled { background: #999; cursor: default; }' +
-    '.status { color: #666; font-size: 12px; margin-top: 8px; }' +
-    '.count { color: #999; font-size: 11px; margin-top: 4px; }' +
-    '.badge { display: inline-block; background: #E8F5EE; color: #1B6B3A; ' +
-    '  font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-bottom: 10px; }' +
-    '.note { color: #888; font-size: 11px; margin-top: 6px; }' +
-    '</style>' +
-    '<div>' +
-    '<div class="badge">📋 Export Test Data</div>' +
-    '<label><b>Type to search:</b></label>' +
-    '<div class="search-wrap">' +
-    '  <input type="text" id="search" placeholder="Start typing a company name..." autocomplete="off" />' +
-    '  <div id="results"></div>' +
-    '</div>' +
-    '<div class="count" id="count"></div>' +
-    '<button id="btn" onclick="run()" disabled>Export INTERNAL_DATA</button>' +
-    '<div id="status" class="status"></div>' +
-    '<div class="note">Exports bookscrub data + enrichment as a ready-to-paste Glean prompt to a Google Doc.</div>' +
-    '</div>' +
-    '<script>' +
-    'var ALL_NAMES = ' + namesJson + ';' +
-    'var selected = "";' +
-    'var activeIdx = -1;' +
-    'var filtered = [];' +
-    'var searchEl = document.getElementById("search");' +
-    'var resultsEl = document.getElementById("results");' +
-    'var btnEl = document.getElementById("btn");' +
-    'var countEl = document.getElementById("count");' +
-    'countEl.innerText = ALL_NAMES.length + " companies in sheet";' +
-    'searchEl.addEventListener("input", function() {' +
-    '  var q = this.value.toLowerCase(); selected = ""; btnEl.disabled = true; activeIdx = -1;' +
-    '  if (q.length < 1) { resultsEl.style.display = "none"; return; }' +
-    '  filtered = ALL_NAMES.filter(function(n) { return n.toLowerCase().indexOf(q) !== -1; });' +
-    '  resultsEl.innerHTML = filtered.length === 0 ? "<div style=\\"color:#999\\">No matches</div>" :' +
-    '    filtered.slice(0, 50).map(function(n, i) { return "<div data-idx=\\"" + i + "\\" onclick=\\"pick(this)\\">" + esc(n) + "</div>"; }).join("");' +
-    '  resultsEl.style.display = "block";' +
-    '});' +
-    'searchEl.addEventListener("keydown", function(e) {' +
-    '  var items = resultsEl.querySelectorAll("div[data-idx]");' +
-    '  if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); highlight(items); }' +
-    '  else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); highlight(items); }' +
-    '  else if (e.key === "Enter" && activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); pick(items[activeIdx]); }' +
-    '});' +
-    'function highlight(items) {' +
-    '  for (var i = 0; i < items.length; i++) items[i].classList.remove("active");' +
-    '  if (items[activeIdx]) { items[activeIdx].classList.add("active"); items[activeIdx].scrollIntoView({block:"nearest"}); }' +
-    '}' +
-    'function pick(el) { selected = filtered[parseInt(el.getAttribute("data-idx"))]; searchEl.value = selected; resultsEl.style.display = "none"; btnEl.disabled = false; activeIdx = -1; }' +
-    'function esc(s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }' +
-    'function run() {' +
-    '  if (!selected) return;' +
-    '  document.getElementById("status").innerText = "Extracting data + running enrichment... ~30 seconds.";' +
-    '  btnEl.disabled = true;' +
-    '  google.script.run' +
-    '    .withSuccessHandler(function() {' +
-    '      document.getElementById("status").innerText = "Done! Check the alert for the doc link.";' +
-    '      btnEl.disabled = false;' +
-    '    })' +
-    '    .withFailureHandler(function(err) {' +
-    '      document.getElementById("status").innerText = "Error: " + err.message;' +
-    '      btnEl.disabled = false;' +
-    '    })' +
-    '    .exportInternalDataJsonFor(selected, false);' +
-    '}' +
-    'searchEl.focus();' +
-    '</script>';
-
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(html).setWidth(450).setHeight(300).setTitle('Export Glean Test Data'),
+    HtmlService.createHtmlOutput(_buildPickerHtml({
+      badge: '📋 Export Test Data', badgeBg: '#E8F5EE', badgeFg: '#1B6B3A',
+      label: 'Type to search:', placeholder: 'Start typing a company name...',
+      buttonText: 'Export INTERNAL_DATA', buttonColor: '#1B6B3A', buttonHover: '#145530',
+      serverFetchFn: 'getCompanyNames', countSuffix: 'companies in sheet',
+      generateFn: 'exportInternalDataJsonFor', generateArgs: 'sel, false',
+      statusMsg: 'Extracting data + running enrichment... ~30 seconds.',
+      returnsUrl: false,
+      note: 'Exports bookscrub data + enrichment as a ready-to-paste Glean prompt to a Google Doc.'
+    })).setWidth(450).setHeight(300),
     'Export Glean Test Data'
   );
 }
