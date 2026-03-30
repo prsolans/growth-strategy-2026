@@ -7,6 +7,9 @@ var PROP_API_KEY       = 'INFRA_API_KEY';
 var PROP_API_USER      = 'INFRA_API_USER';
 var PROP_OUTPUT_FOLDER = 'OUTPUT_FOLDER_ID';
 
+// Bookscrub Google Sheet ID (bound data source)
+var BOOKSCRUB_SPREADSHEET_ID = '1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk';
+
 var LLM_ENDPOINT = 'https://infra.agreementsdemo.com/openai?gb=1';
 var LLM_MODEL    = '4o';
 
