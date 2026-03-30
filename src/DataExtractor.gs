@@ -325,34 +325,65 @@ function productInUse(row, headerIndex, purchasedCol, usedCol) {
  * Reads from the COMPANY_NAME column (creates it if needed).
  * @returns {string[]}
  */
+/**
+ * Return all company names for the picker dialog.
+ *
+ * Fast path:  CacheService hit → near-instant (chunked storage, 6hr TTL)
+ * Slow path:  single-column read from sheet (1 col vs 200+) — much faster than _loadSheet()
+ *
+ * @returns {string[]}
+ */
 function getCompanyNames() {
-  // Check CacheService first (survives across executions; TTL 6 hours)
   var svcCache = CacheService.getScriptCache();
-  var cached = svcCache.get('companyNames');
-  if (cached) {
-    var names = JSON.parse(cached);
-    Logger.log('[DataExtractor] getCompanyNames: CacheService hit (' + names.length + ' names)');
+
+  // CacheService hit — reassemble from chunks
+  var countStr = svcCache.get('cn_count');
+  if (countStr) {
+    var count = parseInt(countStr, 10);
+    var names = [];
+    for (var i = 0; i < count; i++) {
+      var chunk = svcCache.get('cn_' + i);
+      if (chunk) names = names.concat(JSON.parse(chunk));
+    }
+    Logger.log('[DataExtractor] getCompanyNames: cache hit (' + names.length + ' names, ' + count + ' chunks)');
     return names;
   }
 
-  var cache = _loadSheet();
-  var nameCol = cache.headerIndex[COMPANY_NAME_COL];
-  var names = [];
-  for (var r = 0; r < cache.data.length; r++) {
-    var name = String(cache.data[r][nameCol]).trim();
-    if (name) names.push(name);
-  }
-  Logger.log('[DataExtractor] Found ' + names.length + ' companies');
+  // Cache miss — targeted single-column read (avoids loading 200+ columns)
+  var sheet = SpreadsheetApp.openById(BOOKSCRUB_SPREADSHEET_ID).getSheetByName(BOOKSCRUB_SHEET_NAME);
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
 
-  // Store in CacheService — max 100KB per entry, 6 hour TTL
-  try {
-    var json = JSON.stringify(names);
-    if (json.length < 90000) {
-      svcCache.put('companyNames', json, 21600);
-      Logger.log('[DataExtractor] getCompanyNames: cached (' + json.length + ' bytes)');
-    } else {
-      Logger.log('[DataExtractor] getCompanyNames: list too large to cache (' + json.length + ' bytes)');
+  // Find COMPANY_NAME column index from header row
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var nameColIdx = -1;
+  for (var c = 0; c < headers.length; c++) {
+    if (String(headers[c]).trim() === COMPANY_NAME_COL) { nameColIdx = c + 1; break; } // 1-based
+  }
+
+  var names = [];
+  if (nameColIdx > 0 && lastRow > 1) {
+    var colData = sheet.getRange(2, nameColIdx, lastRow - 1, 1).getValues();
+    for (var r = 0; r < colData.length; r++) {
+      var name = String(colData[r][0]).trim();
+      if (name) names.push(name);
     }
+  }
+  Logger.log('[DataExtractor] getCompanyNames: loaded ' + names.length + ' names (single-column read)');
+
+  // Store in CacheService in chunks of 2000 (~80KB each max, well under 100KB limit)
+  try {
+    var CHUNK_SIZE = 2000;
+    var chunks = [];
+    for (var j = 0; j < names.length; j += CHUNK_SIZE) {
+      chunks.push(names.slice(j, j + CHUNK_SIZE));
+    }
+    var entries = { 'cn_count': String(chunks.length) };
+    for (var k = 0; k < chunks.length; k++) {
+      entries['cn_' + k] = JSON.stringify(chunks[k]);
+    }
+    svcCache.putAll(entries, 21600);
+    Logger.log('[DataExtractor] getCompanyNames: cached in ' + chunks.length + ' chunks');
   } catch (e) {
     Logger.log('[DataExtractor] getCompanyNames: cache put failed (non-fatal): ' + e.message);
   }
@@ -361,12 +392,14 @@ function getCompanyNames() {
 }
 
 /**
- * Invalidate the CacheService name + group caches.
- * Call this after refreshCompanyNames() or any structural sheet change.
+ * Invalidate the CacheService picker caches.
+ * Called automatically by refreshCompanyNames() after any sheet structural change.
  */
 function invalidatePickerCache() {
   try {
-    CacheService.getScriptCache().removeAll(['companyNames', 'gtmGroupIds']);
+    var keys = ['cn_count', 'gtmGroupIds'];
+    for (var i = 0; i < 20; i++) keys.push('cn_' + i);
+    CacheService.getScriptCache().removeAll(keys);
     Logger.log('[DataExtractor] Picker cache invalidated.');
   } catch (e) {
     Logger.log('[DataExtractor] Cache invalidation failed (non-fatal): ' + e.message);
@@ -379,28 +412,41 @@ function invalidatePickerCache() {
  * @returns {string[]}
  */
 function getGtmGroupIds() {
-  // Check CacheService first
   var svcCache = CacheService.getScriptCache();
   var cached = svcCache.get('gtmGroupIds');
   if (cached) {
     var ids = JSON.parse(cached);
-    Logger.log('[GTMGroup] getGtmGroupIds: CacheService hit (' + ids.length + ' groups)');
+    Logger.log('[GTMGroup] getGtmGroupIds: cache hit (' + ids.length + ' groups)');
     return ids;
   }
 
-  var cache = _loadSheet();
-  var groupIdCol = cache.headerIndex['GTM_GROUP'];
-  Logger.log('[GTMGroup] getGtmGroupIds: GTM_GROUP col index = ' + groupIdCol);
-  if (groupIdCol === undefined) {
-    Logger.log('[GTMGroup] ERROR: GTM_GROUP column not found. Available keys: ' + Object.keys(cache.headerIndex).join(', '));
+  // Targeted single-column read — just GTM_GROUP column
+  var sheet = SpreadsheetApp.openById(BOOKSCRUB_SPREADSHEET_ID).getSheetByName(BOOKSCRUB_SHEET_NAME);
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var groupColIdx = -1;
+  for (var c = 0; c < headers.length; c++) {
+    if (String(headers[c]).trim() === 'GTM_GROUP') { groupColIdx = c + 1; break; }
+  }
+  if (groupColIdx === -1) {
+    Logger.log('[GTMGroup] getGtmGroupIds: GTM_GROUP column not found');
     return [];
   }
-  var ids = Object.keys(cache.groupMap).sort();
-  Logger.log('[GTMGroup] getGtmGroupIds: found ' + ids.length + ' distinct group IDs: ' + ids.join(', '));
+
+  var colData = sheet.getRange(2, groupColIdx, lastRow - 1, 1).getValues();
+  var seen = {};
+  var ids = [];
+  for (var r = 0; r < colData.length; r++) {
+    var id = String(colData[r][0]).trim();
+    if (id && !seen[id]) { seen[id] = true; ids.push(id); }
+  }
+  ids.sort();
+  Logger.log('[GTMGroup] getGtmGroupIds: found ' + ids.length + ' distinct group IDs (single-column read)');
 
   try {
-    var json = JSON.stringify(ids);
-    svcCache.put('gtmGroupIds', json, 21600);
+    svcCache.put('gtmGroupIds', JSON.stringify(ids), 21600);
   } catch (e) {
     Logger.log('[GTMGroup] getGtmGroupIds: cache put failed (non-fatal): ' + e.message);
   }
