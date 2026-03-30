@@ -97,15 +97,13 @@ function _buildPickerHtml(opts) {
     'var N=[],sel="",ai=-1,flt=[];' +
     'var se=document.getElementById("s"),re=document.getElementById("r"),' +
     'be=document.getElementById("b"),ce=document.getElementById("ct");' +
-    'window.onload=function(){' +
-    '  google.script.run' +
-    '    .withSuccessHandler(function(list){' +
-    '      N=list;ce.innerText=list.length+" ' + opts.countSuffix + '";' +
-    '      se.disabled=false;se.focus();' +
-    '    })' +
-    '    .withFailureHandler(function(e){ce.innerText="Error loading: "+e.message;})' +
-    '    .' + opts.serverFetchFn + '();' +
-    '};' +
+    'google.script.run' +
+    '  .withSuccessHandler(function(list){' +
+    '    N=list;ce.innerText=list.length+" ' + opts.countSuffix + '";' +
+    '    se.disabled=false;se.focus();' +
+    '  })' +
+    '  .withFailureHandler(function(err){ce.innerText="Error: "+err.message;})' +
+    '  .' + opts.serverFetchFn + '();' +
     'se.addEventListener("input",function(){' +
     '  var q=this.value.toLowerCase();sel="";be.disabled=true;ai=-1;' +
     '  if(q.length<1){re.style.display="none";return;}' +
