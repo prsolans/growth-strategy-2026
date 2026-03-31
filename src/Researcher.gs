@@ -9,7 +9,37 @@
  * @returns {string} The LLM response text
  */
 function callLLM(systemPrompt, userPrompt) {
-  Logger.log('[LLM] Calling endpoint: ' + LLM_ENDPOINT);
+  var body = _callLLMEndpoint(LLM_ENDPOINT, systemPrompt, userPrompt);
+
+  // Detect infra proxy "run failed" error — comes back as HTTP 200 with an error string
+  if (_isInfraRunFailed(body)) {
+    Logger.log('[LLM] Primary endpoint (gb=1) returned run-failed. Retrying without Bing grounding (gb=0)...');
+    body = _callLLMEndpoint(LLM_ENDPOINT_FALLBACK, systemPrompt, userPrompt);
+    if (_isInfraRunFailed(body)) {
+      throw new Error('LLM run failed on both gb=1 and gb=0 endpoints. Infra may be down. Body: ' + body);
+    }
+    Logger.log('[LLM] Fallback (gb=0) succeeded.');
+  }
+
+  return body;
+}
+
+/**
+ * Returns true if the response body is an infra proxy "run failed" message.
+ * These come back as HTTP 200 but are not LLM output.
+ */
+function _isInfraRunFailed(body) {
+  return typeof body === 'string' &&
+    (body.indexOf('Run failed') !== -1 || body.indexOf('was cancelled') !== -1) &&
+    body.length < 200;
+}
+
+/**
+ * Make a single HTTP call to the given LLM endpoint.
+ * Throws on non-200 status. Returns raw response text on success.
+ */
+function _callLLMEndpoint(endpoint, systemPrompt, userPrompt) {
+  Logger.log('[LLM] Calling endpoint: ' + endpoint);
   Logger.log('[LLM] System prompt length: ' + systemPrompt.length + ' chars');
   Logger.log('[LLM] User prompt length: ' + userPrompt.length + ' chars');
 
@@ -31,7 +61,7 @@ function callLLM(systemPrompt, userPrompt) {
   };
 
   Logger.log('[LLM] Sending request...');
-  var response = UrlFetchApp.fetch(LLM_ENDPOINT, options);
+  var response = UrlFetchApp.fetch(endpoint, options);
   var code = response.getResponseCode();
   var body = response.getContentText();
 
@@ -132,8 +162,13 @@ function tryParseJson(text) {
   try {
     var envelope = JSON.parse(text);
     if (typeof envelope === 'object' && !Array.isArray(envelope)) {
-      // Handle { Result: { text: "..." } } envelope (Docusign infra endpoint)
-      if (envelope.Result && typeof envelope.Result.text === 'string') {
+      // Handle { Result: "...JSON string..." } envelope (gb=0 / no Bing grounding)
+      if (envelope.Result && typeof envelope.Result === 'string') {
+        Logger.log('[tryParseJson] Unwrapping Result string (' + envelope.Result.length + ' chars)');
+        text = envelope.Result;
+      }
+      // Handle { Result: { text: "..." } } envelope (gb=1 / Bing grounding)
+      else if (envelope.Result && typeof envelope.Result.text === 'string') {
         Logger.log('[tryParseJson] Result keys: ' + Object.keys(envelope.Result).join(', '));
         Logger.log('[tryParseJson] Unwrapped Result.text (' + envelope.Result.text.length + ' chars)');
 
