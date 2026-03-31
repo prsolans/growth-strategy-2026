@@ -33,6 +33,29 @@ A **Sources** section at the end lists all web sources cited during LLM research
 - **Bookscrub sheet** -- The sole internal data source. Contains account, usage, product, and financial data for each customer. See [Data Dictionary](data-dictionary.md) for full details.
 - **LLM web research** -- An internal LLM endpoint with Bing grounding performs live web research to fill in company intelligence (profile, org structure, agreements, financials).
 
+## Generation Paths
+
+The tool supports two generation paths, selectable from the **Growth Strategy** menu:
+
+| Path | Menu Item | How It Works |
+|------|-----------|-------------|
+| **LLM (default)** | Generate for Company... | 5 sequential LLM calls via `infra.agreementsdemo.com/openai` |
+| **Glean** | Generate via Glean... | Single Glean agent call via `infra.agreementsdemo.com/glean` |
+
+Both paths require `INFRA_API_KEY` and `INFRA_API_USER` script properties. The Glean path additionally requires `GLEAN_AGENT_ID`.
+
+## Rollback Procedure
+
+To revert to a previous version of the Apps Script code:
+
+```bash
+# On the main branch (pre-Glean changes)
+git checkout main
+clasp push
+```
+
+To revert to the LLM path from the Glean path without a code change, simply use the **Generate for Company...** menu item instead of **Generate via Glean...** — both paths are always available.
+
 ## Further Documentation
 
 | Document | Description |
