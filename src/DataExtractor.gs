@@ -30,10 +30,13 @@ function _loadSheet() {
   Logger.log('[DataExtractor] _loadSheet: sheet "' + sheet.getName() + '" (' + sheet.getLastRow() + ' rows, ' + sheet.getLastColumn() + ' cols)');
 
   var headerIndex = buildHeaderIndex(sheet);
-  ensureCompanyNameColumn(sheet, headerIndex);
 
+  // Load full data first so ensureCompanyNameColumn can read from memory
+  // instead of making 2 separate single-column API calls (saves ~30s on 18K rows)
   var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
   Logger.log('[DataExtractor] _loadSheet: loaded ' + data.length + ' data rows');
+
+  ensureCompanyNameColumn(sheet, headerIndex, data);
 
   var nameCol     = headerIndex[COMPANY_NAME_COL];
   var groupIdCol  = headerIndex['GTM_GROUP'];
@@ -126,10 +129,11 @@ function extractCompanyName(raw) {
  * - If the column already exists, fills in any blank cells (e.g. newly added rows).
  * Manually-edited cells (non-blank) are never overwritten.
  *
- * @param {Sheet} sheet
- * @param {Object} headerIndex  Current header-to-column map (mutated in place if column is added)
+ * @param {Sheet}    sheet
+ * @param {Object}  headerIndex  Current header-to-column map (mutated in place if column is added)
+ * @param {Array[]} [data]       Optional: already-loaded data array (avoids 2 extra API reads)
  */
-function ensureCompanyNameColumn(sheet, headerIndex) {
+function ensureCompanyNameColumn(sheet, headerIndex, data) {
   var sourceCol = headerIndex['ACCOUNT_NAME_PLAN_TERM'];
   if (sourceCol === undefined) {
     throw new Error('Column ACCOUNT_NAME_PLAN_TERM not found — cannot create COMPANY_NAME.');
@@ -142,15 +146,26 @@ function ensureCompanyNameColumn(sheet, headerIndex) {
     var nameColIdx = headerIndex[COMPANY_NAME_COL]; // 0-based
     if (numRows < 2) return;
 
-    var rawValues  = sheet.getRange(2, sourceCol + 1,  numRows - 1, 1).getValues();
-    var nameValues = sheet.getRange(2, nameColIdx + 1, numRows - 1, 1).getValues();
-
     var updates = [];
     var updateRows = [];
-    for (var i = 0; i < nameValues.length; i++) {
-      if (String(nameValues[i][0]).trim() === '') {
-        updates.push([extractCompanyName(rawValues[i][0])]);
-        updateRows.push(i);
+
+    if (data) {
+      // Fast path: read from already-loaded in-memory data (no API calls)
+      for (var i = 0; i < data.length; i++) {
+        if (String(data[i][nameColIdx]).trim() === '') {
+          updates.push([extractCompanyName(data[i][sourceCol])]);
+          updateRows.push(i);
+        }
+      }
+    } else {
+      // Fallback: read columns directly from sheet (used when called standalone)
+      var rawValues  = sheet.getRange(2, sourceCol + 1,  numRows - 1, 1).getValues();
+      var nameValues = sheet.getRange(2, nameColIdx + 1, numRows - 1, 1).getValues();
+      for (var i = 0; i < nameValues.length; i++) {
+        if (String(nameValues[i][0]).trim() === '') {
+          updates.push([extractCompanyName(rawValues[i][0])]);
+          updateRows.push(i);
+        }
       }
     }
 
@@ -176,11 +191,12 @@ function ensureCompanyNameColumn(sheet, headerIndex) {
   sheet.getRange(1, newColIdx).setValue(COMPANY_NAME_COL);
 
   if (numRows > 1) {
-    var rawValues = sheet.getRange(2, sourceCol + 1, numRows - 1, 1).getValues();
-    var parsed = rawValues.map(function(row) {
-      return [extractCompanyName(row[0])];
-    });
-    sheet.getRange(2, newColIdx, parsed.length, 1).setValues(parsed);
+    var sourceValues = data
+      ? data.map(function(row) { return [extractCompanyName(row[sourceCol])]; })
+      : sheet.getRange(2, sourceCol + 1, numRows - 1, 1).getValues().map(function(row) {
+          return [extractCompanyName(row[0])];
+        });
+    sheet.getRange(2, newColIdx, sourceValues.length, 1).setValues(sourceValues);
   }
 
   headerIndex[COMPANY_NAME_COL] = newColIdx - 1; // 0-based
