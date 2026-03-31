@@ -12,6 +12,7 @@ var BOOKSCRUB_SPREADSHEET_ID = '1tyrEBzmADyzvgTX8ltRZO0faaoiXnxrJgo1arzefKAk';
 
 var LLM_ENDPOINT          = 'https://infra.agreementsdemo.com/openai?gb=0'; // gb=1 (Bing grounding) broken — swap back when infra restores it
 var LLM_ENDPOINT_FALLBACK = 'https://infra.agreementsdemo.com/openai?gb=1';
+var GLEAN_ENDPOINT        = 'https://infra.agreementsdemo.com/glean';
 var LLM_MODEL    = '4o';
 
 // ── Docusign logo (base64 JPEG) ───────────────────────────────────────

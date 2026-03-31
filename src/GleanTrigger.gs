@@ -94,11 +94,11 @@ function triggerGleanReport(companyName, prebuiltData, isProspect, email, channe
     Logger.log('[Glean] Enrichment failed (non-fatal): ' + e.message);
   }
 
-  // ── 4. Build message and call Glean ──────────────────────────────
-  var prompt = buildGleanPrompt(data, productSignals, enrichment, isProspect);
-  Logger.log('[Glean] Payload size: ' + prompt.length + ' chars');
+  // ── 4. Call Glean via infra proxy ────────────────────────────────
+  var payload = { account: data, productSignals: productSignals, enrichment: enrichment };
+  Logger.log('[Glean] Payload size: ' + JSON.stringify(payload).length + ' chars');
 
-  var gleanAnalysis = callGleanAgentApi(prompt);
+  var gleanAnalysis = callGleanAgentApi(payload);
 
   // ── 5. Build the Google Doc from the Glean analysis JSON ─────────
   return generateGrowthStrategyDocFromGlean(
@@ -148,55 +148,54 @@ function buildGleanPrompt(data, productSignals, enrichment, isProspect) {
 // ── Glean API caller ───────────────────────────────────────────────────
 
 /**
- * POST the prompt to the Glean Agent Chat API.
- * Parses and returns the structured JSON analysis object from the response.
+ * POST internal account data to the Glean agent via the infra proxy.
+ * Returns the structured JSON analysis object from the response.
  *
- * @param {string} prompt
+ * @param {Object} payload  { account, productSignals, enrichment }
  * @returns {Object} Glean analysis JSON (accountProfile, businessMap, agreementLandscape,
  *                   contractCommerce, priorityMap, briefing, bigBets)
  */
-function callGleanAgentApi(prompt) {
-  var apiBase = PropertiesService.getScriptProperties().getProperty(PROP_GLEAN_API_BASE);
-  var apiKey  = PropertiesService.getScriptProperties().getProperty(PROP_GLEAN_API_KEY);
-  var agentId = PropertiesService.getScriptProperties().getProperty(PROP_GLEAN_AGENT_ID);
+function callGleanAgentApi(payload) {
+  var apiKey  = getApiKey();
+  var apiUser = getApiUser();
 
-  if (!apiBase || !apiKey || !agentId) {
+  if (!apiKey || !apiUser) {
     throw new Error(
-      'Glean API not configured. Use Growth Strategy > Glean Settings to set ' +
-      'GLEAN_API_BASE, GLEAN_API_KEY, and GLEAN_AGENT_ID.'
+      'Infra API credentials not configured. Use Growth Strategy > Settings to set ' +
+      'INFRA_API_KEY and INFRA_API_USER.'
     );
   }
 
-  var payload = {
-    agentId:  agentId,
-    messages: [{ role: 'user', content: prompt }]
-  };
+  var body = { INTERNAL_DATA: JSON.stringify(payload) };
 
-  Logger.log('[Glean] POSTing to: ' + apiBase + '/chat');
+  Logger.log('[Glean] POSTing to: ' + GLEAN_ENDPOINT);
 
-  var response = UrlFetchApp.fetch(apiBase + '/chat', {
+  var response = UrlFetchApp.fetch(GLEAN_ENDPOINT, {
     method:           'post',
     contentType:      'application/json',
-    headers:          { 'Authorization': 'Bearer ' + apiKey },
-    payload:          JSON.stringify(payload),
+    headers:          {
+      'DOCU-INFRA-IC-KEY':  apiKey,
+      'DOCU-INFRA-IC-USER': apiUser
+    },
+    payload:          JSON.stringify(body),
     muteHttpExceptions: true
   });
 
-  var code = response.getResponseCode();
-  var body = response.getContentText();
-  Logger.log('[Glean] Response HTTP ' + code + ' | Body length: ' + body.length + ' chars');
+  var code         = response.getResponseCode();
+  var responseBody = response.getContentText();
+  Logger.log('[Glean] Response HTTP ' + code + ' | Body length: ' + responseBody.length + ' chars');
 
   if (code !== 200) {
-    Logger.log('[Glean] Error body: ' + body.substring(0, 1000));
-    throw new Error('Glean API returned HTTP ' + code + ': ' + body.substring(0, 500));
+    Logger.log('[Glean] Error body: ' + responseBody.substring(0, 1000));
+    throw new Error('Glean API returned HTTP ' + code + ': ' + responseBody.substring(0, 500));
   }
 
   // Extract the response text from the Glean API envelope
-  var parsed       = JSON.parse(body);
+  var parsed       = JSON.parse(responseBody);
   var responseText = parsed.message ||
                      parsed.content ||
                      (parsed.messages && parsed.messages[0] && parsed.messages[0].content) ||
-                     body;
+                     responseBody;
 
   Logger.log('[Glean] Response text length: ' + String(responseText).length + ' chars');
 
