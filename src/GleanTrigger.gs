@@ -166,33 +166,55 @@ function callGleanAgentApi(payload) {
     );
   }
 
-  var body = { INTERNAL_DATA: JSON.stringify(payload) };
+  var body = { companyNameForResearch: JSON.stringify(payload) };
 
   Logger.log('[Glean] POSTing to: ' + GLEAN_ENDPOINT);
+  var bodyStr = JSON.stringify(body);
+  var chunkSize = 3000;
+  for (var ci = 0; ci < bodyStr.length; ci += chunkSize) {
+    Logger.log('[Glean] Request body [' + ci + '-' + Math.min(ci + chunkSize, bodyStr.length) + ']: ' +
+      bodyStr.substring(ci, ci + chunkSize));
+  }
 
-  var response = UrlFetchApp.fetch(GLEAN_ENDPOINT, {
-    method:           'post',
-    contentType:      'application/json',
-    headers:          {
+  var fetchOptions = {
+    method:             'post',
+    contentType:        'application/json',
+    headers:            {
       'DOCU-INFRA-IC-KEY':  apiKey,
       'DOCU-INFRA-IC-USER': apiUser
     },
-    payload:          JSON.stringify(body),
+    payload:            JSON.stringify(body),
     muteHttpExceptions: true
-  });
+  };
 
-  var code         = response.getResponseCode();
-  var responseBody = response.getContentText();
-  Logger.log('[Glean] Response HTTP ' + code + ' | Body length: ' + responseBody.length + ' chars');
+  var code, responseBody, response;
+  var maxAttempts = 3;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    response     = UrlFetchApp.fetch(GLEAN_ENDPOINT, fetchOptions);
+    code         = response.getResponseCode();
+    responseBody = response.getContentText();
+    Logger.log('[Glean] Attempt ' + attempt + ' — HTTP ' + code + ' | Body length: ' + responseBody.length + ' chars');
 
-  if (code !== 200) {
-    Logger.log('[Glean] Error body: ' + responseBody.substring(0, 1000));
-    throw new Error('Glean API returned HTTP ' + code + ': ' + responseBody.substring(0, 500));
+    if (code === 200) break;
+
+    if (code === 502 && attempt < maxAttempts) {
+      Logger.log('[Glean] 502 received — waiting 30s before retry ' + (attempt + 1) + '/' + maxAttempts);
+      Utilities.sleep(30000);
+    } else {
+      Logger.log('[Glean] Error body: ' + responseBody.substring(0, 1000));
+      throw new Error('Glean API returned HTTP ' + code + ': ' + responseBody.substring(0, 500));
+    }
   }
 
   // Extract the response text from the Glean API envelope
   var parsed       = JSON.parse(responseBody);
-  var responseText = parsed.message ||
+
+  if (parsed.Success === true && parsed.Result === null) {
+    throw new Error('Glean agent returned Success=true but Result=null — agent may not be configured or did not produce output.');
+  }
+
+  var responseText = parsed.Result ||
+                     parsed.message ||
                      parsed.content ||
                      (parsed.messages && parsed.messages[0] && parsed.messages[0].content) ||
                      responseBody;
