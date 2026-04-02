@@ -2,28 +2,41 @@
  * Orchestrates data extraction, LLM research, and Google Doc generation.
  */
 
-// ── Styling constants ─────────────────────────────────────────────────
-var DOCUSIGN_PURPLE = '#1B0B3B';
-var DOCUSIGN_GREEN  = '#00B388';
-var HEADER_BG            = '#1B0B3B';
-var HEADER_FG            = '#FFFFFF';
-var TABLE_ALT_BG         = '#F5F3F7';
-var DOCUSIGN_TODAY_BG    = '#00695C';  // dark teal — contrasts with purple header
-var DOCUSIGN_TODAY_FG    = '#FFFFFF';
+// ── Docusign Brand Colors ─────────────────────────────────────────────
+// Source: Docusign Brand Assets — Brand Colors
+var DOCUSIGN_COBALT      = '#4C00FF';  // Primary brand — H1 headings, CTAs
+var DOCUSIGN_POPPY       = '#FF5252';  // Accent/alert — H2 headings
+var DOCUSIGN_DEEP_VIOLET = '#26065D';  // Primary dark — table headers
+var DOCUSIGN_INKWELL     = '#130032';  // Deepest dark — near-black
+var DOCUSIGN_MIST        = '#CBC2FF';  // Soft accent — borders, highlights
+var DOCUSIGN_ECRU        = '#F8F3F0';  // Warm surface — alt row backgrounds
+// Legacy references (kept for backward compat)
+var DOCUSIGN_PURPLE      = '#1B0B3B';
+var DOCUSIGN_GREEN       = '#00B388';
 
-// ── Chart / quadrant constants ────────────────────────────────────────
+// ── Table styling ─────────────────────────────────────────────────────
+var HEADER_BG     = DOCUSIGN_DEEP_VIOLET;  // Deep Violet header rows
+var HEADER_FG     = '#FFFFFF';
+var TABLE_ALT_BG  = DOCUSIGN_ECRU;         // Ecru alt rows
+var TABLE_BORDER  = DOCUSIGN_MIST;          // Mist borders
+
+// ── Special section column headers ───────────────────────────────────
+var DOCUSIGN_TODAY_BG = DOCUSIGN_COBALT;   // Cobalt — "Docusign Today" column
+var DOCUSIGN_TODAY_FG = '#FFFFFF';
+
+// ── Chart / quadrant constants — brand-aligned ────────────────────────
 var QUADRANT_COLORS = {
-  'Negotiated':     '#1B0B3B',  // Docusign purple
-  'Non-negotiated': '#00B388',  // Docusign green
-  'Form-based':     '#4A90D9',  // Blue
-  'Regulatory':     '#F5A623'   // Orange
+  'Negotiated':     DOCUSIGN_COBALT,       // Primary brand
+  'Non-negotiated': DOCUSIGN_DEEP_VIOLET,  // Deep Violet
+  'Form-based':     DOCUSIGN_MIST,         // Mist lavender
+  'Regulatory':     DOCUSIGN_POPPY         // Poppy
 };
 
 var CONTRACT_TYPE_COLORS = {
-  'Negotiated':     { bg: '#E8E0F0', fg: '#1B0B3B' },
-  'Non-negotiated': { bg: '#E0F5EF', fg: '#00875A' },
-  'Form-based':     { bg: '#E0EDF7', fg: '#2D6CB4' },
-  'Regulatory':     { bg: '#FEF3E0', fg: '#C77D00' }
+  'Negotiated':     { bg: '#E4DAFF', fg: DOCUSIGN_INKWELL     },  // Cobalt light tint
+  'Non-negotiated': { bg: DOCUSIGN_ECRU,   fg: DOCUSIGN_DEEP_VIOLET },  // Ecru + Deep Violet
+  'Form-based':     { bg: '#EDE8FF', fg: DOCUSIGN_COBALT      },  // Mist tint + Cobalt text
+  'Regulatory':     { bg: '#FFE5E5', fg: '#CC2222'             }   // Poppy light tint
 };
 
 /**
@@ -897,8 +910,10 @@ function generateGrowthStrategyDoc(companyName, email, channelId, isProspect, pr
   }
 
   Logger.log('[DocGen] Building Section 4/6: Strategic Initiatives');
-  addStrategicInitiativesSection(body, data, briefing);
-  if (briefing && briefing.priorities && briefing.priorities.length > 0) {
+  addStrategicInitiativesSection(body, data, briefing, accountProfile);
+  if (accountProfile && accountProfile.businessPerformance &&
+      accountProfile.businessPerformance.strategicInitiatives &&
+      accountProfile.businessPerformance.strategicInitiatives.length > 0) {
     body.appendPageBreak();
   }
 
@@ -1050,8 +1065,10 @@ function generateGrowthStrategyDocFromGlean(companyName, gleanAnalysis, data, pr
   }
 
   Logger.log('[GleanDoc] Building: Strategic Initiatives');
-  addStrategicInitiativesSection(body, data, briefing);
-  if (briefing && briefing.priorities && briefing.priorities.length > 0) {
+  addStrategicInitiativesSection(body, data, briefing, accountProfile);
+  if (accountProfile && accountProfile.businessPerformance &&
+      accountProfile.businessPerformance.strategicInitiatives &&
+      accountProfile.businessPerformance.strategicInitiatives.length > 0) {
     body.appendPageBreak();
   }
 
@@ -1069,6 +1086,34 @@ function generateGrowthStrategyDocFromGlean(companyName, gleanAnalysis, data, pr
 
   Logger.log('[GleanDoc] Building: Executive Meeting Briefing');
   addExecutiveBriefingSection(body, data, briefing);
+  body.appendPageBreak();
+
+  // ── Appendix: full supporting detail (V4 JSON — all appendix sections) ──
+  Logger.log('[GleanDoc] Building appendix divider');
+  addAppendixDivider(body);
+
+  Logger.log('[GleanDoc] Appendix: Company Profile');
+  addCompanyProfileSection(body, data, accountProfile, enrichment, businessMap);
+  body.appendPageBreak();
+
+  Logger.log('[GleanDoc] Appendix: Business Performance & Strategy');
+  addBusinessPerformanceSection(body, data, accountProfile);
+  body.appendPageBreak();
+
+  Logger.log('[GleanDoc] Appendix: Executive Contacts & Technology');
+  addExecutivesAndTechSection(body, data, accountProfile);
+  body.appendPageBreak();
+
+  Logger.log('[GleanDoc] Appendix: Agreement Landscape');
+  addAgreementLandscapeSection(body, data, agreementLandscape, businessMap);
+  body.appendPageBreak();
+
+  Logger.log('[GleanDoc] Appendix: Contract Commerce Estimate');
+  addContractCommerceSection(body, data, contractCommerce);
+  body.appendPageBreak();
+
+  Logger.log('[GleanDoc] Appendix: Data Sources & Methodology');
+  addDataSourcesSection(body, enrichment);
 
   Logger.log('[GleanDoc] Saving and closing doc...');
   doc.saveAndClose();
@@ -1176,7 +1221,7 @@ function addExecutiveBriefingSection(body, data, briefing) {
     titlePara.setHeading(DocumentApp.ParagraphHeading.NORMAL);
     titlePara.editAsText().setFontSize(12);
     titlePara.editAsText().setBold(true);
-    titlePara.editAsText().setForegroundColor(DOCUSIGN_PURPLE);
+    titlePara.editAsText().setForegroundColor(DOCUSIGN_POPPY);
     titlePara.setSpacingBefore(8);
     titlePara.setSpacingAfter(2);
 
@@ -1270,7 +1315,7 @@ function addBigBetInitiativesSection(body, data, bigBets, accountProfile, contra
       }))
     ];
 
-    var matrixTable = body.appendTable(matrixRows);
+    var matrixTable = safeAppendTable(body, matrixRows);
     matrixTable.setBorderColor('#CCCCCC');
     matrixTable.setBorderWidth(1);
 
@@ -1339,7 +1384,7 @@ function addBigBetsDetailSection(body, data, bigBets) {
     titlePara.editAsText().setFontSize(15);
     titlePara.editAsText().setBold(true);
     titlePara.editAsText().setItalic(false);
-    titlePara.editAsText().setForegroundColor(DOCUSIGN_PURPLE);
+    titlePara.editAsText().setForegroundColor(DOCUSIGN_POPPY);
     titlePara.setSpacingBefore(12);
     titlePara.setSpacingAfter(4);
 
@@ -1541,7 +1586,7 @@ function addProductAdoptionSection(body, data) {
   }
   var unusedText = unusedProducts.length > 0 ? unusedProducts.map(function(p) { return '\u2022 ' + p; }).join('\n') : 'All products active';
 
-  var ptTable = body.appendTable([
+  var ptTable = safeAppendTable(body, [
     ['Active Products', 'Unused / Available for Expansion'],
     [activeText, unusedText]
   ]);
@@ -1580,27 +1625,42 @@ function addProductAdoptionSection(body, data) {
 }
 
 /**
- * Primary Section 4: Strategic Initiatives — numbered priorities from executive briefing.
+ * Primary Section 4: Strategic Initiatives — customer's own strategic priorities.
+ * Exclusively customer POV: what the customer is pursuing. No Docusign framing.
  */
-function addStrategicInitiativesSection(body, data, briefing) {
-  if (!briefing || !briefing.priorities || briefing.priorities.length === 0) return;
+function addStrategicInitiativesSection(body, data, briefing, accountProfile) {
+  var initiatives = (accountProfile &&
+                     accountProfile.businessPerformance &&
+                     accountProfile.businessPerformance.strategicInitiatives) || [];
+  if (initiatives.length === 0) return;
 
   addSectionHeading(body, 'Strategic Initiatives');
-  addSectionDescription(body, 'Sources: AI-synthesized narrative focused on the customer\'s strategic priorities, business challenges, and market context. Treat as a conversation starter, not a factual reference.');
+  addSectionDescription(body, 'Customer\'s active strategic priorities based on external research. This is their agenda — no Docusign framing.');
 
-  var priorities = briefing.priorities || [];
-  priorities.forEach(function(p, idx) {
-    var titleText = (idx + 1) + '. ' + (p.title || 'Priority ' + (idx + 1));
+  initiatives.forEach(function(init, idx) {
+    var titleText = (idx + 1) + '. ' + (init.title || 'Initiative ' + (idx + 1));
     var titlePara = body.appendParagraph(titleText);
     titlePara.setHeading(DocumentApp.ParagraphHeading.NORMAL);
-    titlePara.editAsText().setFontSize(12);
+    titlePara.editAsText().setFontSize(13);
     titlePara.editAsText().setBold(true);
-    titlePara.editAsText().setForegroundColor(DOCUSIGN_PURPLE);
-    titlePara.setSpacingBefore(8);
-    titlePara.setSpacingAfter(2);
+    titlePara.editAsText().setForegroundColor(DOCUSIGN_POPPY);
+    titlePara.setSpacingBefore(12);
+    titlePara.setSpacingAfter(4);
 
-    if (p.body) {
-      appendRichText(body, p.body);
+    if (init.description) {
+      var descPara = body.appendParagraph(init.description);
+      descPara.editAsText().setFontSize(11);
+      descPara.setSpacingBefore(0);
+      descPara.setSpacingAfter(4);
+    }
+
+    if (init.timeframe) {
+      var tfPara = body.appendParagraph('Timeframe: ' + init.timeframe);
+      tfPara.editAsText().setFontSize(10);
+      tfPara.editAsText().setItalic(true);
+      tfPara.editAsText().setForegroundColor('#666666');
+      tfPara.setSpacingBefore(0);
+      tfPara.setSpacingAfter(8);
     }
   });
 }
@@ -1610,7 +1670,7 @@ function addStrategicInitiativesSection(body, data, briefing) {
  */
 function addLongTermOpportunityMapSection(body, data, accountProfile, enrichment, businessMap, bigBets) {
   addSectionHeading(body, 'Long Term Opportunity Map - Big Bets');
-  addSectionDescription(body, 'Sources: AI-generated research (Bing-grounded) for business unit structure and strategic context. Agreement intensity from org hierarchy analysis. Big Bet columns derived from strategic initiative and big bet research. Docusign Today column left blank for AE completion.');
+  addSectionDescription(body, 'Sources: Glean AI research (Google Gemini web search) for business unit structure and strategic context. Agreement intensity from org hierarchy analysis. Big Bet columns derived from strategic initiative and big bet research. Docusign Today column left blank for AE completion.');
 
   var ap = accountProfile || {};
   var bus = ap.businessUnits || [];
@@ -1701,7 +1761,7 @@ function addAppendixDivider(body) {
  */
 function addCompanyProfileSection(body, data, accountProfile, enrichment, businessMap) {
   addSectionHeading(body, 'Company Profile');
-  addSectionDescription(body, 'Sources: SEC EDGAR 10-K filings (revenue, employees, segment data), Wikipedia (company overview), Wikidata (CEO, HQ, founding date), and AI research via Bing-grounded web search (business units, customer base, supply chain). Verified data is labeled per sub-table; AI-generated fields are marked accordingly.');
+  addSectionDescription(body, 'Sources: SEC EDGAR 10-K filings (revenue, employees, segment data), Wikipedia (company overview), Wikidata (CEO, HQ, founding date), and Glean AI research via Google Gemini web search (business units, customer base, supply chain). Verified data is labeled per sub-table; AI-generated fields are marked accordingly.');
 
   var ap = accountProfile || {};
   var enr = enrichment || {};
@@ -1840,7 +1900,7 @@ function addCompanyProfileSection(body, data, accountProfile, enrichment, busine
  */
 function addBusinessPerformanceSection(body, data, accountProfile) {
   addSectionHeading(body, 'Business Performance & Strategy');
-  addSectionDescription(body, 'Sources: AI research via Bing-grounded web search. Three-year trends, highlights, strategic initiatives, and SWOT analysis are LLM-generated based on publicly available information. Financial trend claims should be cross-checked against SEC filings in the Company Profile section.');
+  addSectionDescription(body, 'Sources: Glean AI research (Google Gemini web search). Three-year trends, highlights, strategic initiatives, and SWOT analysis are AI-generated based on publicly available information. Financial trend claims should be cross-checked against SEC filings in the Company Profile section.');
 
   var ap = accountProfile || {};
   var perf = ap.businessPerformance || {};
@@ -1892,7 +1952,7 @@ function addBusinessPerformanceSection(body, data, accountProfile) {
     var opportunitiesText = (swot.opportunities || []).map(function(s) { return '• ' + s; }).join('\n');
     var threatsText = (swot.threats || []).map(function(s) { return '• ' + s; }).join('\n');
 
-    var swotTable = body.appendTable([
+    var swotTable = safeAppendTable(body, [
       ['Strengths', 'Weaknesses'],
       [strengthsText || 'N/A', weaknessesText || 'N/A'],
       ['Opportunities', 'Threats'],
@@ -1941,7 +2001,7 @@ function addBusinessPerformanceSection(body, data, accountProfile) {
  */
 function addExecutivesAndTechSection(body, data, accountProfile) {
   addSectionHeading(body, 'Executive Contacts & Technology');
-  addSectionDescription(body, 'Sources: AI research via Bing-grounded web search. Executive names, titles, technology stack, and SI partnerships are LLM-identified from public sources. Verify executive contacts and titles before outreach as these may be outdated.');
+  addSectionDescription(body, 'Sources: Glean AI research (Google Gemini web search). Executive names, titles, technology stack, and SI partnerships are AI-identified from public sources. Verify executive contacts and titles before outreach as these may be outdated.');
 
   var ap = accountProfile || {};
 
@@ -2477,7 +2537,7 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
       summaryRows.push([acc.identity.name, String(green), String(yellow), String(red), status]);
     });
 
-    var summaryTable = body.appendTable(summaryRows);
+    var summaryTable = safeAppendTable(body, summaryRows);
     summaryTable.setBorderColor('#CCCCCC');
     summaryTable.setBorderWidth(1);
     var PAGE_WIDTH = 516;
@@ -2535,7 +2595,7 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
     }
   });
 
-  var table = body.appendTable(scorecardRows);
+  var table = safeAppendTable(body, scorecardRows);
   table.setBorderColor('#CCCCCC');
   table.setBorderWidth(1);
 
@@ -2698,7 +2758,7 @@ function addAgreementLandscapeSection(body, data, agreementLandscape, businessMa
   });
 
   // Custom table rendering with color-coded Type column and explicit widths
-  var table = body.appendTable(aggRows);
+  var table = safeAppendTable(body, aggRows);
   table.setBorderColor('#CCCCCC');
   table.setBorderWidth(1);
 
@@ -3061,7 +3121,7 @@ function addPriorityMapSection(body, data, priorityMap, productSignals) {
 
     // Render custom table
     addSubHeading(body, 'Top Opportunities');
-    var topTable = body.appendTable(topRows);
+    var topTable = safeAppendTable(body, topRows);
     topTable.setBorderColor('#CCCCCC');
     topTable.setBorderWidth(1);
 
@@ -3183,7 +3243,7 @@ function addPriorityMapSection(body, data, priorityMap, productSignals) {
     });
 
     // Custom table rendering for Signal column color-coding
-    var table = body.appendTable(bundleRows);
+    var table = safeAppendTable(body, bundleRows);
     table.setBorderColor('#CCCCCC');
     table.setBorderWidth(1);
 
@@ -3304,44 +3364,66 @@ function addDataSourcesSection(body, enrichment) {
 
   var enr = enrichment || {};
 
-  addBodyText(body, 'This report combines verified data from multiple authoritative sources. ' +
-    'Where data is sourced from public filings or databases, it is used as-is. ' +
-    'AI-generated analysis is grounded with live web search (Bing) and anchored to verified data points.');
+  addBodyText(body, 'This report is generated by a multi-step Glean AI workflow orchestrated from Google Sheets. ' +
+    'Verified account data from internal Docusign systems anchors the analysis. ' +
+    'External research is gathered by Glean via Google Gemini web search and synthesized through a series of structured Think steps. ' +
+    'Where public filings or databases are available, that data takes precedence over AI estimates.');
 
-  // Build sources table dynamically based on what was actually enriched
-  var rows = [['Source', 'Data Provided', 'Notes']];
+  // ── Sources table — built dynamically based on what was actually available ──
+  var rows = [['Source', 'Data Provided', 'Reliability']];
 
-  // Always present: internal Docusign data
+  // Always: internal Docusign data
   rows.push([
     'Docusign Book of Business',
-    'Contract terms, consumption metrics, seat usage, integrations, product adoption, financial data (ACV/CMRR)',
-    'Internal account data extracted from Docusign systems'
+    'Contract terms, renewal dates, ACV/CMRR, consumption metrics, envelope pacing, seat usage, product adoption, integrations',
+    'Verified — extracted directly from internal Docusign systems'
   ]);
 
-  // SEC EDGAR
+  // Always: Glean internal search
+  rows.push([
+    'Glean Internal Search',
+    'Recent account activity: account plans, QBRs, strategy docs, customer meeting notes, Slack discussions (last 6 months)',
+    'Best-effort — results depend on indexed internal content; may be empty for accounts with limited internal coverage'
+  ]);
+
+  // Always: Glean + Google Gemini web search
+  rows.push([
+    'Glean + Google Gemini Web Search',
+    'Company overview, business units, financials, 3-year performance trends, strategic initiatives, SWOT analysis, executive contacts, technology stack, organizational structure',
+    'AI-generated from public sources (earnings reports, press releases, LinkedIn, company websites). Cross-checked against verified data where available.'
+  ]);
+
+  // Always: Glean AI synthesis (Think steps)
+  rows.push([
+    'Glean AI Synthesis (Think Steps)',
+    'Company profile, org hierarchy, agreement landscape, contract commerce estimates, Docusign growth strategy, big bet opportunities',
+    'AI-generated — structured reasoning grounded in web research and internal account data. Dollar estimates are directional, not audited.'
+  ]);
+
+  // Conditional: SEC EDGAR
   if (enr.revenueFormatted || enr.segments) {
     var secData = [];
     if (enr.revenueFormatted) secData.push('consolidated financials (revenue, COGS, OpEx, CapEx, net income)');
     if (enr.employeesFormatted) secData.push('employee count');
     if (enr.segments && enr.segments.length > 0) secData.push('segment revenue (' + enr.segments.length + ' segments)');
-    var period = enr.filingPeriod ? 'From most recent 10-K annual filing (FY ' + enr.filingPeriod + ')' : 'From most recent 10-K annual filing';
+    var period = enr.filingPeriod ? 'FY ' + enr.filingPeriod + ' 10-K annual filing' : 'Most recent 10-K annual filing';
     rows.push([
       'SEC EDGAR (XBRL)',
       secData.join(', '),
-      period + '. Parsed from XBRL instance documents via SEC EDGAR API.'
+      'Verified — parsed from XBRL instance documents via SEC EDGAR API. ' + period + '. Injected into AI prompts as authoritative anchors; overrides AI estimates.'
     ]);
   }
 
-  // Wikipedia
+  // Conditional: Wikipedia
   if (enr.overview) {
     rows.push([
       'Wikipedia',
-      'Company overview',
-      'Summary extract from English Wikipedia article'
+      'Company overview narrative',
+      'Reference — summary extract from English Wikipedia. Used as background context.'
     ]);
   }
 
-  // Wikidata
+  // Conditional: Wikidata
   var wikidataFields = [];
   if (enr.ceo) wikidataFields.push('CEO');
   if (enr.headquarters) wikidataFields.push('headquarters');
@@ -3351,26 +3433,34 @@ function addDataSourcesSection(body, enrichment) {
     rows.push([
       'Wikidata',
       wikidataFields.join(', '),
-      'Structured data from Wikidata knowledge base'
+      'Reference — structured data from Wikidata knowledge base.'
     ]);
   }
-
-  // AI research (always present)
-  rows.push([
-    'AI Research (Bing-grounded)',
-    'Business units, SWOT analysis, strategic initiatives, executive contacts, technology stack, agreement landscape, contract commerce estimates, priority mapping',
-    'Generated by LLM with live Bing web search grounding. Verified data from sources above is enforced over AI estimates.'
-  ]);
 
   addStyledTable(body, rows);
 
   addSpacer(body);
-  var methodNote = addBodyText(body,
-    'Methodology: Verified data from SEC filings and public databases is fetched first and injected into AI prompts as anchoring context. ' +
-    'After AI generation, a post-processing enforcement step overwrites any AI-generated values that conflict with verified data. ' +
-    'This ensures financial figures, employee counts, and segment revenue reflect actual SEC filings rather than AI estimates.');
-  methodNote.editAsText().setFontSize(9);
-  methodNote.editAsText().setForegroundColor('#666666');
+  addSubHeading(body, 'How This Report Was Generated');
+
+  var steps = [
+    ['Step 1–2 (Parallel)', 'Glean searches internal Docusign knowledge (account plans, QBRs, Slack) and runs an Google Gemini web search for external company research. Both run simultaneously.'],
+    ['Step 3 — Think 1', 'Glean synthesizes a complete company profile: business units, financials, SWOT, executive contacts, technology stack, and account health indicators derived from Book of Business data.'],
+    ['Step 4 — Think 2', 'Glean builds the organizational hierarchy (business map), identifies 15–20 agreement types with volume and complexity scores, and estimates contract commerce by department and agreement type.'],
+    ['Step 5 — Think 3', 'Glean synthesizes the Docusign growth strategy: executive briefing, strategic priorities, and 3–5 ranked big bet opportunities tied to specific company initiatives and white-space product signals.'],
+    ['Post-processing', 'GAS enforces verified data (SEC EDGAR financials, internal Book of Business metrics) over any conflicting AI estimates before writing the document.']
+  ];
+
+  var stepRows = [['Stage', 'What Happens']];
+  steps.forEach(function(s) { stepRows.push(s); });
+  addStyledTable(body, stepRows);
+
+  addSpacer(body);
+  var disclaimer = addBodyText(body,
+    'Disclaimer: AI-generated analysis in this report is intended as a starting point for AE research and executive conversations — not a substitute for independent verification. ' +
+    'Executive contacts and titles should be confirmed before outreach. Financial estimates and commerce projections are directional; treat as order-of-magnitude guidance.');
+  disclaimer.editAsText().setFontSize(9);
+  disclaimer.editAsText().setForegroundColor('#666666');
+  disclaimer.editAsText().setItalic(true);
 }
 
 
@@ -3381,7 +3471,7 @@ function addDataSourcesSection(body, enrichment) {
 function addSectionHeading(body, text) {
   var heading = body.appendParagraph(text);
   heading.setHeading(DocumentApp.ParagraphHeading.HEADING1);
-  heading.editAsText().setForegroundColor(DOCUSIGN_PURPLE);
+  heading.editAsText().setForegroundColor(DOCUSIGN_COBALT);
   heading.editAsText().setFontSize(22);
   heading.editAsText().setBold(false);
   heading.editAsText().setItalic(false);
@@ -3401,7 +3491,7 @@ function addSubHeading(body, text) {
   heading.setHeading(DocumentApp.ParagraphHeading.HEADING2);
   heading.editAsText().setFontSize(13);
   heading.editAsText().setBold(true);
-  heading.editAsText().setForegroundColor('#333333');
+  heading.editAsText().setForegroundColor(DOCUSIGN_POPPY);
   heading.setSpacingBefore(8);
   heading.setSpacingAfter(4);
 }
@@ -3469,13 +3559,34 @@ function addSectionDescription(body, text) {
 }
 
 /**
+ * Coerce a 2D array to string[][] and call body.appendTable().
+ * Inline table builds that don't use addStyledTable should call this
+ * to avoid "number[] doesn't match" errors from raw LLM numeric values.
+ */
+function safeAppendTable(body, rows) {
+  var safeRows = rows.map(function(row) {
+    return row.map(function(cell) {
+      return (cell === null || cell === undefined) ? '' : String(cell);
+    });
+  });
+  return body.appendTable(safeRows);
+}
+
+/**
  * Create a styled table with header row formatting and alternating row colors.
  */
 function addStyledTable(body, rows) {
   if (!rows || rows.length === 0) return;
 
-  var table = body.appendTable(rows);
-  table.setBorderColor('#CCCCCC');
+  // appendTable requires string[][] — coerce all cells defensively
+  var safeRows = rows.map(function(row) {
+    return row.map(function(cell) {
+      return (cell === null || cell === undefined) ? '' : String(cell);
+    });
+  });
+
+  var table = body.appendTable(safeRows);
+  table.setBorderColor(TABLE_BORDER);
   table.setBorderWidth(1);
 
   var numCols = rows[0].length;
