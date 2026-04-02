@@ -501,8 +501,8 @@ function createQuadrantChart(agreements) {
 
 /**
  * Add a branded header to the top of the document.
- * Layout: Row 1 — Docusign logo (left) | "Growth Strategy" title (center) | empty (right)
- *         Row 2 — Company name (left) | "Growth Strategy Report" italic (center) | Generated date (right)
+ * Layout: Row 1 — Docusign logo (left) | "Account Planning" title (center) | empty (right)
+ *         Row 2 — Company name (left) | "Account Planning Report" italic (center) | Generated date (right)
  *         Followed by a horizontal rule divider.
  * @param {Body}   body         Document body
  * @param {string} companyName  Account name for the subtitle row
@@ -571,7 +571,7 @@ function addDocumentHeader(body, companyName, isProspect) {
   nameText.setForegroundColor(DOCUSIGN_PURPLE);
 
   // ── Subhead ───────────────────────────────────────────────────────────
-  var subPara = body.appendParagraph('Growth Strategy Report');
+  var subPara = body.appendParagraph('Account Planning Report');
   subPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
   subPara.setSpacingBefore(0);
   subPara.setSpacingAfter(2);
@@ -620,8 +620,8 @@ function notifyUserOfProgress (email, channelId, message){
 }
 
 /**
- * Generate a growth strategy report for the account matching the given Salesforce Account ID.
- * Looks up the account in the Full Data sheet, then delegates to generateGrowthStrategyDoc().
+ * Generate an account planning report for the account matching the given Salesforce Account ID.
+ * Looks up the account in the Full Data sheet, then delegates to generateAccountPlanningDoc().
  * @param {string} salesforceAccountId  e.g. "0014x000009XXXXAAA"
  * @returns {string} URL of the created Google Doc
  */
@@ -636,30 +636,30 @@ function generateReportByAccountId(salesforceAccountId, email, channelId, isPros
     companyName = findCompanyNameByAccountId(salesforceAccountId);
   }
   Logger.log('[DocGen] Resolved account ID "' + salesforceAccountId + '" → "' + companyName + '"');
-  return generateGrowthStrategyDoc(companyName, email, channelId, isProspect);
+  return generateAccountPlanningDoc(companyName, email, channelId, isProspect);
 }
 
 /**
- * Generate a growth strategy doc for all accounts in a GTM group.
- * Merges account data via getGtmGroupData() and delegates to generateGrowthStrategyDoc().
+ * Generate an account planning doc for all accounts in a GTM group.
+ * Merges account data via getGtmGroupData() and delegates to generateAccountPlanningDoc().
  * @param {string} gtmGroupId  Value of the GTM_GROUP column (Salesforce group ID)
  * @param {string} email       Optional — for Slack progress notifications
  * @param {string} channelId   Optional — for Slack progress notifications
  * @returns {string} URL of the created Google Doc
  */
-function generateGrowthStrategyDocForGroup(gtmGroupId, email, channelId) {
-  Logger.log('[DocGen] generateGrowthStrategyDocForGroup called for ID: ' + gtmGroupId);
+function generateAccountPlanningDocForGroup(gtmGroupId, email, channelId) {
+  Logger.log('[DocGen] generateAccountPlanningDocForGroup called for ID: ' + gtmGroupId);
   var groupData = getGtmGroupData(gtmGroupId);
-  return generateGrowthStrategyDoc(groupData.identity.name, email || '', channelId || '', false, groupData);
+  return generateAccountPlanningDoc(groupData.identity.name, email || '', channelId || '', false, groupData);
 }
 
 /**
- * Main entry point: generate a growth strategy doc for one company.
+ * Main entry point: generate an account planning doc for one company.
  * @param {string} companyName
  * @returns {string} URL of the created Google Doc
  */
-function generateGrowthStrategyDoc(companyName, email, channelId, isProspect, prebuiltData) {
-  Logger.log('Starting growth strategy generation for: ' + companyName + (isProspect ? ' [PROSPECT]' : ''));
+function generateAccountPlanningDoc(companyName, email, channelId, isProspect, prebuiltData) {
+  Logger.log('Starting account planning generation for: ' + companyName + (isProspect ? ' [PROSPECT]' : ''));
 
   // ── Step 1: Extract internal data and run signal matching ─────────
   Logger.log('Extracting sheet data...');
@@ -868,7 +868,7 @@ function generateGrowthStrategyDoc(companyName, email, channelId, isProspect, pr
   notifyUserOfProgress (email, channelId, "Generating Final Document..");
   Logger.log('[DocGen] Creating Google Doc...');
   var docTitle = (isProspect ? '[PROSPECT] ' : '') +
-    data.identity.name + ' | Growth Strategy' +
+    data.identity.name + ' | Account Planning' +
     (data.isGtmGroup ? ' [GTM GROUP: ' + data.context.gtmGroup + ']' : '');
   var doc = DocumentApp.create(docTitle);
 
@@ -982,7 +982,7 @@ function generateGrowthStrategyDoc(companyName, email, channelId, isProspect, pr
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Build the growth strategy Google Doc from a Glean V3 analysis JSON.
+ * Build the account planning Google Doc from a Glean V3 analysis JSON.
  * Skips all LLM calls — the Glean agent has already performed research and
  * synthesis. The JSON keys map directly to the existing section builder functions.
  *
@@ -998,7 +998,7 @@ function generateGrowthStrategyDoc(companyName, email, channelId, isProspect, pr
  * @param {boolean} isProspect
  * @returns {string} Google Doc URL
  */
-function generateGrowthStrategyDocFromGlean(companyName, gleanAnalysis, data, productSignals, enrichment, email, channelId, isProspect) {
+function generateAccountPlanningDocFromGlean(companyName, gleanAnalysis, data, productSignals, enrichment, email, channelId, isProspect) {
   Logger.log('[GleanDoc] Starting Glean-path doc generation for: ' + companyName +
     (data.isGtmGroup ? ' [GTM GROUP]' : '') + (isProspect ? ' [PROSPECT]' : ''));
 
@@ -1027,7 +1027,7 @@ function generateGrowthStrategyDocFromGlean(companyName, gleanAnalysis, data, pr
   notifyUserOfProgress(email, channelId, 'Generating Final Document..');
 
   var docTitle = (isProspect ? '[PROSPECT] ' : '') +
-    data.identity.name + ' | Growth Strategy' +
+    data.identity.name + ' | Account Planning' +
     (data.isGtmGroup ? ' [GTM GROUP: ' + data.context.gtmGroup + ']' : '');
   var doc = DocumentApp.create(docTitle);
 
@@ -3396,7 +3396,7 @@ function addDataSourcesSection(body, enrichment) {
   // Always: Glean AI synthesis (Think steps)
   rows.push([
     'Glean AI Synthesis (Think Steps)',
-    'Company profile, org hierarchy, agreement landscape, contract commerce estimates, Docusign growth strategy, big bet opportunities',
+    'Company profile, org hierarchy, agreement landscape, contract commerce estimates, Docusign account planning, big bet opportunities',
     'AI-generated — structured reasoning grounded in web research and internal account data. Dollar estimates are directional, not audited.'
   ]);
 
@@ -3446,7 +3446,7 @@ function addDataSourcesSection(body, enrichment) {
     ['Step 1–2 (Parallel)', 'Glean searches internal Docusign knowledge (account plans, QBRs, Slack) and runs an Google Gemini web search for external company research. Both run simultaneously.'],
     ['Step 3 — Think 1', 'Glean synthesizes a complete company profile: business units, financials, SWOT, executive contacts, technology stack, and account health indicators derived from Book of Business data.'],
     ['Step 4 — Think 2', 'Glean builds the organizational hierarchy (business map), identifies 15–20 agreement types with volume and complexity scores, and estimates contract commerce by department and agreement type.'],
-    ['Step 5 — Think 3', 'Glean synthesizes the Docusign growth strategy: executive briefing, strategic priorities, and 3–5 ranked big bet opportunities tied to specific company initiatives and white-space product signals.'],
+    ['Step 5 — Think 3', 'Glean synthesizes the Docusign account plan: executive briefing, strategic priorities, and 3–5 ranked big bet opportunities tied to specific company initiatives and white-space product signals.'],
     ['Post-processing', 'GAS enforces verified data (SEC EDGAR financials, internal Book of Business metrics) over any conflicting AI estimates before writing the document.']
   ];
 

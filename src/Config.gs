@@ -1,5 +1,5 @@
 /**
- * Configuration and constants for Growth Strategy Generator.
+ * Configuration and constants for Account Planning Generator.
  */
 
 // ── Script Property Keys ──────────────────────────────────────────────

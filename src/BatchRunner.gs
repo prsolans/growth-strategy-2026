@@ -9,7 +9,7 @@
  *
  *   batchGenerateChunk()  (called by trigger)
  *     - Scans Batch Status sheet for next N 'pending'/'running' rows
- *     - Calls generateGrowthStrategyDoc() per company
+ *     - Calls generateAccountPlanningDoc() per company
  *     - Writes status, doc URL, timestamp, and any error back to the sheet
  *     - When no pending rows remain: deletes trigger, shows completion toast
  *
@@ -208,7 +208,7 @@ function _batchGenerateChunkBody() {
     Logger.log('[Batch] Processing row ' + rowNum + ': ' + companyName);
 
     try {
-      var docUrl = generateGrowthStrategyDoc(companyName, "", "", false);
+      var docUrl = generateAccountPlanningDoc(companyName, "", "", false);
       batchSheet.getRange(rowNum, BATCH_COL_STATUS).setValue('done');
       batchSheet.getRange(rowNum, BATCH_COL_DOC_URL).setValue(docUrl);
       batchSheet.getRange(rowNum, BATCH_COL_RUN_AT).setValue(new Date());

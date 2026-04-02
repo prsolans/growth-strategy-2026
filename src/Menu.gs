@@ -4,7 +4,7 @@
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('Growth Strategy')
+    .createMenu('Account Planning')
     .addItem('Generate for Company...', 'showCompanyPicker')
     .addItem('Generate for GTM Group...', 'showGtmGroupPicker')
     .addItem('Generate for Prospect...', 'showProspectDialog')
@@ -155,18 +155,18 @@ function showCompanyPicker() {
   SpreadsheetApp.getUi().showModalDialog(
     HtmlService.createHtmlOutput(_buildPickerHtml({
       badge: null, label: 'Type to search:', placeholder: 'Start typing a company name...',
-      buttonText: 'Generate Growth Strategy', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
+      buttonText: 'Generate Account Planning', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
       serverFetchFn: 'getCompanyNames', countSuffix: 'companies in sheet',
       generateFn: 'generateAndLog', generateArgs: 'sel, false',
       statusMsg: 'Generating... this may take a minute.', returnsUrl: true
     })).setWidth(450).setHeight(280),
-    'Growth Strategy Generator'
+    'Account Planning Generator'
   );
 }
 
 /**
  * Show a dialog to enter a prospect company name (not in the sheet).
- * Calls generateGrowthStrategyDoc(name, true) with isProspect = true.
+ * Calls generateAccountPlanningDoc(name, true) with isProspect = true.
  */
 function showProspectDialog() {
   var html = '<style>' +
@@ -244,7 +244,7 @@ function showGleanCompanyPicker() {
       generateFn: 'generateAndLogViaGlean', generateArgs: 'sel, false',
       statusMsg: 'Sending to Glean... this may take 2-3 minutes.', returnsUrl: true
     })).setWidth(450).setHeight(290),
-    'Growth Strategy via Glean'
+    'Account Planning via Glean'
   );
 }
 
@@ -284,14 +284,14 @@ function showGtmGroupPicker() {
 
 /**
  * Wrapper called by the GTM group picker dialog.
- * Delegates to generateGrowthStrategyDocForGroup() and logs the result.
+ * Delegates to generateAccountPlanningDocForGroup() and logs the result.
  * @param {string} gtmGroupId  Value of the GTM_GROUP column (Salesforce group ID)
  * @returns {string} doc URL
  */
 function generateAndLogGroup(gtmGroupId) {
   var docUrl, errorMsg;
   try {
-    docUrl = generateGrowthStrategyDocForGroup(gtmGroupId, '', '');
+    docUrl = generateAccountPlanningDocForGroup(gtmGroupId, '', '');
     logToStatusSheet('[GTM] ' + gtmGroupId, false, 'done', docUrl, '');
     return docUrl;
   } catch (e) {
@@ -345,7 +345,7 @@ function columnLetter(n) {
 
 /**
  * Wrapper called by the company picker and prospect dialogs.
- * Delegates to generateGrowthStrategyDoc() and logs the result to Batch Status.
+ * Delegates to generateAccountPlanningDoc() and logs the result to Batch Status.
  *
  * @param {string}  companyName
  * @param {boolean} isProspect
@@ -354,7 +354,7 @@ function columnLetter(n) {
 function generateAndLog(companyName, isProspect) {
   var docUrl, errorMsg;
   try {
-    docUrl = generateGrowthStrategyDoc(companyName, "", "", isProspect);
+    docUrl = generateAccountPlanningDoc(companyName, "", "", isProspect);
     logToStatusSheet(companyName, isProspect, 'done', docUrl, '');
     return docUrl;
   } catch (e) {
@@ -489,7 +489,7 @@ function escapeHtml(str) {
 function testGenerate() {
   var companyName = 'Merck Sharp & Dohme LLC';  // <-- change to any company name in your sheet
   Logger.log('[TEST] Starting test for: ' + companyName);
-  var url = generateGrowthStrategyDoc(companyName);
+  var url = generateAccountPlanningDoc(companyName);
   Logger.log('[TEST] Done. Doc URL: ' + url);
 }
 
@@ -500,7 +500,7 @@ function testGenerate() {
 function testGenerateProspect() {
   var companyName = 'Stripe';  // <-- change to any prospect company name
   Logger.log('[TEST] Starting prospect test for: ' + companyName);
-  var url = generateGrowthStrategyDoc(companyName, true);
+  var url = generateAccountPlanningDoc(companyName, true);
   Logger.log('[TEST] Done. Doc URL: ' + url);
 }
 

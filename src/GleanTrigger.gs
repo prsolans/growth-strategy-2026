@@ -10,7 +10,7 @@
  *   Step 4     — think2: Business Map + Agreements + Commerce → appendix JSON
  *   Step 5     — think3: Docusign Strategy → briefing + bigBets JSON
  *
- *   GAS assembles all results and calls generateGrowthStrategyDocFromGlean().
+ *   GAS assembles all results and calls generateAccountPlanningDocFromGlean().
  *
  * Entry points (called from Menu.gs):
  *   generateAndLogViaGlean(companyName, isProspect)   — single account
@@ -152,7 +152,7 @@ function triggerGleanReport(companyName, prebuiltData, isProspect, email, channe
     ((gleanAnalysis.agreementLandscape.agreements || []).length));
 
   // ── Build the Google Doc ─────────────────────────────────────────
-  return generateGrowthStrategyDocFromGlean(
+  return generateAccountPlanningDocFromGlean(
     data.identity.name, gleanAnalysis, data, productSignals, enrichment,
     email || '', channelId || '', isProspect
   );
@@ -203,7 +203,7 @@ function _postToGleanStep(stepName, messageContent) {
 
   if (!apiKey || !apiUser) {
     throw new Error(
-      'Infra API credentials not configured. Use Growth Strategy > Settings to set ' +
+      'Infra API credentials not configured. Use Account Planning > Settings to set ' +
       'INFRA_API_KEY and INFRA_API_USER.'
     );
   }
