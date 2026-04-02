@@ -1221,7 +1221,7 @@ function addExecutiveBriefingSection(body, data, briefing) {
     titlePara.setHeading(DocumentApp.ParagraphHeading.NORMAL);
     titlePara.editAsText().setFontSize(12);
     titlePara.editAsText().setBold(true);
-    titlePara.editAsText().setForegroundColor(DOCUSIGN_POPPY);
+    titlePara.editAsText().setForegroundColor(DOCUSIGN_DEEP_VIOLET);
     titlePara.setSpacingBefore(8);
     titlePara.setSpacingAfter(2);
 
@@ -1384,7 +1384,7 @@ function addBigBetsDetailSection(body, data, bigBets) {
     titlePara.editAsText().setFontSize(15);
     titlePara.editAsText().setBold(true);
     titlePara.editAsText().setItalic(false);
-    titlePara.editAsText().setForegroundColor(DOCUSIGN_POPPY);
+    titlePara.editAsText().setForegroundColor(DOCUSIGN_DEEP_VIOLET);
     titlePara.setSpacingBefore(12);
     titlePara.setSpacingAfter(4);
 
@@ -1643,7 +1643,7 @@ function addStrategicInitiativesSection(body, data, briefing, accountProfile) {
     titlePara.setHeading(DocumentApp.ParagraphHeading.NORMAL);
     titlePara.editAsText().setFontSize(13);
     titlePara.editAsText().setBold(true);
-    titlePara.editAsText().setForegroundColor(DOCUSIGN_POPPY);
+    titlePara.editAsText().setForegroundColor(DOCUSIGN_DEEP_VIOLET);
     titlePara.setSpacingBefore(12);
     titlePara.setSpacingAfter(4);
 
@@ -3491,7 +3491,7 @@ function addSubHeading(body, text) {
   heading.setHeading(DocumentApp.ParagraphHeading.HEADING2);
   heading.editAsText().setFontSize(13);
   heading.editAsText().setBold(true);
-  heading.editAsText().setForegroundColor(DOCUSIGN_POPPY);
+  heading.editAsText().setForegroundColor(DOCUSIGN_DEEP_VIOLET);
   heading.setSpacingBefore(8);
   heading.setSpacingAfter(4);
 }
