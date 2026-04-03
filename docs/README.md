@@ -1,13 +1,13 @@
-# Growth Strategy Generator
+# Account Research Tool
 
-The Growth Strategy Generator is a Google Apps Script tool that produces a comprehensive growth strategy document for any Docusign customer account. It combines internal usage data from a "bookscrub" spreadsheet with LLM-powered web research to deliver a ready-to-use Google Doc containing account intelligence, product recommendations, and an action plan for the account team.
+The Account Research Tool is a Google Apps Script tool that produces a comprehensive account research report for any Docusign customer account. It combines internal usage data from a "bookscrub" spreadsheet with LLM-powered web research to deliver a ready-to-use Google Doc containing account intelligence, product recommendations, and an action plan for the account team.
 
 ## How to Run
 
 1. Open the Google Sheet containing the bookscrub data.
-2. Click **Growth Strategy** in the menu bar.
+2. Click **Account Research** in the menu bar.
 3. Select **Generate for Company...** to open the company picker dialog.
-4. Type a company name to search, select it from the results, and click **Generate Growth Strategy**.
+4. Type a company name to search, select it from the results, and click **Generate Account Research**.
 5. The tool processes internal data, runs 5 LLM research calls, and builds a Google Doc. A link to the finished document appears in the dialog when complete.
 
 ## What the Output Document Contains
@@ -35,7 +35,7 @@ A **Sources** section at the end lists all web sources cited during LLM research
 
 ## Generation Paths
 
-The tool supports two generation paths, selectable from the **Growth Strategy** menu:
+The tool supports two generation paths, selectable from the **Account Research** menu:
 
 | Path | Menu Item | How It Works |
 |------|-----------|-------------|

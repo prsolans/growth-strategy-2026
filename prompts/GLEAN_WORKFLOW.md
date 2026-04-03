@@ -1,4 +1,4 @@
-# Glean Agent: Growth Strategy Generator — Manual Setup Guide
+# Glean Agent: Account Research Tool — Manual Setup Guide
 
 Step-by-step instructions for building the agent manually via the **Set up** tab.
 Each section below is one step. Create them in order.
@@ -7,13 +7,13 @@ Each section below is one step. Create them in order.
 
 ## Agent Settings (before adding steps)
 
-- **Name**: Growth Strategy Generator
-- **Description**: Generates an executive-ready growth strategy document for any Docusign customer account. Triggered programmatically from Google Sheets — receives pre-extracted account data as a JSON payload.
+- **Name**: Account Research Tool
+- **Description**: Generates an executive-ready account research report for any Docusign customer account. Triggered programmatically from Google Sheets — receives pre-extracted account data as a JSON payload.
 - **Instructions** (paste into the Instructions field):
 
 ```
-You are a Docusign Growth Strategy Analyst. Your goal is to produce a comprehensive,
-executive-ready growth strategy document for a given Docusign customer account.
+You are a Docusign Account Research Analyst. Your goal is to produce a comprehensive,
+executive-ready account research report for a given Docusign customer account.
 
 You will always be triggered with a structured JSON block labelled INTERNAL_DATA in the
 user message. This contains pre-extracted bookscrub data and enrichment from SEC EDGAR,
@@ -310,7 +310,7 @@ Store all commerce estimates for the final document.
 ```
 Using ALL prior analysis — company profile (Step 4), business map and agreement
 landscape (Step 5), contract commerce (Step 6), parsed account data and product
-signals (Step 1) — synthesize the Docusign growth strategy.
+signals (Step 1) — synthesize the Docusign account research.
 Do NOT output to the user — store for Step 8.
 
 Use productSignals from Step 1 directly for all product recommendations.
@@ -364,8 +364,8 @@ Always spell Docusign with a capital D and a small s.
 **Instructions:**
 ```
 Create a Google Doc with this title:
-- Single account: "[Company Name] | Growth Strategy"
-- GTM group: "[Company Name] | Growth Strategy [GTM GROUP: {account.context.gtmGroup}]"
+- Single account: "[Company Name] | Account Research"
+- GTM group: "[Company Name] | Account Research [GTM GROUP: {account.context.gtmGroup}]"
 
 This document is the MAIN BODY only. Two appendix documents will be created
 separately in Steps 9 and 10. Do not include any appendix content here.
@@ -377,7 +377,7 @@ Use bold, italic, and tables throughout.
 COVER
 ────────────────────────────────────────────────────────
 Title line (large, bold): [Company Name]
-Subtitle: Growth Strategy Report
+Subtitle: Account Research Report
 Date: [today's date]
 
 Footer info (small, below a horizontal rule):
@@ -548,7 +548,7 @@ Add a note pointing to the two appendix documents that will be created next:
 The main body document is ready. Share the link now so the account team
 can begin reviewing while the appendix documents are being created.
 
-📄 **Growth Strategy (Main Body)**: [URL from Step 8]
+📄 **Account Research (Main Body)**: [URL from Step 8]
 
 Then continue — Appendix 1 (Company Background) and Appendix 2
 (Docusign Strategy & Footprint) are being generated next.
@@ -563,8 +563,8 @@ Then continue — Appendix 1 (Company Background) and Appendix 2
 **Instructions:**
 ```
 Create a Google Doc with this title:
-- Single account: "[Company Name] | Growth Strategy — Appendix 1: Company Background"
-- GTM group: "[Company Name] | Growth Strategy — Appendix 1: Company Background [GTM GROUP: {account.context.gtmGroup}]"
+- Single account: "[Company Name] | Account Research — Appendix 1: Company Background"
+- GTM group: "[Company Name] | Account Research — Appendix 1: Company Background [GTM GROUP: {account.context.gtmGroup}]"
 
 This document contains all external research about the company.
 Use Heading 1 for section titles. Use Heading 2 for subsections.
@@ -574,7 +574,7 @@ Use bold, italic, and tables throughout.
 COVER
 ────────────────────────────────────────────────────────
 Title line (large, bold): [Company Name]
-Subtitle: Growth Strategy — Appendix 1: Company Background
+Subtitle: Account Research — Appendix 1: Company Background
 Date: [today's date]
 
 ────────────────────────────────────────────────────────
@@ -656,8 +656,8 @@ List all URLs used in external research with titles and links.
 **Instructions:**
 ```
 Create a Google Doc with this title:
-- Single account: "[Company Name] | Growth Strategy — Appendix 2: Docusign Strategy & Footprint"
-- GTM group: "[Company Name] | Growth Strategy — Appendix 2: Docusign Strategy & Footprint [GTM GROUP: {account.context.gtmGroup}]"
+- Single account: "[Company Name] | Account Research — Appendix 2: Docusign Strategy & Footprint"
+- GTM group: "[Company Name] | Account Research — Appendix 2: Docusign Strategy & Footprint [GTM GROUP: {account.context.gtmGroup}]"
 
 This document contains detailed Docusign-specific analysis and raw usage data.
 Use Heading 1 for section titles. Use Heading 2 for subsections.
@@ -667,7 +667,7 @@ Use bold, italic, and tables throughout.
 COVER
 ────────────────────────────────────────────────────────
 Title line (large, bold): [Company Name]
-Subtitle: Growth Strategy — Appendix 2: Docusign Strategy & Footprint
+Subtitle: Account Research — Appendix 2: Docusign Strategy & Footprint
 Date: [today's date]
 
 ────────────────────────────────────────────────────────
@@ -793,7 +793,7 @@ Methodology note (2–3 sentences):
 Provide links to all three Google Docs created in Steps 8, 10, and 11.
 
 Format:
-📄 **Growth Strategy (Main Body)**: [URL from Step 8]
+📄 **Account Research (Main Body)**: [URL from Step 8]
 📎 **Appendix 1 — Company Background**: [URL from Step 10]
 📎 **Appendix 2 — Docusign Strategy & Footprint**: [URL from Step 11]
 

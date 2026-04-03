@@ -1,6 +1,6 @@
 # Glean Agent — Hybrid Conversion Guide (Bookscrub + GAS Trigger)
 
-This guide describes how to run the Growth Strategy Generator as a **Glean agent**
+This guide describes how to run the Account Research Tool as a **Glean agent**
 while keeping the existing Google Sheet as the data source and Google Apps Script as
 the trigger. No Snowflake, no new infrastructure beyond what already exists.
 
@@ -61,7 +61,7 @@ The entire GAS data layer stays in place. Only the LLM calls and doc generation 
 ### 1.1 Create the Agent
 
 In Glean, create a new agent:
-- **Name**: Growth Strategy Generator
+- **Name**: Account Research Tool
 - **Instructions**: Use `prompts/GLEAN_PROMPT.md` verbatim, **except** replace the
   "Book Scrub Data" section with the text below.
 
@@ -74,7 +74,7 @@ In Glean, create a new agent:
    the book scrub. All field names match the data dictionary.
 
    If the JSON block is absent, respond: "No internal data was provided. Please re-run
-   the report from the Growth Strategy menu in Google Sheets."
+   the report from the Account Research menu in Google Sheets."
 ```
 
 ### 1.2 Knowledge Sources
@@ -112,7 +112,7 @@ var PROP_GLEAN_AGENT_ID   = 'GLEAN_AGENT_ID';    // agent ID from Glean UI
 var PROP_GLEAN_API_BASE   = 'GLEAN_API_BASE';     // e.g. https://yourco.glean.com/api/v1
 
 /**
- * Trigger a growth strategy report via Glean Agent API.
+ * Trigger a account research report via Glean Agent API.
  * Extracts bookscrub data + enrichment, POSTs to Glean, returns doc URL.
  *
  * @param {string}  companyName  Cleaned company name
@@ -155,9 +155,9 @@ function triggerGleanReport(companyName, groupData) {
 function buildGleanPrompt(internalData, enrichment, isGroup) {
   var companyName = internalData.identity.name;
   var header = isGroup
-    ? 'Generate a Growth Strategy report for the GTM group: **' + companyName +
+    ? 'Generate a Account Research report for the GTM group: **' + companyName +
       '** (Group ID: ' + internalData.context.gtmGroup + ').'
-    : 'Generate a Growth Strategy report for: **' + companyName + '**.';
+    : 'Generate a Account Research report for: **' + companyName + '**.';
 
   var payload = {
     internal: internalData,
@@ -168,7 +168,7 @@ function buildGleanPrompt(internalData, enrichment, isGroup) {
     'The following internal account data has been pre-extracted. ' +
     'Use it as the primary source for all internal usage sections.\n\n' +
     '```json\nINTERNAL_DATA\n' + JSON.stringify(payload, null, 2) + '\n```\n\n' +
-    'Generate the complete 9-section Growth Strategy document and return the Google Doc URL.';
+    'Generate the complete 9-section Account Research report and return the Google Doc URL.';
 }
 
 /**
@@ -222,7 +222,7 @@ function callGleanAgentApi(prompt) {
 In `Menu.gs`, add a parallel menu item alongside the existing "Generate for Company":
 
 ```javascript
-ui.createMenu('Growth Strategy')
+ui.createMenu('Account Research')
   // ... existing items ...
   .addSeparator()
   .addItem('Generate in Glean (AI Agent)', 'generateForCompanyViaGlean')
@@ -285,7 +285,7 @@ GAS payload. But for the hybrid: GAS fetches it, Glean consumes it.
 
 ## Step 4: Script Properties to Set
 
-Add these to the existing script properties (via **Growth Strategy > Settings** or directly):
+Add these to the existing script properties (via **Account Research > Settings** or directly):
 
 | Property | Value |
 |----------|-------|
@@ -323,7 +323,7 @@ doc URL. Mitigations:
   ID in the Batch Status sheet; a second trigger polls for completion. Requires Glean API
   to support async polling (check your Glean API docs).
 - Option B: Accept the timeout and have the user retrieve the doc URL directly from Glean
-  chat. GAS shows "Report sent to Glean — check the Growth Strategy channel" rather than
+  chat. GAS shows "Report sent to Glean — check the Account Research channel" rather than
   blocking for the URL.
 - Option C: For batch runs, keep using the original GAS path (which already completes in
   ~2–3 min per company). Use Glean only for on-demand single-company requests where a

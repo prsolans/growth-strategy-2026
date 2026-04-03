@@ -548,7 +548,7 @@ function researchAccountProfile(companyName, industry, enrichment) {
     '    "threeYearTrend": "2-3 sentence narrative of the company\'s trajectory over 3 years",\n' +
     '    "highlights": ["financial or operational highlight 1", "highlight 2", "highlight 3"],\n' +
     '    "strategicInitiatives": [\n' +
-    '      { "title": "Initiative name", "description": "What they are doing and why", "timeframe": "When this is happening" }\n' +
+    '      { "title": "Initiative name", "description": "3-5 sentence description covering what they are doing, why it matters strategically, key investments or partnerships involved, and expected business outcomes", "timeframe": "When this is happening" }\n' +
     '    ]\n' +
     '  },\n' +
     '  "swot": {\n' +
@@ -567,7 +567,7 @@ function researchAccountProfile(companyName, industry, enrichment) {
     'Provide approximately 5 business units. For executiveContacts, focus on CIO, CTO, CLO, CPO, CFO, ' +
     'VP of Procurement, VP of Legal, and similar roles relevant to agreement management. ' +
     'Include at least 5 CURRENT executives.\n' +
-    'For businessPerformance.strategicInitiatives, provide 3-5 specific initiatives with concrete descriptions and timeframes.\n' +
+    'For businessPerformance.strategicInitiatives, provide 3-5 specific initiatives. Each description must be 3-5 sentences covering what they are doing, why it matters strategically, key investments or partnerships involved, and expected business outcomes.\n' +
     'For businessPerformance.highlights, provide 5-7 specific financial or operational highlights with real numbers where available.';
 
   Logger.log('[Research] Call 1: Researching account profile for "' + companyName + '" in "' + industry + '"');

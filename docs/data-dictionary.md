@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Growth Strategy Generator reads from a single internal data source: the **bookscrub sheet**. This is a Google Sheets spreadsheet where each row represents a Docusign customer account and columns contain account metadata, usage metrics, product adoption flags, and financial data.
+The Account Research Tool reads from a single internal data source: the **bookscrub sheet**. This is a Google Sheets spreadsheet where each row represents a Docusign customer account and columns contain account metadata, usage metrics, product adoption flags, and financial data.
 
 The tool does not access any external databases, CRM systems, or customer-facing APIs. All internal data comes from the columns listed below. The tool also creates one derived column (`COMPANY_NAME`) by parsing the existing `ACCOUNT_NAME_PLAN_TERM` field.
 

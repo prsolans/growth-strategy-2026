@@ -1,4 +1,4 @@
-# Glean Agent: Growth Strategy Generator — Manual Setup Guide (v5)
+# Glean Agent: Account Research Tool — Manual Setup Guide (v5)
 
 GAS-orchestrated multi-step workflow. GAS calls the same agent endpoint 5 times,
 each time passing a different `step` field in the JSON body. Glean routes to the
@@ -13,12 +13,12 @@ GAS assembles all JSON results and builds the full Google Doc.
 
 ## Agent Settings (before adding steps)
 
-- **Name**: Growth Strategy Generator
-- **Description**: Generates an executive-ready growth strategy document for any Docusign customer account. Triggered programmatically from Google Sheets — receives pre-extracted account data as a JSON payload.
+- **Name**: Account Research Tool
+- **Description**: Generates an executive-ready account research report for any Docusign customer account. Triggered programmatically from Google Sheets — receives pre-extracted account data as a JSON payload.
 - **Instructions** (paste into the Instructions field):
 
 ```
-You are a Docusign Growth Strategy Analyst. The companyNameForResearch field in the
+You are a Docusign Account Research Analyst. The companyNameForResearch field in the
 message contains pre-extracted bookscrub data and enrichment — use it as the authoritative
 source. Do not re-fetch internal data. Spell Docusign with a capital D, small s. Begin immediately.
 ```
@@ -350,7 +350,7 @@ The message JSON contains:
   ACCOUNT_PROFILE: complete accountProfile from Think 1
   APPENDIX_DATA: businessMap + agreementLandscape + contractCommerce from Think 2
 
-Using ALL prior data, synthesize the Docusign growth strategy.
+Using ALL prior data, synthesize the Docusign account research.
 
 CRITICAL RULES:
 - Never recommend a product whose productSignals status is "in_use"
@@ -385,6 +385,31 @@ priorities: exactly 3 items, each:
     primaryProducts:   Docusign product names
     integrations:      relevant tech stack integrations from technologyStack
   sizeAndScope:        estimated scale (e.g. "500 contracts/month across 3 BUs")
+
+━━━ PRIORITY MAP ━━━
+
+currentUseCases:
+  summary:    1–2 sentence description of how the account currently uses Docusign
+  products:   list of active product names (productSignals status "in_use")
+  useCases:   list of current use cases inferred from product usage
+  techStack:  brief description of their tech stack relevant to Docusign integrations
+
+priorityMapping: 3–5 items connecting company initiatives to Docusign capabilities
+  companyPriority:     name of the strategic initiative
+  priorityDetails:     2–3 specific details about this initiative
+  docusignCapability:  the Docusign product or capability that addresses it
+  businessImpact:      specific business outcome enabled
+
+expansionOpportunities: 3–5 ranked expansion products (complement bigBets, don't duplicate)
+  product:       Docusign product name
+  useCase:       specific use case
+  businessValue: quantified or described value
+  department:    target department
+
+actionPlan: 3–5 immediate next steps for the AE
+  action:    specific action
+  owner:     role responsible (AE, SE, CSM, etc.)
+  rationale: why this action matters now
 ```
 
 ### Step: Respond
@@ -393,7 +418,7 @@ priorities: exactly 3 items, each:
 
 **Instructions:**
 ~~~
-Return ONLY the briefing and bigBets JSON in a code block:
+Return ONLY the briefing, bigBets, and priorityMap JSON in a code block:
 
 ```json
 {
@@ -403,6 +428,12 @@ Return ONLY the briefing and bigBets JSON in a code block:
   },
   "bigBets": {
     "bigBets": [{ ...full object per big bet... }]
+  },
+  "priorityMap": {
+    "currentUseCases": { "summary": "string", "products": ["string"], "useCases": ["string"], "techStack": "string" },
+    "priorityMapping": [{ "companyPriority": "string", "priorityDetails": ["string"], "docusignCapability": "string", "businessImpact": "string" }],
+    "expansionOpportunities": [{ "product": "string", "useCase": "string", "businessValue": "string", "department": "string" }],
+    "actionPlan": [{ "action": "string", "owner": "string", "rationale": "string" }]
   }
 }
 ```

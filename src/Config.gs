@@ -1,5 +1,5 @@
 /**
- * Configuration and constants for Account Planning Generator.
+ * Configuration and constants for Account Research Generator.
  */
 
 // ── Script Property Keys ──────────────────────────────────────────────

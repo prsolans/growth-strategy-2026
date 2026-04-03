@@ -8,9 +8,9 @@
  *   Steps 1+2 — PARALLEL: company-search + web-search (research, lightweight)
  *   Step 3     — think1: Company Profile Synthesis → accountProfile JSON
  *   Step 4     — think2: Business Map + Agreements + Commerce → appendix JSON
- *   Step 5     — think3: Docusign Strategy → briefing + bigBets JSON
+ *   Step 5     — think3: Docusign Strategy → priorityMap + briefing + bigBets JSON
  *
- *   GAS assembles all results and calls generateAccountPlanningDocFromGlean().
+ *   GAS assembles all results and calls generateAccountResearchDocFromGlean().
  *
  * Entry points (called from Menu.gs):
  *   generateAndLogViaGlean(companyName, isProspect)   — single account
@@ -144,6 +144,7 @@ function triggerGleanReport(companyName, prebuiltData, isProspect, email, channe
     businessMap:        think2Data.businessMap         || {},
     agreementLandscape: think2Data.agreementLandscape  || {},
     contractCommerce:   think2Data.contractCommerce    || {},
+    priorityMap:        think3Data.priorityMap         || {},
     briefing:           think3Data.briefing            || {},
     bigBets:            think3Data.bigBets             || {}
   };
@@ -152,7 +153,7 @@ function triggerGleanReport(companyName, prebuiltData, isProspect, email, channe
     ((gleanAnalysis.agreementLandscape.agreements || []).length));
 
   // ── Build the Google Doc ─────────────────────────────────────────
-  return generateAccountPlanningDocFromGlean(
+  return generateAccountResearchDocFromGlean(
     data.identity.name, gleanAnalysis, data, productSignals, enrichment,
     email || '', channelId || '', isProspect
   );
@@ -203,7 +204,7 @@ function _postToGleanStep(stepName, messageContent) {
 
   if (!apiKey || !apiUser) {
     throw new Error(
-      'Infra API credentials not configured. Use Account Planning > Settings to set ' +
+      'Infra API credentials not configured. Use Account Research > Settings to set ' +
       'INFRA_API_KEY and INFRA_API_USER.'
     );
   }

@@ -1,12 +1,12 @@
-# Glean Agent Conversion Guide: Growth Strategy Generator (Snowflake Edition)
+# Glean Agent Conversion Guide: Account Research Tool (Snowflake Edition)
 
-This guide documents how to recreate the Google Apps Script Growth Strategy Generator as a Glean agent backed by Snowflake instead of the bookscrub Google Sheet.
+This guide documents how to recreate the Google Apps Script Account Research Tool as a Glean agent backed by Snowflake instead of the bookscrub Google Sheet.
 
 ---
 
 ## What This Is
 
-The GAS tool generates a 9-section executive-ready growth strategy Google Doc for any Docusign customer account. It combines:
+The GAS tool generates a 9-section executive-ready account research Google Doc for any Docusign customer account. It combines:
 1. **Internal data** (account usage, product adoption, financials, contract details)
 2. **5 sequential LLM research calls** (company profile → business map → agreement landscape → contract commerce → priority action plan)
 3. **A structured Google Doc** as output
@@ -195,8 +195,8 @@ GROUP BY GTM_GROUP, GTM_GROUP_NAME
 ### 2.1 Agent Setup
 
 In Glean, create a new agent:
-- **Name**: Growth Strategy Generator
-- **Description**: Generates an executive-ready growth strategy document for any Docusign customer account or GTM group.
+- **Name**: Account Research Tool
+- **Description**: Generates an executive-ready account research report for any Docusign customer account or GTM group.
 - **Instructions**: Use the contents of `prompts/GLEAN_PROMPT.md` as the base system prompt, with the "Book Scrub Data" section replaced (see §2.2 below).
 
 ### 2.2 Updated Data Source Instruction
@@ -237,7 +237,7 @@ Ask the user for either:
 - A GTM group ID or name (for a group report)
 
 ```
-"What would you like to generate a Growth Strategy for? You can provide:
+"What would you like to generate a Account Research for? You can provide:
 - A company name (e.g. 'Acme Corporation')
 - A GTM group ID (e.g. 'aSr1W000000Arp3SAC') or group name"
 ```
@@ -327,8 +327,8 @@ Build the priority map and executive briefing.
 **Action type:** Create Google Doc
 
 Title format:
-- Single account: `[Company Name] | Growth Strategy`
-- GTM group: `[Primary Company Name] | Growth Strategy [GTM GROUP: {group_id}]`
+- Single account: `[Company Name] | Account Research`
+- GTM group: `[Primary Company Name] | Account Research [GTM GROUP: {group_id}]`
 
 For GTM group reports, the **Docusign Footprint** section should show:
 

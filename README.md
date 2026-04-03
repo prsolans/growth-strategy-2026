@@ -1,6 +1,6 @@
-# Growth Strategy Report Generator
+# Account Research Report Generator
 
-A Google Apps Script tool that generates comprehensive, AI-researched growth strategy Google Docs for Docusign customer accounts. It reads internal bookscrub usage data, enriches it with public data sources, runs a 7-call sequential/parallel LLM research pipeline, and produces a branded, multi-section strategic document saved to Google Drive.
+A Google Apps Script tool that generates comprehensive, AI-researched account research Google Docs for Docusign customer accounts. It reads internal bookscrub usage data, enriches it with public data sources, runs a 7-call sequential/parallel LLM research pipeline, and produces a branded, multi-section strategic document saved to Google Drive.
 
 Designed for on-demand use by sales reps via the Genius Bar infrastructure.
 
@@ -228,7 +228,7 @@ clasp pull
 cd workers/sec-edgar-proxy && npm run deploy
 ```
 
-**Required Script Properties** (set via **Growth Strategy > Settings** menu):
+**Required Script Properties** (set via **Account Research > Settings** menu):
 
 
 | Property           | Description                                      |

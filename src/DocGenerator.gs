@@ -5,7 +5,7 @@
 // ── Docusign Brand Colors ─────────────────────────────────────────────
 // Source: Docusign Brand Assets — Brand Colors
 var DOCUSIGN_COBALT      = '#4C00FF';  // Primary brand — H1 headings, CTAs
-var DOCUSIGN_POPPY       = '#FF5252';  // Accent/alert — H2 headings
+var DOCUSIGN_POPPY       = '#26065D';  // Remapped to Deep Violet — red removed
 var DOCUSIGN_DEEP_VIOLET = '#26065D';  // Primary dark — table headers
 var DOCUSIGN_INKWELL     = '#130032';  // Deepest dark — near-black
 var DOCUSIGN_MIST        = '#CBC2FF';  // Soft accent — borders, highlights
@@ -29,14 +29,14 @@ var QUADRANT_COLORS = {
   'Negotiated':     DOCUSIGN_COBALT,       // Primary brand
   'Non-negotiated': DOCUSIGN_DEEP_VIOLET,  // Deep Violet
   'Form-based':     DOCUSIGN_MIST,         // Mist lavender
-  'Regulatory':     DOCUSIGN_POPPY         // Poppy
+  'Regulatory':     DOCUSIGN_POPPY         // Deep Violet (remapped)
 };
 
 var CONTRACT_TYPE_COLORS = {
   'Negotiated':     { bg: '#E4DAFF', fg: DOCUSIGN_INKWELL     },  // Cobalt light tint
   'Non-negotiated': { bg: DOCUSIGN_ECRU,   fg: DOCUSIGN_DEEP_VIOLET },  // Ecru + Deep Violet
   'Form-based':     { bg: '#EDE8FF', fg: DOCUSIGN_COBALT      },  // Mist tint + Cobalt text
-  'Regulatory':     { bg: '#FFE5E5', fg: '#CC2222'             }   // Poppy light tint
+  'Regulatory':     { bg: '#EDE6FF', fg: DOCUSIGN_DEEP_VIOLET  }   // Deep Violet tint
 };
 
 /**
@@ -501,8 +501,8 @@ function createQuadrantChart(agreements) {
 
 /**
  * Add a branded header to the top of the document.
- * Layout: Row 1 — Docusign logo (left) | "Account Planning" title (center) | empty (right)
- *         Row 2 — Company name (left) | "Account Planning Report" italic (center) | Generated date (right)
+ * Layout: Row 1 — Docusign logo (left) | "Account Research" title (center) | empty (right)
+ *         Row 2 — Company name (left) | "Account Research Report" italic (center) | Generated date (right)
  *         Followed by a horizontal rule divider.
  * @param {Body}   body         Document body
  * @param {string} companyName  Account name for the subtitle row
@@ -571,7 +571,7 @@ function addDocumentHeader(body, companyName, isProspect) {
   nameText.setForegroundColor(DOCUSIGN_PURPLE);
 
   // ── Subhead ───────────────────────────────────────────────────────────
-  var subPara = body.appendParagraph('Account Planning Report');
+  var subPara = body.appendParagraph('Account Research Report');
   subPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
   subPara.setSpacingBefore(0);
   subPara.setSpacingAfter(2);
@@ -620,8 +620,8 @@ function notifyUserOfProgress (email, channelId, message){
 }
 
 /**
- * Generate an account planning report for the account matching the given Salesforce Account ID.
- * Looks up the account in the Full Data sheet, then delegates to generateAccountPlanningDoc().
+ * Generate an account research report for the account matching the given Salesforce Account ID.
+ * Looks up the account in the Full Data sheet, then delegates to generateAccountResearchDoc().
  * @param {string} salesforceAccountId  e.g. "0014x000009XXXXAAA"
  * @returns {string} URL of the created Google Doc
  */
@@ -636,30 +636,30 @@ function generateReportByAccountId(salesforceAccountId, email, channelId, isPros
     companyName = findCompanyNameByAccountId(salesforceAccountId);
   }
   Logger.log('[DocGen] Resolved account ID "' + salesforceAccountId + '" → "' + companyName + '"');
-  return generateAccountPlanningDoc(companyName, email, channelId, isProspect);
+  return generateAccountResearchDoc(companyName, email, channelId, isProspect);
 }
 
 /**
- * Generate an account planning doc for all accounts in a GTM group.
- * Merges account data via getGtmGroupData() and delegates to generateAccountPlanningDoc().
+ * Generate an account research doc for all accounts in a GTM group.
+ * Merges account data via getGtmGroupData() and delegates to generateAccountResearchDoc().
  * @param {string} gtmGroupId  Value of the GTM_GROUP column (Salesforce group ID)
  * @param {string} email       Optional — for Slack progress notifications
  * @param {string} channelId   Optional — for Slack progress notifications
  * @returns {string} URL of the created Google Doc
  */
-function generateAccountPlanningDocForGroup(gtmGroupId, email, channelId) {
-  Logger.log('[DocGen] generateAccountPlanningDocForGroup called for ID: ' + gtmGroupId);
+function generateAccountResearchDocForGroup(gtmGroupId, email, channelId) {
+  Logger.log('[DocGen] generateAccountResearchDocForGroup called for ID: ' + gtmGroupId);
   var groupData = getGtmGroupData(gtmGroupId);
-  return generateAccountPlanningDoc(groupData.identity.name, email || '', channelId || '', false, groupData);
+  return generateAccountResearchDoc(groupData.identity.name, email || '', channelId || '', false, groupData);
 }
 
 /**
- * Main entry point: generate an account planning doc for one company.
+ * Main entry point: generate an account research doc for one company.
  * @param {string} companyName
  * @returns {string} URL of the created Google Doc
  */
-function generateAccountPlanningDoc(companyName, email, channelId, isProspect, prebuiltData) {
-  Logger.log('Starting account planning generation for: ' + companyName + (isProspect ? ' [PROSPECT]' : ''));
+function generateAccountResearchDoc(companyName, email, channelId, isProspect, prebuiltData) {
+  Logger.log('Starting account research generation for: ' + companyName + (isProspect ? ' [PROSPECT]' : ''));
 
   // ── Step 1: Extract internal data and run signal matching ─────────
   Logger.log('Extracting sheet data...');
@@ -863,23 +863,60 @@ function generateAccountPlanningDoc(companyName, email, channelId, isProspect, p
     } catch (e7) { Logger.log('[DocGen] Call 7 fallback FAILED: ' + e7.message); bigBets = {}; }
   }
 
-  // ── Step 3: Create the Google Doc ─────────────────────────────────
-  //AAH 3.23.2026
-  notifyUserOfProgress (email, channelId, "Generating Final Document..");
+  // ── Step 3: Build the Google Doc ─────────────────────────────────
+  return _buildResearchDoc(
+    data, productSignals, enrichment,
+    accountProfile, businessMap, agreementLandscape, contractCommerce,
+    priorityMap, briefing, bigBets,
+    email, channelId, isProspect, 'og'
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// Shared Doc Builder
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Shared Google Doc assembly — called by both OG and Glean pipelines.
+ * Both pipelines converge on the same data shape before reaching this function.
+ *
+ * @param {Object}  data               Internal bookscrub data from getCompanyData()
+ * @param {Object}  productSignals      Signal map from generateProductSignals()
+ * @param {Object}  enrichment          Public enrichment from enrichCompanyData()
+ * @param {Object}  accountProfile      LLM Call 1 / think1 output
+ * @param {Object}  businessMap         LLM Call 2 / think2 output
+ * @param {Object}  agreementLandscape  LLM Call 3 / think2 output
+ * @param {Object}  contractCommerce    LLM Call 4 / think2 output
+ * @param {Object}  priorityMap         LLM Call 5 / think3 output
+ * @param {Object}  briefing            LLM Call 6 / think3 output
+ * @param {Object}  bigBets             LLM Call 7 / think3 output
+ * @param {string}  email               For Slack progress notifications (pass '' to skip)
+ * @param {string}  channelId           For Slack progress notifications (pass '' to skip)
+ * @param {boolean} isProspect
+ * @param {string}  pipeline            'og' or 'glean' — controls Data Sources section content
+ * @returns {string} Google Doc URL
+ */
+function _buildResearchDoc(data, productSignals, enrichment,
+    accountProfile, businessMap, agreementLandscape, contractCommerce,
+    priorityMap, briefing, bigBets,
+    email, channelId, isProspect, pipeline) {
+
+  notifyUserOfProgress(email, channelId, 'Generating Final Document..');
   Logger.log('[DocGen] Creating Google Doc...');
+
   var docTitle = (isProspect ? '[PROSPECT] ' : '') +
-    data.identity.name + ' | Account Planning' +
+    data.identity.name + ' | Account Research' +
     (data.isGtmGroup ? ' [GTM GROUP: ' + data.context.gtmGroup + ']' : '');
   var doc = DocumentApp.create(docTitle);
 
-  // Move to configured folder
   try {
     var folderId = getOutputFolder();
     var file = DriveApp.getFileById(doc.getId());
     DriveApp.getFolderById(folderId).addFile(file);
     DriveApp.getRootFolder().removeFile(file);
   } catch (e) {
-    Logger.log('Could not move to output folder: ' + e.message + '. Doc stays in root.');
+    Logger.log('[DocGen] Could not move to output folder: ' + e.message + '. Doc stays in root.');
   }
 
   var body = doc.getBody();
@@ -888,10 +925,10 @@ function generateAccountPlanningDoc(companyName, email, channelId, isProspect, p
   body.setMarginLeft(48);
   body.setMarginRight(48);
 
-  // ── Header ────────────────────────────────────────────────────────────
+  // ── Header ──────────────────────────────────────────────────────────
   addDocumentHeader(body, data.identity.name, isProspect);
 
-  // ── Build primary sections ───────────────────────────────────────────
+  // ── Primary sections ────────────────────────────────────────────────
   // Sections 1–3: internal account data (customer accounts only).
   // Sections 4–6: AI-synthesized strategy (shown for all accounts including prospects).
 
@@ -924,7 +961,7 @@ function generateAccountPlanningDoc(companyName, email, channelId, isProspect, p
   Logger.log('[DocGen] Building Section 6/6: High Value - Top 3 Big Bets');
   addBigBetInitiativesSection(body, data, bigBets, accountProfile, contractCommerce);
 
-  // ── Appendix: full supporting detail ─────────────────────────────────
+  // ── Appendix: full supporting detail ──────────────────────────────
   body.appendPageBreak();
   Logger.log('[DocGen] Building Appendix divider');
   addAppendixDivider(body);
@@ -966,7 +1003,7 @@ function generateAccountPlanningDoc(companyName, email, channelId, isProspect, p
   body.appendPageBreak();
 
   Logger.log('[DocGen] Appendix: Data Sources & Methodology');
-  addDataSourcesSection(body, enrichment);
+  addDataSourcesSection(body, enrichment, pipeline);
 
   Logger.log('[DocGen] Saving and closing doc...');
   doc.saveAndClose();
@@ -982,7 +1019,7 @@ function generateAccountPlanningDoc(companyName, email, channelId, isProspect, p
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Build the account planning Google Doc from a Glean V3 analysis JSON.
+ * Build the account research Google Doc from a Glean V3 analysis JSON.
  * Skips all LLM calls — the Glean agent has already performed research and
  * synthesis. The JSON keys map directly to the existing section builder functions.
  *
@@ -998,7 +1035,7 @@ function generateAccountPlanningDoc(companyName, email, channelId, isProspect, p
  * @param {boolean} isProspect
  * @returns {string} Google Doc URL
  */
-function generateAccountPlanningDocFromGlean(companyName, gleanAnalysis, data, productSignals, enrichment, email, channelId, isProspect) {
+function generateAccountResearchDocFromGlean(companyName, gleanAnalysis, data, productSignals, enrichment, email, channelId, isProspect) {
   Logger.log('[GleanDoc] Starting Glean-path doc generation for: ' + companyName +
     (data.isGtmGroup ? ' [GTM GROUP]' : '') + (isProspect ? ' [PROSPECT]' : ''));
 
@@ -1023,104 +1060,13 @@ function generateAccountPlanningDocFromGlean(companyName, gleanAnalysis, data, p
     Logger.log('[GleanDoc] Fallback generated ' + agreementLandscape.agreements.length + ' agreements.');
   }
 
-  // ── Create the Google Doc ─────────────────────────────────────────
-  notifyUserOfProgress(email, channelId, 'Generating Final Document..');
-
-  var docTitle = (isProspect ? '[PROSPECT] ' : '') +
-    data.identity.name + ' | Account Planning' +
-    (data.isGtmGroup ? ' [GTM GROUP: ' + data.context.gtmGroup + ']' : '');
-  var doc = DocumentApp.create(docTitle);
-
-  try {
-    var folderId = getOutputFolder();
-    var file = DriveApp.getFileById(doc.getId());
-    DriveApp.getFolderById(folderId).addFile(file);
-    DriveApp.getRootFolder().removeFile(file);
-  } catch (e) {
-    Logger.log('[GleanDoc] Could not move to output folder: ' + e.message + '. Doc stays in root.');
-  }
-
-  var body = doc.getBody();
-  body.setMarginTop(36);
-  body.setMarginBottom(36);
-  body.setMarginLeft(48);
-  body.setMarginRight(48);
-
-  // ── Primary sections (front material only — no appendix) ─────────
-  Logger.log('[GleanDoc] Building document header');
-  addDocumentHeader(body, data.identity.name, isProspect);
-
-  if (!isProspect) {
-    Logger.log('[GleanDoc] Building: Docusign Today Contract');
-    addDocusignTodayContractSection(body, data);
-    body.appendPageBreak();
-
-    Logger.log('[GleanDoc] Building: Product Adoption');
-    addProductAdoptionSection(body, data);
-    body.appendPageBreak();
-
-    Logger.log('[GleanDoc] Building: Account Health');
-    addAccountHealthSection(body, data, false);
-    body.appendPageBreak();
-  }
-
-  Logger.log('[GleanDoc] Building: Strategic Initiatives');
-  addStrategicInitiativesSection(body, data, briefing, accountProfile);
-  if (accountProfile && accountProfile.businessPerformance &&
-      accountProfile.businessPerformance.strategicInitiatives &&
-      accountProfile.businessPerformance.strategicInitiatives.length > 0) {
-    body.appendPageBreak();
-  }
-
-  Logger.log('[GleanDoc] Building: Long Term Opportunity Map');
-  addLongTermOpportunityMapSection(body, data, accountProfile, enrichment, businessMap, bigBets);
-  body.appendPageBreak();
-
-  Logger.log('[GleanDoc] Building: Big Bet Initiatives');
-  addBigBetInitiativesSection(body, data, bigBets, accountProfile, contractCommerce);
-  body.appendPageBreak();
-
-  Logger.log('[GleanDoc] Building: Big Bet Detail');
-  addBigBetsDetailSection(body, data, bigBets);
-  body.appendPageBreak();
-
-  Logger.log('[GleanDoc] Building: Executive Meeting Briefing');
-  addExecutiveBriefingSection(body, data, briefing);
-  body.appendPageBreak();
-
-  // ── Appendix: full supporting detail (V4 JSON — all appendix sections) ──
-  Logger.log('[GleanDoc] Building appendix divider');
-  addAppendixDivider(body);
-
-  Logger.log('[GleanDoc] Appendix: Company Profile');
-  addCompanyProfileSection(body, data, accountProfile, enrichment, businessMap);
-  body.appendPageBreak();
-
-  Logger.log('[GleanDoc] Appendix: Business Performance & Strategy');
-  addBusinessPerformanceSection(body, data, accountProfile);
-  body.appendPageBreak();
-
-  Logger.log('[GleanDoc] Appendix: Executive Contacts & Technology');
-  addExecutivesAndTechSection(body, data, accountProfile);
-  body.appendPageBreak();
-
-  Logger.log('[GleanDoc] Appendix: Agreement Landscape');
-  addAgreementLandscapeSection(body, data, agreementLandscape, businessMap);
-  body.appendPageBreak();
-
-  Logger.log('[GleanDoc] Appendix: Contract Commerce Estimate');
-  addContractCommerceSection(body, data, contractCommerce);
-  body.appendPageBreak();
-
-  Logger.log('[GleanDoc] Appendix: Data Sources & Methodology');
-  addDataSourcesSection(body, enrichment);
-
-  Logger.log('[GleanDoc] Saving and closing doc...');
-  doc.saveAndClose();
-
-  var docUrl = doc.getUrl();
-  Logger.log('[GleanDoc] COMPLETE. Doc URL: ' + docUrl);
-  return docUrl;
+  // ── Build the Google Doc (shared builder) ────────────────────────
+  return _buildResearchDoc(
+    data, productSignals, enrichment,
+    accountProfile, businessMap, agreementLandscape, contractCommerce,
+    priorityMap, briefing, bigBets,
+    email, channelId, isProspect, 'glean'
+  );
 }
 
 
@@ -1650,6 +1596,8 @@ function addStrategicInitiativesSection(body, data, briefing, accountProfile) {
     if (init.description) {
       var descPara = body.appendParagraph(init.description);
       descPara.editAsText().setFontSize(11);
+      descPara.editAsText().setBold(false);
+      descPara.editAsText().setForegroundColor('#333333');
       descPara.setSpacingBefore(0);
       descPara.setSpacingAfter(4);
     }
@@ -2504,9 +2452,6 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
   addSectionDescription(body, 'Sources: Internal Docusign account metrics processed through rule-based scoring. Health indicators (green/yellow/red) are computed deterministically from consumption pacing, usage trends, seat activation, and renewal proximity. No AI estimation involved.');
   addSourceNote(body, 'Source: Docusign Book of Business · Health indicators computed from internal account metrics');
 
-  // GTM groups: account health not shown — per-account data in Docusign Footprint is sufficient.
-  if (data.isGtmGroup) return;
-
   var indicatorOrder = [
     { key: 'consumptionPacing', name: 'Consumption Pacing' },
     { key: 'usageTrend',        name: 'Usage Trend' },
@@ -2520,7 +2465,7 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
     { key: 'chargeModel',       name: 'Charge Model' }
   ];
 
-  // ── GTM Group: compact summary table (now unreachable — kept for safety) ──
+  // ── GTM Group: compact per-account summary table ──────────────────
   if (data.isGtmGroup && data.accounts && data.accounts.length > 0) {
     addSubHeading(body, 'Health Summary by Account');
     var summaryRows = [['Account', 'Healthy', 'Watch', 'Concern', 'Status']];
@@ -3359,15 +3304,23 @@ function addPriorityMapSection(body, data, priorityMap, productSignals) {
  * @param {Body} body
  * @param {Object} enrichment  Output of enrichCompanyData()
  */
-function addDataSourcesSection(body, enrichment) {
+function addDataSourcesSection(body, enrichment, pipeline) {
   addSectionHeading(body, 'Data Sources & Methodology');
 
   var enr = enrichment || {};
+  var isGlean = (pipeline === 'glean');
 
-  addBodyText(body, 'This report is generated by a multi-step Glean AI workflow orchestrated from Google Sheets. ' +
-    'Verified account data from internal Docusign systems anchors the analysis. ' +
-    'External research is gathered by Glean via Google Gemini web search and synthesized through a series of structured Think steps. ' +
-    'Where public filings or databases are available, that data takes precedence over AI estimates.');
+  // ── Intro text ───────────────────────────────────────────────────────
+  if (isGlean) {
+    addBodyText(body, 'This report is generated by a multi-step Glean AI workflow orchestrated from Google Sheets. ' +
+      'Verified account data from internal Docusign systems anchors the analysis. ' +
+      'External research is gathered by Glean via Google Gemini web search and synthesized through a series of structured Think steps. ' +
+      'Where public filings or databases are available, that data takes precedence over AI estimates.');
+  } else {
+    addBodyText(body, 'This report is generated by a multi-step AI workflow orchestrated from Google Sheets using OpenAI GPT-4o via Docusign\'s internal LLM infrastructure. ' +
+      'Verified account data from internal Docusign systems anchors the analysis. ' +
+      'Where public filings or databases are available, that data takes precedence over AI estimates.');
+  }
 
   // ── Sources table — built dynamically based on what was actually available ──
   var rows = [['Source', 'Data Provided', 'Reliability']];
@@ -3379,28 +3332,31 @@ function addDataSourcesSection(body, enrichment) {
     'Verified — extracted directly from internal Docusign systems'
   ]);
 
-  // Always: Glean internal search
-  rows.push([
-    'Glean Internal Search',
-    'Recent account activity: account plans, QBRs, strategy docs, customer meeting notes, Slack discussions (last 6 months)',
-    'Best-effort — results depend on indexed internal content; may be empty for accounts with limited internal coverage'
-  ]);
+  if (isGlean) {
+    rows.push([
+      'Glean Internal Search',
+      'Recent account activity: account plans, QBRs, strategy docs, customer meeting notes, Slack discussions (last 6 months)',
+      'Best-effort — results depend on indexed internal content; may be empty for accounts with limited internal coverage'
+    ]);
+    rows.push([
+      'Glean + Google Gemini Web Search',
+      'Company overview, business units, financials, 3-year performance trends, strategic initiatives, SWOT analysis, executive contacts, technology stack, organizational structure',
+      'AI-generated from public sources (earnings reports, press releases, LinkedIn, company websites). Cross-checked against verified data where available.'
+    ]);
+    rows.push([
+      'Glean AI Synthesis (Think Steps)',
+      'Company profile, org hierarchy, agreement landscape, contract commerce estimates, priority map, big bet opportunities',
+      'AI-generated — structured reasoning grounded in web research and internal account data. Dollar estimates are directional, not audited.'
+    ]);
+  } else {
+    rows.push([
+      'OpenAI GPT-4o (via Docusign INFRA)',
+      'Company profile, org hierarchy, agreement landscape, contract commerce estimates, priority map, executive briefing, big bet opportunities',
+      'AI-generated — 7 structured LLM calls with each call grounded in prior results. Dollar estimates are directional, not audited.'
+    ]);
+  }
 
-  // Always: Glean + Google Gemini web search
-  rows.push([
-    'Glean + Google Gemini Web Search',
-    'Company overview, business units, financials, 3-year performance trends, strategic initiatives, SWOT analysis, executive contacts, technology stack, organizational structure',
-    'AI-generated from public sources (earnings reports, press releases, LinkedIn, company websites). Cross-checked against verified data where available.'
-  ]);
-
-  // Always: Glean AI synthesis (Think steps)
-  rows.push([
-    'Glean AI Synthesis (Think Steps)',
-    'Company profile, org hierarchy, agreement landscape, contract commerce estimates, Docusign account planning, big bet opportunities',
-    'AI-generated — structured reasoning grounded in web research and internal account data. Dollar estimates are directional, not audited.'
-  ]);
-
-  // Conditional: SEC EDGAR
+  // Conditional: SEC EDGAR (both pipelines)
   if (enr.revenueFormatted || enr.segments) {
     var secData = [];
     if (enr.revenueFormatted) secData.push('consolidated financials (revenue, COGS, OpEx, CapEx, net income)');
@@ -3414,7 +3370,7 @@ function addDataSourcesSection(body, enrichment) {
     ]);
   }
 
-  // Conditional: Wikipedia
+  // Conditional: Wikipedia (both pipelines)
   if (enr.overview) {
     rows.push([
       'Wikipedia',
@@ -3423,7 +3379,7 @@ function addDataSourcesSection(body, enrichment) {
     ]);
   }
 
-  // Conditional: Wikidata
+  // Conditional: Wikidata (both pipelines)
   var wikidataFields = [];
   if (enr.ceo) wikidataFields.push('CEO');
   if (enr.headquarters) wikidataFields.push('headquarters');
@@ -3439,16 +3395,28 @@ function addDataSourcesSection(body, enrichment) {
 
   addStyledTable(body, rows);
 
+  // ── How It Was Generated ─────────────────────────────────────────────
   addSpacer(body);
   addSubHeading(body, 'How This Report Was Generated');
 
-  var steps = [
-    ['Step 1–2 (Parallel)', 'Glean searches internal Docusign knowledge (account plans, QBRs, Slack) and runs an Google Gemini web search for external company research. Both run simultaneously.'],
-    ['Step 3 — Think 1', 'Glean synthesizes a complete company profile: business units, financials, SWOT, executive contacts, technology stack, and account health indicators derived from Book of Business data.'],
-    ['Step 4 — Think 2', 'Glean builds the organizational hierarchy (business map), identifies 15–20 agreement types with volume and complexity scores, and estimates contract commerce by department and agreement type.'],
-    ['Step 5 — Think 3', 'Glean synthesizes the Docusign account plan: executive briefing, strategic priorities, and 3–5 ranked big bet opportunities tied to specific company initiatives and white-space product signals.'],
-    ['Post-processing', 'GAS enforces verified data (SEC EDGAR financials, internal Book of Business metrics) over any conflicting AI estimates before writing the document.']
-  ];
+  var steps;
+  if (isGlean) {
+    steps = [
+      ['Step 1–2 (Parallel)', 'Glean searches internal Docusign knowledge (account plans, QBRs, Slack) and runs a Google Gemini web search for external company research. Both run simultaneously.'],
+      ['Step 3 — Think 1',    'Glean synthesizes a complete company profile: business units, financials, SWOT, executive contacts, technology stack, and account health indicators derived from Book of Business data.'],
+      ['Step 4 — Think 2',    'Glean builds the organizational hierarchy (business map), identifies 15–20 agreement types with volume and complexity scores, and estimates contract commerce by department and agreement type.'],
+      ['Step 5 — Think 3',    'Glean synthesizes the Docusign strategy: priority map, executive briefing priorities, and 3–5 ranked big bet opportunities tied to specific company initiatives and white-space product signals.'],
+      ['Post-processing',     'GAS enforces verified data (SEC EDGAR financials, internal Book of Business metrics) over any conflicting AI estimates before writing the document.']
+    ];
+  } else {
+    steps = [
+      ['Call 1 — Account Profile',     'GPT-4o researches the company: overview, business units, financials, SWOT, executive contacts, and technology stack. SEC EDGAR and Wikipedia/Wikidata data is injected as verified anchors.'],
+      ['Calls 2–4 (Parallel)',          'GPT-4o builds the organizational hierarchy (business map), identifies 15–20 agreement types with volume and complexity scores, and estimates contract commerce by department and agreement type. All three run simultaneously.'],
+      ['Call 5 — Priority Map',         'GPT-4o synthesizes Docusign\'s expansion opportunity map: current use cases, priority mapping to company initiatives, expansion opportunities, and a 90-day action plan.'],
+      ['Calls 6–7 (Parallel)',          'GPT-4o generates the executive briefing (strategic priorities narrative) and ranked big bet initiatives simultaneously.'],
+      ['Post-processing',               'GAS enforces verified data (SEC EDGAR financials, internal Book of Business metrics) over any conflicting AI estimates before writing the document.']
+    ];
+  }
 
   var stepRows = [['Stage', 'What Happens']];
   steps.forEach(function(s) { stepRows.push(s); });
