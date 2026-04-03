@@ -147,9 +147,11 @@ function fetchSecProxyFinancials(cik, ticker) {
 
 /**
  * Fetch the intro paragraph for a company from Wikipedia.
- * Uses the REST API summary endpoint for a clean extract.
+ * Returns both the overview text and the matched article title.
+ * The title is used downstream to look up the Wikidata QID via pageprops.
+ *
  * @param {string} companyName
- * @returns {string|null}  First ~3 sentences of the Wikipedia article
+ * @returns {{ overview: string|null, title: string|null }}
  */
 function fetchWikipediaOverview(companyName) {
   Logger.log('[Enrich/Wiki] Fetching overview for "' + companyName + '"');
@@ -166,7 +168,7 @@ function fetchWikipediaOverview(companyName) {
   }
   if (!title) {
     Logger.log('[Enrich/Wiki] No Wikipedia article found for "' + companyName + '"');
-    return null;
+    return { overview: null, title: null };
   }
 
   // Fetch the summary/extract using the REST API
@@ -175,7 +177,7 @@ function fetchWikipediaOverview(companyName) {
 
   if (!summaryData || !summaryData.extract) {
     Logger.log('[Enrich/Wiki] No extract available for "' + title + '"');
-    return null;
+    return { overview: null, title: title };
   }
 
   // Truncate to ~3 sentences for conciseness
@@ -183,8 +185,9 @@ function fetchWikipediaOverview(companyName) {
   var sentences = extract.match(/[^.!?]+[.!?]+/g) || [extract];
   var overview = sentences.slice(0, 3).join(' ').trim();
 
-  Logger.log('[Enrich/Wiki] Overview (' + overview.length + ' chars): ' + overview.substring(0, 200) + '...');
-  return overview;
+  Logger.log('[Enrich/Wiki] Title: "' + title + '" | Overview (' + overview.length + ' chars): ' +
+    overview.substring(0, 200) + '...');
+  return { overview: overview, title: title };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -193,6 +196,7 @@ function fetchWikipediaOverview(companyName) {
 
 /**
  * Search Wikidata for a company entity.
+ * Fallback only — prefer fetchWikidataQidFromWikipediaTitle() which is more reliable.
  * @param {string} companyName
  * @returns {string|null}  Wikidata QID (e.g., "Q312")
  */
@@ -211,6 +215,34 @@ function searchWikidata(companyName) {
   var qid = data.search[0].id;
   Logger.log('[Enrich/Wikidata] Found: ' + qid + ' — ' + data.search[0].label +
     ' (' + (data.search[0].description || '') + ')');
+  return qid;
+}
+
+/**
+ * Get the Wikidata QID for a Wikipedia article title.
+ * Wikipedia articles reliably link to the correct Wikidata entity via pageprops.
+ * This is more trustworthy than a free-text Wikidata search which can match
+ * unrelated entities (e.g., returning a Czech subsidiary instead of the US parent).
+ *
+ * @param {string} title  Wikipedia article title (e.g., "Merck & Co.")
+ * @returns {string|null}  Wikidata QID (e.g., "Q215423") or null
+ */
+function fetchWikidataQidFromWikipediaTitle(title) {
+  var url = 'https://en.wikipedia.org/w/api.php?action=query' +
+    '&titles=' + encodeURIComponent(title) +
+    '&prop=pageprops&ppprop=wikibase_item&format=json';
+  var data = fetchPublicJson(url);
+  if (!data || !data.query || !data.query.pages) return null;
+
+  var pages = data.query.pages;
+  var pageId = Object.keys(pages)[0];
+  if (pageId === '-1') return null; // page not found
+
+  var page = pages[pageId];
+  if (!page || !page.pageprops || !page.pageprops.wikibase_item) return null;
+
+  var qid = page.pageprops.wikibase_item;
+  Logger.log('[Enrich/Wikidata] QID from Wikipedia "' + title + '": ' + qid);
   return qid;
 }
 
@@ -313,9 +345,9 @@ function getWikidataLabel(claims, property) {
   //AAH
   //Logger.log (JSON.stringify (claims[property]));
 
-  // Get the most recent / preferred value
-  //AAH
-  var claim = extractCurrentElement (claims[property]);
+  // Prefer a claim without an end-date qualifier (P582); fall back to the first claim
+  var claim = extractCurrentElement(claims[property]) || claims[property][0];
+  if (!claim) return null;
 
   var mainsnak = claim.mainsnak;
   if (!mainsnak || !mainsnak.datavalue) return null;
@@ -449,10 +481,30 @@ function enrichCompanyData(companyName, industry) {
   var searchName = cleanCompanyNameForSearch(companyName);
   Logger.log('[Enrich] Cleaned search name: "' + searchName + '"');
 
+  // ── Wikipedia: stable overview text + article title ─────────────
+  // Fetch Wikipedia first — the matched title anchors the Wikidata lookup below,
+  // preventing Wikidata free-text search from matching the wrong entity.
+  var wikiTitle = null;
+  try {
+    var wikiResult = fetchWikipediaOverview(searchName);
+    if (wikiResult.overview) enrichment.overview = wikiResult.overview;
+    wikiTitle = wikiResult.title;
+  } catch (e) {
+    Logger.log('[Enrich] Wikipedia failed: ' + e.message);
+  }
+
   // ── Wikidata: structured facts (also gives us ticker + CIK for SEC) ─
+  // Prefer QID from Wikipedia pageprops (reliable entity match).
+  // Fall back to direct Wikidata search only if Wikipedia lookup failed.
   var wikidataFacts = {};
   try {
-    var qid = searchWikidata(searchName);
+    var qid = null;
+    if (wikiTitle) {
+      qid = fetchWikidataQidFromWikipediaTitle(wikiTitle);
+      if (!qid) Logger.log('[Enrich/Wikidata] No QID from Wikipedia title — falling back to search');
+    }
+    if (!qid) qid = searchWikidata(searchName);
+
     if (qid) {
       wikidataFacts = fetchWikidataFacts(qid);
       if (wikidataFacts.ceo) enrichment.ceo = wikidataFacts.ceo;
@@ -463,14 +515,6 @@ function enrichCompanyData(companyName, industry) {
     }
   } catch (e) {
     Logger.log('[Enrich] Wikidata failed: ' + e.message);
-  }
-
-  // ── Wikipedia: stable overview text ────────────────────────────────
-  try {
-    var overview = fetchWikipediaOverview(searchName);
-    if (overview) enrichment.overview = overview;
-  } catch (e) {
-    Logger.log('[Enrich] Wikipedia failed: ' + e.message);
   }
 
   // ── SEC EDGAR: financials from 10-K filings ─────────────────────

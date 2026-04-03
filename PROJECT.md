@@ -1,11 +1,11 @@
-# Growth Strategy 2026 — PROJECT.md
+# Account Research — PROJECT.md
 
 ## Meta
-linear_project: Growth Strategy Reports
+linear_project: Account Research
 staleness_days: 7
 
 ## Goal
-A Google Apps Script tool that generates comprehensive growth strategy Google Docs for Docusign customer accounts. It reads internal bookscrub usage data, runs 5 sequential LLM research calls, and produces a 9-section strategic document covering company profile, business map, agreement landscape, contract commerce estimates, and a priority action plan. The tool is designed for on-demand use by sales reps via the existing Genius Bar infrastructure.
+A Google Apps Script tool that generates comprehensive account research Google Docs for Docusign customer accounts. It reads internal bookscrub usage data, runs 5 sequential LLM research calls, and produces a 9-section strategic document covering company profile, business map, agreement landscape, contract commerce estimates, and a priority action plan. The tool is designed for on-demand use by sales reps via the existing Genius Bar infrastructure.
 
 ## Current milestone
 **Outputs Delivered** — no hard date yet

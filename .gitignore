@@ -10,5 +10,11 @@ data/
 # Generated outputs
 outputs/
 
+# Reference files (CSVs, PDFs, sample data)
+reference/
+docs/*.pdf
+docs/*.html
+docs/sample-*.json
+
 # Node
 node_modules/

@@ -2,7 +2,7 @@
 
 ## System Overview
 
-The Growth Strategy Generator is built on **Google Apps Script** and uses three Google APIs:
+The Account Research Tool is built on **Google Apps Script** and uses three Google APIs:
 
 - **Google Sheets API** -- reads the bookscrub data source
 - **Google Docs API** -- creates and formats the output document

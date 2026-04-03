@@ -9,7 +9,7 @@ After the standard git + plan status report, also present this project quick-ref
 ```
 📦 Project: growth-strategy-2026 (Google Apps Script + Cloudflare Worker)
    Deploy:   clasp push  (src/*.gs → GAS) | cd workers/sec-edgar-proxy && npm run deploy
-   Test:     No local runner — use "Growth Strategy > Test Generate" in the bound Google Sheet
+   Test:     No local runner — use "Account Research > Test Generate" in the bound Google Sheet
 
 🗂 Key files:
    Config.gs        — LLM endpoint, COLUMN_GROUPS, product catalog, industry agreement tables
@@ -38,7 +38,7 @@ After the standard git + plan status report, also present this project quick-ref
 
 ## What This Project Is
 
-A **Google Apps Script** tool that generates a comprehensive growth strategy Google Doc for any Docusign customer account. It reads internal usage data from a bookscrub Google Sheet, runs 5 sequential LLM research calls against an internal endpoint (`infra.agreementsdemo.com/openai`), and builds a 9-section Google Doc saved to a configured Drive folder.
+A **Google Apps Script** tool that generates a comprehensive account research Google Doc for any Docusign customer account. It reads internal usage data from a bookscrub Google Sheet, runs 5 sequential LLM research calls against an internal endpoint (`infra.agreementsdemo.com/openai`), and builds a 9-section Google Doc saved to a configured Drive folder.
 
 There is also a **Cloudflare Worker** (`workers/sec-edgar-proxy/`) that proxies SEC EDGAR API calls to avoid CORS restrictions from Apps Script.
 
@@ -71,10 +71,10 @@ npm run deploy   # deploy to Cloudflare
 
 There is no local test runner. To test:
 1. Open the bound Google Sheet (bookscrub data source)
-2. Click **Growth Strategy > Generate for Company...**
-3. Or use **Growth Strategy > Test Generate** to run against a hardcoded company name via `testGenerate()` in `Menu.gs`
+2. Click **Account Research > Generate for Company...**
+3. Or use **Account Research > Test Generate** to run against a hardcoded company name via `testGenerate()` in `Menu.gs`
 
-Script properties must be configured before first run: `INFRA_API_KEY`, `INFRA_API_USER`, `OUTPUT_FOLDER_ID`, and optionally `SEC_PROXY_URL`. Use the **Growth Strategy > Settings** menu items to set these.
+Script properties must be configured before first run: `INFRA_API_KEY`, `INFRA_API_USER`, `OUTPUT_FOLDER_ID`, and optionally `SEC_PROXY_URL`. Use the **Account Research > Settings** menu items to set these.
 
 ## File Roles
 

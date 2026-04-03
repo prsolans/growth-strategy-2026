@@ -16,34 +16,40 @@ var _sheetCache = null;
  * Load the bookscrub sheet into the module-level cache (once per execution).
  * Subsequent calls return the cached object immediately.
  *
- * Returns: { sheet, data, headerIndex, nameMap, normalizedMap, groupMap, accountIdMap }
- *   nameMap        {string → number}  lowercased COMPANY_NAME → row index in data[]
+ * Returns: { sheet, headerIndex, nameMap, normalizedMap, groupMap, accountIdMap, lastCol, numRows }
+ *   nameMap        {string → number}  lowercased COMPANY_NAME → row index (0-based, excludes header)
  *   normalizedMap  {string → number}  normalized name → row index (for Pass 3 lookup)
  *   groupMap       {string → number[]} GTM_GROUP ID → array of row indices
- *   accountIdMap   {string → number}  SALESFORCE_ACCOUNT_ID → row index
+ *   accountIdMap   {string → {rowIndex, name}}  SALESFORCE_ACCOUNT_ID → { rowIndex, name }
+ *
+ * NOTE: no .data property — rows are read on demand via _readRow().
  */
 function _loadSheet() {
   if (_sheetCache) return _sheetCache;
 
   Logger.log('[DataExtractor] _loadSheet: opening spreadsheet...');
   var sheet = SpreadsheetApp.openById(BOOKSCRUB_SPREADSHEET_ID).getSheetByName(BOOKSCRUB_SHEET_NAME);
-  Logger.log('[DataExtractor] _loadSheet: sheet "' + sheet.getName() + '" (' + sheet.getLastRow() + ' rows, ' + sheet.getLastColumn() + ' cols)');
+  var numRows = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  Logger.log('[DataExtractor] _loadSheet: sheet "' + sheet.getName() + '" (' + numRows + ' rows, ' + lastCol + ' cols)');
 
   var headerIndex = buildHeaderIndex(sheet);
-  ensureCompanyNameColumn(sheet, headerIndex);
 
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  Logger.log('[DataExtractor] _loadSheet: loaded ' + data.length + ' data rows');
+  var nameCol    = headerIndex[COMPANY_NAME_COL];
+  var groupIdCol = headerIndex['GTM_GROUP'];
+  var sfidCol    = headerIndex['SALESFORCE_ACCOUNT_ID'];
 
-  var nameCol     = headerIndex[COMPANY_NAME_COL];
-  var groupIdCol  = headerIndex['GTM_GROUP'];
-  var sfidCol     = headerIndex['SALESFORCE_ACCOUNT_ID'];
+  // Read 3 single-column ranges (18K × 1 each) instead of the full 18K × 245 grid
+  var dataRows = numRows - 1;
+  var nameValues  = nameCol !== undefined
+    ? sheet.getRange(2, nameCol + 1,    dataRows, 1).getValues() : null;
+  var groupValues = groupIdCol !== undefined
+    ? sheet.getRange(2, groupIdCol + 1, dataRows, 1).getValues() : null;
+  var sfidValues  = sfidCol !== undefined
+    ? sheet.getRange(2, sfidCol + 1,    dataRows, 1).getValues() : null;
 
-  // Build lookup maps in a single pass
-  var nameMap       = {};
-  var normalizedMap = {};
-  var groupMap      = {};
-  var accountIdMap  = {};
+  Logger.log('[DataExtractor] _loadSheet: read ' + dataRows + ' rows × 3 columns (' +
+    (dataRows * 3) + ' cells total)');
 
   var normalize = function(s) {
     return s.replace(/[,.()\-]/g, ' ')
@@ -51,10 +57,16 @@ function _loadSheet() {
       .replace(/\s+/g, ' ').trim();
   };
 
-  for (var r = 0; r < data.length; r++) {
+  // Build all lookup maps in a single pass over the column arrays
+  var nameMap       = {};
+  var normalizedMap = {};
+  var groupMap      = {};
+  var accountIdMap  = {};
+
+  for (var r = 0; r < dataRows; r++) {
     // Name map (exact, case-insensitive)
-    if (nameCol !== undefined) {
-      var name = String(data[r][nameCol]).replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
+    if (nameValues) {
+      var name = String(nameValues[r][0]).replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
       if (name && !(name in nameMap)) nameMap[name] = r;
 
       // Normalized map (suffix-stripped)
@@ -63,27 +75,43 @@ function _loadSheet() {
     }
 
     // GTM group map
-    if (groupIdCol !== undefined) {
-      var gid = String(data[r][groupIdCol]).trim();
+    if (groupValues) {
+      var gid = String(groupValues[r][0]).trim();
       if (gid) {
         if (!groupMap[gid]) groupMap[gid] = [];
         groupMap[gid].push(r);
       }
     }
 
-    // Salesforce account ID map
-    if (sfidCol !== undefined) {
-      var sfid = String(data[r][sfidCol]).trim();
-      if (sfid && !(sfid in accountIdMap)) accountIdMap[sfid] = r;
+    // Salesforce account ID map — stores { rowIndex, name } for direct name lookup
+    if (sfidValues) {
+      var sfid = String(sfidValues[r][0]).trim();
+      if (sfid && !(sfid in accountIdMap)) {
+        accountIdMap[sfid] = {
+          rowIndex: r,
+          name: nameValues ? String(nameValues[r][0]).trim() : ''
+        };
+      }
     }
   }
 
-  _sheetCache = { sheet: sheet, data: data, headerIndex: headerIndex,
+  _sheetCache = { sheet: sheet, headerIndex: headerIndex,
                   nameMap: nameMap, normalizedMap: normalizedMap,
-                  groupMap: groupMap, accountIdMap: accountIdMap };
+                  groupMap: groupMap, accountIdMap: accountIdMap,
+                  lastCol: lastCol, numRows: numRows };
   Logger.log('[DataExtractor] _loadSheet: cache built (' + Object.keys(nameMap).length + ' names, ' +
     Object.keys(groupMap).length + ' GTM groups)');
   return _sheetCache;
+}
+
+/**
+ * Read a single data row from the sheet by 0-based row index.
+ * @param {Object} cache  The _sheetCache object
+ * @param {number} rowIdx 0-based row index (0 = first data row, i.e. sheet row 2)
+ * @returns {Array} single row of cell values
+ */
+function _readRow(cache, rowIdx) {
+  return cache.sheet.getRange(rowIdx + 2, 1, 1, cache.lastCol).getValues()[0];
 }
 
 /**
@@ -126,10 +154,11 @@ function extractCompanyName(raw) {
  * - If the column already exists, fills in any blank cells (e.g. newly added rows).
  * Manually-edited cells (non-blank) are never overwritten.
  *
- * @param {Sheet} sheet
- * @param {Object} headerIndex  Current header-to-column map (mutated in place if column is added)
+ * @param {Sheet}    sheet
+ * @param {Object}  headerIndex  Current header-to-column map (mutated in place if column is added)
+ * @param {Array[]} [data]       Optional: already-loaded data array (avoids 2 extra API reads)
  */
-function ensureCompanyNameColumn(sheet, headerIndex) {
+function ensureCompanyNameColumn(sheet, headerIndex, data) {
   var sourceCol = headerIndex['ACCOUNT_NAME_PLAN_TERM'];
   if (sourceCol === undefined) {
     throw new Error('Column ACCOUNT_NAME_PLAN_TERM not found — cannot create COMPANY_NAME.');
@@ -142,15 +171,26 @@ function ensureCompanyNameColumn(sheet, headerIndex) {
     var nameColIdx = headerIndex[COMPANY_NAME_COL]; // 0-based
     if (numRows < 2) return;
 
-    var rawValues  = sheet.getRange(2, sourceCol + 1,  numRows - 1, 1).getValues();
-    var nameValues = sheet.getRange(2, nameColIdx + 1, numRows - 1, 1).getValues();
-
     var updates = [];
     var updateRows = [];
-    for (var i = 0; i < nameValues.length; i++) {
-      if (String(nameValues[i][0]).trim() === '') {
-        updates.push([extractCompanyName(rawValues[i][0])]);
-        updateRows.push(i);
+
+    if (data) {
+      // Fast path: read from already-loaded in-memory data (no API calls)
+      for (var i = 0; i < data.length; i++) {
+        if (String(data[i][nameColIdx]).trim() === '') {
+          updates.push([extractCompanyName(data[i][sourceCol])]);
+          updateRows.push(i);
+        }
+      }
+    } else {
+      // Fallback: read columns directly from sheet (used when called standalone)
+      var rawValues  = sheet.getRange(2, sourceCol + 1,  numRows - 1, 1).getValues();
+      var nameValues = sheet.getRange(2, nameColIdx + 1, numRows - 1, 1).getValues();
+      for (var i = 0; i < nameValues.length; i++) {
+        if (String(nameValues[i][0]).trim() === '') {
+          updates.push([extractCompanyName(rawValues[i][0])]);
+          updateRows.push(i);
+        }
       }
     }
 
@@ -176,11 +216,12 @@ function ensureCompanyNameColumn(sheet, headerIndex) {
   sheet.getRange(1, newColIdx).setValue(COMPANY_NAME_COL);
 
   if (numRows > 1) {
-    var rawValues = sheet.getRange(2, sourceCol + 1, numRows - 1, 1).getValues();
-    var parsed = rawValues.map(function(row) {
-      return [extractCompanyName(row[0])];
-    });
-    sheet.getRange(2, newColIdx, parsed.length, 1).setValues(parsed);
+    var sourceValues = data
+      ? data.map(function(row) { return [extractCompanyName(row[sourceCol])]; })
+      : sheet.getRange(2, sourceCol + 1, numRows - 1, 1).getValues().map(function(row) {
+          return [extractCompanyName(row[0])];
+        });
+    sheet.getRange(2, newColIdx, sourceValues.length, 1).setValues(sourceValues);
   }
 
   headerIndex[COMPANY_NAME_COL] = newColIdx - 1; // 0-based
@@ -204,49 +245,44 @@ function buildHeaderIndex(sheet) {
 }
 
 /**
- * Find the row (0-based within data) that matches the company name.
+ * Find the row (0-based) that matches the company name using the cache maps.
  *
- * Pass 1: O(1) HashMap exact lookup via cache.nameMap
- * Pass 2: O(n) substring scan — only runs on Pass 1 miss
- * Pass 3: O(n) normalized token scan — only runs on Pass 1+2 miss
+ * Pass 1: O(1) HashMap exact lookup via maps.nameMap
+ * Pass 2: O(n) substring scan over nameMap keys — only runs on Pass 1 miss
+ * Pass 3: O(n) normalized token scan over normalizedMap keys — only runs on Pass 1+2 miss
  *
- * @param {Array[]} data      All rows excluding header (from cache)
- * @param {string}  companyName
- * @param {number}  nameCol   Column index of COMPANY_NAME
- * @param {Object}  [maps]    Optional {nameMap, normalizedMap} from cache (skips O(n) pass 1 if provided)
- * @returns {number} row index in data array, or -1
+ * @param {string} companyName
+ * @param {number} nameCol   Column index of COMPANY_NAME (unused; kept for signature compat)
+ * @param {Object} maps      {nameMap, normalizedMap} from cache
+ * @returns {number} 0-based row index, or -1
  */
-function findCompanyRow(data, companyName, nameCol, maps) {
+function findCompanyRow(companyName, nameCol, maps) {
   var target = companyName.replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
 
-  // Pass 1: O(1) exact lookup via nameMap (when called from cached path)
-  if (maps && maps.nameMap) {
-    if (target in maps.nameMap) return maps.nameMap[target];
-  } else {
-    // Legacy O(n) exact pass (called without cache — e.g. preloadedContext path)
-    for (var r = 0; r < data.length; r++) {
-      var cell = String(data[r][nameCol]).replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
-      if (cell === target) return r;
-    }
-  }
+  if (!maps || !maps.nameMap) return -1;
 
-  // Pass 2: substring match (either direction)
+  // Pass 1: O(1) exact lookup via nameMap
+  if (target in maps.nameMap) return maps.nameMap[target];
+
+  // Pass 2: substring match — iterate nameMap keys (no sheet read needed)
+  var allNames = Object.keys(maps.nameMap);
   var bestRow = -1;
   var bestLen = 0;
-  for (var r2 = 0; r2 < data.length; r2++) {
-    var cell2 = String(data[r2][nameCol]).replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
+  var bestName = '';
+  for (var i = 0; i < allNames.length; i++) {
+    var cell2 = allNames[i]; // already lowercased
     if (!cell2) continue;
     if (cell2.indexOf(target) !== -1 || target.indexOf(cell2) !== -1) {
       var matchLen = Math.min(cell2.length, target.length);
       if (matchLen > bestLen) {
         bestLen = matchLen;
-        bestRow = r2;
+        bestRow = maps.nameMap[cell2];
+        bestName = cell2;
       }
     }
   }
   if (bestRow !== -1) {
-    Logger.log('[DataExtractor] Fuzzy match (substring): "' + companyName + '" → "' +
-      String(data[bestRow][nameCol]).trim() + '"');
+    Logger.log('[DataExtractor] Fuzzy match (substring): "' + companyName + '" → "' + bestName + '"');
     return bestRow;
   }
 
@@ -259,22 +295,20 @@ function findCompanyRow(data, companyName, nameCol, maps) {
   var normalizedTarget = normalize(target);
   if (normalizedTarget.length < 3) return -1;
 
-  // O(1) normalized lookup when cache maps are available
-  if (maps && maps.normalizedMap && (normalizedTarget in maps.normalizedMap)) {
+  // O(1) normalized lookup
+  if (maps.normalizedMap && (normalizedTarget in maps.normalizedMap)) {
     var nr = maps.normalizedMap[normalizedTarget];
-    Logger.log('[DataExtractor] Fuzzy match (normalized, O(1)): "' + companyName + '" → "' +
-      String(data[nr][nameCol]).trim() + '"');
+    Logger.log('[DataExtractor] Fuzzy match (normalized, O(1)): "' + companyName + '" → "' + normalizedTarget + '"');
     return nr;
   }
 
-  // Fall back to O(n) scan for token containment (not indexed in normalizedMap)
-  for (var r3 = 0; r3 < data.length; r3++) {
-    var cell3 = String(data[r3][nameCol]).replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
-    var normalizedCell = normalize(cell3);
+  // O(n) token containment scan over normalizedMap keys
+  var allNormNames = Object.keys(maps.normalizedMap);
+  for (var j = 0; j < allNormNames.length; j++) {
+    var normalizedCell = allNormNames[j];
     if (normalizedCell === normalizedTarget) {
-      Logger.log('[DataExtractor] Fuzzy match (normalized): "' + companyName + '" → "' +
-        String(data[r3][nameCol]).trim() + '"');
-      return r3;
+      Logger.log('[DataExtractor] Fuzzy match (normalized): "' + companyName + '" → "' + normalizedCell + '"');
+      return maps.normalizedMap[normalizedCell];
     }
     var targetTokens = normalizedTarget.split(' ').filter(function(t) { return t.length > 1; });
     var cellTokens = normalizedCell.split(' ').filter(function(t) { return t.length > 1; });
@@ -282,9 +316,8 @@ function findCompanyRow(data, companyName, nameCol, maps) {
       var allTargetInCell = targetTokens.every(function(t) { return normalizedCell.indexOf(t) !== -1; });
       var allCellInTarget = cellTokens.every(function(t) { return normalizedTarget.indexOf(t) !== -1; });
       if (allTargetInCell || allCellInTarget) {
-        Logger.log('[DataExtractor] Fuzzy match (tokens): "' + companyName + '" → "' +
-          String(data[r3][nameCol]).trim() + '"');
-        return r3;
+        Logger.log('[DataExtractor] Fuzzy match (tokens): "' + companyName + '" → "' + normalizedCell + '"');
+        return maps.normalizedMap[normalizedCell];
       }
     }
   }
@@ -469,7 +502,6 @@ function getGtmGroupData(gtmGroupId) {
 
   var cache = _loadSheet();
   var headerIndex = cache.headerIndex;
-  var rows = cache.data;
 
   var groupIdCol = headerIndex['GTM_GROUP'];
   var nameCol    = headerIndex[COMPANY_NAME_COL];
@@ -481,18 +513,31 @@ function getGtmGroupData(gtmGroupId) {
   var rowIndices = cache.groupMap[gtmGroupId] || [];
   Logger.log('[GTMGroup] groupMap hit: ' + rowIndices.length + ' rows for group "' + gtmGroupId + '"');
 
-  // Deduplicate by SALESFORCE_ACCOUNT_ID (same logic as before, now over pre-filtered indices)
+  // Read matched rows in one contiguous range (sort indices, read min→max, extract)
+  var rowLookup = {};
+  if (rowIndices.length > 0) {
+    var sortedIndices = rowIndices.slice().sort(function(a, b) { return a - b; });
+    var minRow = sortedIndices[0];
+    var maxRow = sortedIndices[sortedIndices.length - 1];
+    var batchData = cache.sheet.getRange(minRow + 2, 1, maxRow - minRow + 1, cache.lastCol).getValues();
+    sortedIndices.forEach(function(r) { rowLookup[r] = batchData[r - minRow]; });
+    Logger.log('[GTMGroup] Batch read: sheet rows ' + (minRow + 2) + '–' + (maxRow + 2) +
+      ' (' + (maxRow - minRow + 1) + ' rows × ' + cache.lastCol + ' cols)');
+  }
+
+  // Deduplicate by SALESFORCE_ACCOUNT_ID
   var matchedAccounts = [];
   var seenIds = {};
   for (var i = 0; i < rowIndices.length; i++) {
     var r = rowIndices[i];
-    var compName  = String(rows[r][nameCol]).trim();
-    var sfid = sfidCol !== undefined ? String(rows[r][sfidCol]).trim() : '';
+    var row = rowLookup[r];
+    var compName  = String(row[nameCol]).trim();
+    var sfid = sfidCol !== undefined ? String(row[sfidCol]).trim() : '';
     var dedupeKey = sfid || compName;
     Logger.log('[GTMGroup] Row ' + (r + 2) + ' MATCH: SFID="' + sfid + '" | company="' + compName + '"');
     if (compName && !seenIds[dedupeKey]) {
       seenIds[dedupeKey] = true;
-      matchedAccounts.push({ name: compName, rowIndex: r, row: rows[r] });
+      matchedAccounts.push({ name: compName, rowIndex: r, row: row });
     } else if (seenIds[dedupeKey]) {
       Logger.log('[GTMGroup] Row ' + (r + 2) + ' SKIPPED (duplicate SFID/name: "' + dedupeKey + '")');
     }
@@ -669,11 +714,10 @@ function findCompanyNameByAccountId(accountId) {
     throw new Error('SALESFORCE_ACCOUNT_ID column not found in "' + BOOKSCRUB_SHEET_NAME + '" sheet.');
   }
 
-  var r = cache.accountIdMap[target];
-  if (r === undefined) throw new Error('No row found with SALESFORCE_ACCOUNT_ID = "' + accountId + '".');
+  var entry = cache.accountIdMap[target];
+  if (entry === undefined) throw new Error('No row found with SALESFORCE_ACCOUNT_ID = "' + accountId + '".');
 
-  var nameCol = cache.headerIndex[COMPANY_NAME_COL];
-  return String(cache.data[r][nameCol]).trim();
+  return String(entry.name).trim();
 }
 
 /**
@@ -699,20 +743,20 @@ function getCompanyData(companyName, isProspect, preloadedContext) {
     headerIndex = cache.headerIndex;
 
     var nameCol = headerIndex[COMPANY_NAME_COL];
-    Logger.log('[DataExtractor] Searching cache (' + cache.data.length + ' rows) for "' + companyName + '"...');
-    var rowIdx = findCompanyRow(cache.data, companyName, nameCol,
+    Logger.log('[DataExtractor] Searching cache (' + (cache.numRows - 1) + ' rows) for "' + companyName + '"...');
+    var rowIdx = findCompanyRow(companyName, nameCol,
                                 { nameMap: cache.nameMap, normalizedMap: cache.normalizedMap });
     if (rowIdx === -1) {
       if (isProspect) {
         Logger.log('[DataExtractor] Company not found in sheet — returning prospect data object for "' + companyName + '"');
         return buildProspectData(companyName);
       }
-      var available = cache.data.slice(0, 10).map(function(r) { return String(r[nameCol]).trim(); });
+      var available = Object.keys(cache.nameMap).slice(0, 10);
       Logger.log('[DataExtractor] ERROR: Company not found. First 10 names: ' + available.join(', '));
       throw new Error('Company "' + companyName + '" not found in sheet.');
     }
     Logger.log('[DataExtractor] Found company at row ' + (rowIdx + 2) + ' (data row ' + rowIdx + ')');
-    row = cache.data[rowIdx];
+    row = _readRow(cache, rowIdx);
   }
   var v = function(col) { return val(row, headerIndex, col); };
   var n = function(col) { return numVal(row, headerIndex, col); };

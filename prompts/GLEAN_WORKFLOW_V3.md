@@ -1,4 +1,4 @@
-# Glean Agent: Growth Strategy Generator — Manual Setup Guide (v3)
+# Glean Agent: Account Research Tool — Manual Setup Guide (v3)
 
 4-step workflow. Steps 1–2 gather research. Step 3 thinks and produces a
 single structured JSON. Step 4 returns the JSON.
@@ -7,12 +7,12 @@ single structured JSON. Step 4 returns the JSON.
 
 ## Agent Settings (before adding steps)
 
-- **Name**: Growth Strategy Generator
-- **Description**: Generates an executive-ready growth strategy document for any Docusign customer account. Triggered programmatically from Google Sheets — receives pre-extracted account data as a JSON payload.
+- **Name**: Account Research Tool
+- **Description**: Generates an executive-ready account research report for any Docusign customer account. Triggered programmatically from Google Sheets — receives pre-extracted account data as a JSON payload.
 - **Instructions** (paste into the Instructions field):
 
 ```
-You are a Docusign Growth Strategy Analyst. INTERNAL_DATA JSON in the message contains
+You are a Docusign Account Research Analyst. INTERNAL_DATA JSON in the message contains
 pre-extracted bookscrub data and enrichment — use it as the authoritative source.
 Do not re-fetch internal data. Spell Docusign with a capital D, small s. Begin immediately.
 ```

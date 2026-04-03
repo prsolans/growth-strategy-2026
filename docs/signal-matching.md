@@ -2,7 +2,7 @@
 
 ## How Recommendations Work
 
-The Growth Strategy Generator includes a deterministic signal-matching engine that evaluates a customer's internal usage data against every product in the Docusign catalog. This step runs entirely in code -- it is not LLM-generated or guessed. Each product is checked against specific data thresholds derived from the bookscrub sheet, and the result is a structured list of recommendations with transparent reasoning.
+The Account Research Tool includes a deterministic signal-matching engine that evaluates a customer's internal usage data against every product in the Docusign catalog. This step runs entirely in code -- it is not LLM-generated or guessed. Each product is checked against specific data thresholds derived from the bookscrub sheet, and the result is a structured list of recommendations with transparent reasoning.
 
 Signals are assigned one of three strength levels and one of three status values:
 

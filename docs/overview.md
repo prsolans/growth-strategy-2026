@@ -1,8 +1,8 @@
-# Growth Strategy Generator — Overview
+# Account Research Tool — Overview
 
 ## What Is This?
 
-A tool that generates an **executive-ready Growth Strategy document** for any Docusign
+A tool that generates an **executive-ready Account Research report** for any Docusign
 enterprise customer account — in minutes, not hours.
 
 A sales rep selects a company from the bookscrub Google Sheet. The tool reads internal
@@ -91,7 +91,7 @@ flowchart TD
     Extract["DataExtractor.gs\nSheet parsing\nSignal matching"]
     Enrich["DataEnricher.gs\nSEC EDGAR\nWikipedia / Wikidata"]
     Trigger["GleanTrigger.gs\nPrompt builder\nGlean API caller"]
-    Glean["🤖 Glean Agent\nGrowth Strategy Generator\n(GLEAN_WORKFLOW_V3)"]
+    Glean["🤖 Glean Agent\nAccount Research Tool\n(GLEAN_WORKFLOW_V3)"]
     GleanSearch["Company Search\nInternal Docusign docs"]
     GleanWeb["Web Search\nExternal research"]
     GleanThink["Think\nFull analysis → JSON"]
@@ -161,7 +161,7 @@ Sections that use **only internal bookscrub data** (`data`) are unaffected:
 | `GLEAN_API_KEY` | Glean API key with agent chat permissions |
 | `GLEAN_AGENT_ID` | Agent ID from the Glean agent configuration page |
 
-Set via **Growth Strategy → Settings** in the bound Google Sheet.
+Set via **Account Research → Settings** in the bound Google Sheet.
 
 ---
 
@@ -175,4 +175,4 @@ clasp push
 cd workers/sec-edgar-proxy && npm run deploy
 ```
 
-Test via **Growth Strategy → Test Generate** in the bound Google Sheet (no local runner).
+Test via **Account Research → Test Generate** in the bound Google Sheet (no local runner).
