@@ -127,10 +127,16 @@ Each call is wrapped in try/catch; failure produces `{}` and the affected sectio
 
 ## Docs & Prompts
 
-- `docs/architecture.md` — detailed execution flow, LLM pipeline, error handling
-- `docs/data-dictionary.md` — every bookscrub column and how it's used
-- `docs/signal-matching.md` — how product signals are evaluated
-- `docs/ACCOUNT_HEALTH_ANALYSIS.md` — health scorecard indicator definitions
+- `docs/architecture/architecture.md` — detailed execution flow, LLM pipeline, error handling
+- `docs/architecture/data-dictionary.md` — every bookscrub column and how it's used
+- `docs/architecture/signal-matching.md` — how product signals are evaluated
+- `docs/architecture/ACCOUNT_HEALTH_ANALYSIS.md` — health scorecard indicator definitions
+- `docs/specs/` — problem statement, glean investigation, web UI exploration, research
+- `docs/setup/data-sources.md` — data source configuration reference
+- `docs/guides/` — user-facing overviews and field references (HTML/PDF)
 - `prompts/call1-5-*.md` — reference specs for each of the 5 GAS LLM calls
 - `prompts/GEM_PROMPT.md` — full system prompt for a Google Gemini Gem implementation of the same tool (alternative to GAS, uses a connected Sheet as knowledge source)
 - `prompts/GLEAN_PROMPT.md` / `GLEAN_WORKFLOW.md` — system prompt + workflow for a Glean agent implementation
+- `context/reference/` — brand assets, style guide, sample output PDFs, bookscrub CSVs
+- `context/samples/` — example output docs (Account Research, Agreement Landscape)
+- `context/transcripts/` — meeting notes and call recordings

@@ -8,17 +8,16 @@ staleness_days: 7
 A Google Apps Script tool that generates comprehensive account research Google Docs for Docusign customer accounts. It reads internal bookscrub usage data, runs 5 sequential LLM research calls, and produces a 9-section strategic document covering company profile, business map, agreement landscape, contract commerce estimates, and a priority action plan. The tool is designed for on-demand use by sales reps via the existing Genius Bar infrastructure.
 
 ## Current milestone
-**Outputs Delivered** — no hard date yet
+**Genius Bar Rollout** — due 2026-04-03
 - In scope:
-  - Collect bookscrub data for 200 additional companies
-  - Transform/normalize company names
-  - Run and deliver reports for all target companies
-- Done when: All reports successfully generated and delivered without manual intervention
+  - Genius Bar integration live for on-demand report generation (OpenAI pipeline)
+  - Confirm trigger, status updates, and Drive link delivery with Angel
+- Done when: A rep can trigger a report from GB and receive a working link with no engineering involvement
 
 ## Success metrics
-- 200 additional companies have clean, normalized names in the bookscrub
-- Reports successfully generated for all target companies without errors
-- Batch runner completes unattended without manual intervention
+- Report triggered from Genius Bar completes without errors
+- Rep receives correct Drive link and status updates
+- No manual intervention required
 
 ## Stakeholders
 - Craig Doud — Final reviewer
@@ -33,15 +32,21 @@ A complete phase requires:
 - [ ] Acceptance criteria are specific and verifiable
 
 Current phases (in order):
-1. Data collection & company name normalization — ✅ Done (PRS-44 closed)
-2. Batch report generation (200 companies) — ✅ Done (PRS-38 closed)
-3. Genius Bar integration (on-demand generation via sales infrastructure) — PRS-45, In Progress
-4. Platform optimization / Glean — PRS-108 (test full report flow in Glean)
+1. Data collection & company name normalization — ✅ Done (PRS-44)
+2. Batch report generation (200 companies) — ✅ Done (PRS-38)
+3. Genius Bar integration (on-demand via OpenAI pipeline) — 🔴 PRS-45, due TODAY
+4. Glean investigation — ongoing, not blocking rollout (PRS-118)
+
+## Strategy note (2026-04-03)
+Reverting to the OpenAI pipeline as the primary output — this is what was approved, delivered for the first 300 accounts, and what stakeholders are happy with. Genius Bar integration goes live on this path first.
+
+Glean integration continues as a parallel investigation track (quality and speed issues need more time to resolve properly) but is not a dependency for rollout.
 
 ## Current focus
-PRS-107 (GTM_GROUP-based report generation) is the active priority — due 2026-03-30. PRS-110 (add new accounts) and PRS-45 (Genius Bar integration) are both blocked on PRS-107 completing.
-
-PRS-45 is in progress for individual company and prospect reports. Final acceptance requires GTM_GROUP support (PRS-107) and confirmed writeback of report URL to the bookscrub spreadsheet.
+**PRS-45 (Genius Bar integration) — due today.** Coordinate with Angel to confirm:
+1. Trigger mechanism from GB is wired correctly
+2. Status updates during generation are delivered to the right place
+3. Drive link is returned to the rep on completion
 
 ## Open questions
 - **Gong API access**: Is there an internal Gong integration available for tooling? What access level would be needed to pull call data per account? (See PRS-50)
