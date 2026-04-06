@@ -570,8 +570,11 @@ body {
   </div>
 
   <footer class="footer">
-    <span class="footer-help">Questions? Find me on Slack &mdash; <a href="mailto:psolans@docusign.com">@psolans</a></span>
-    <span class="footer-meta">Account Research &middot; Internal tool &middot; <span id="footer-build"></span></span>
+    <span class="footer-help">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+      Need help? Reach out to <a href="https://docusign.slack.com/team/psolans">Paul Solans</a> on Slack
+    </span>
+    <span class="footer-meta">Account Research &middot; <span id="footer-build"></span></span>
   </footer>
 </section>
 
@@ -687,8 +690,8 @@ body {
 // ═══════════════════════════════════════════════════════════════
 // Build metadata — update on each deploy (clasp push)
 // ═══════════════════════════════════════════════════════════════
-var BUILD_DATE = 'Apr 6, 2026';
-document.getElementById('footer-build').textContent = 'Built ' + BUILD_DATE;
+var BUILD_DATE = '2026-04-06 16:49';
+document.getElementById('footer-build').textContent = 'Build ' + BUILD_DATE;
 
 // ═══════════════════════════════════════════════════════════════
 // State
