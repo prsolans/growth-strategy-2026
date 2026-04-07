@@ -8,8 +8,9 @@ After the standard git + plan status report, also present this project quick-ref
 
 ```
 📦 Project: growth-strategy-2026 (Google Apps Script + Cloudflare Worker)
-   Deploy:   clasp push && clasp deploy --deploymentId AKfycbzdRvRuH3WIYSR6N5ZUR71IJnm4QSzrLGR7uysiBCzLRE4Mn1WwKWEa-izpL9Gobdar --description "<msg>"
-             (push alone does NOT update the live web app URL — must redeploy over the existing deployment ID)
+   Deploy:   ./deploy.sh "optional description"
+             (stamps current timestamp into BUILD_DATE, then clasp push + clasp deploy over the fixed deployment ID)
+             (clasp push alone does NOT update the live web app URL)
    Workers:  cd workers/sec-edgar-proxy && npm run deploy
    Test:     Open the deployed web app URL directly (no "Test Generate" in the sheet menu)
 
