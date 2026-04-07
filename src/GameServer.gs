@@ -242,6 +242,62 @@ function triggerGtmGroupAR(gtmGroupId, email) {
   return { jobId: jobId };
 }
 
+// ── Star system ───────────────────────────────────────────────────────────
+
+var GAME_SHEET_STARS = 'Stars';
+
+/**
+ * Returns the lifetime star count for a user (by email).
+ * @param {string} email
+ * @returns {number}
+ */
+function getStarCount(email) {
+  if (!email) return 0;
+  var sheet = _getOrCreateStarsSheet();
+  var data  = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toLowerCase() === email.toLowerCase()) {
+      return Number(data[i][2]) || 0;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Increments the star count for a user. Creates a row if the user is new.
+ * @param {string} email
+ * @param {string} name
+ */
+function addStar(email, name) {
+  if (!email) return;
+  var sheet = _getOrCreateStarsSheet();
+  var data  = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toLowerCase() === email.toLowerCase()) {
+      var current = Number(data[i][2]) || 0;
+      sheet.getRange(i + 1, 3).setValue(current + 1);
+      sheet.getRange(i + 1, 4).setValue(new Date());
+      return;
+    }
+  }
+  // New user
+  sheet.appendRow([email, name || '', 1, new Date()]);
+}
+
+/**
+ * Gets or creates the Stars sheet in the bookscrub spreadsheet.
+ */
+function _getOrCreateStarsSheet() {
+  var ss    = SpreadsheetApp.openById(BOOKSCRUB_SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(GAME_SHEET_STARS);
+  if (!sheet) {
+    sheet = ss.insertSheet(GAME_SHEET_STARS);
+    sheet.appendRow(['email', 'name', 'total_stars', 'last_updated']);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
 /**
  * Reads job status from the Jobs sheet.
  */
