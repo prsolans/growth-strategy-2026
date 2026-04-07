@@ -8,11 +8,11 @@ staleness_days: 7
 A Google Apps Script tool that generates comprehensive account research Google Docs for Docusign customer accounts. It reads internal bookscrub usage data, runs 5 sequential LLM research calls, and produces a 9-section strategic document covering company profile, business map, agreement landscape, contract commerce estimates, and a priority action plan. The tool is designed for on-demand use by sales reps via the existing Genius Bar infrastructure.
 
 ## Current milestone
-**Genius Bar Rollout** — due 2026-04-03
-- In scope:
-  - Genius Bar integration live for on-demand report generation (OpenAI pipeline)
-  - Confirm trigger, status updates, and Drive link delivery with Angel
-- Done when: A rep can trigger a report from GB and receive a working link with no engineering involvement
+**Phased Rollout** — launching 2026-04-08
+- Phase 1: Julie McCabe's org (Wednesday launch)
+- Phase 2: Wayne Phillips org (after Phase 1 stable)
+- Phase 3: Broad IAM meeting release (~1 month out)
+- Done when: reps can trigger reports from Genius Bar with no engineering involvement
 
 ## Success metrics
 - Report triggered from Genius Bar completes without errors
@@ -34,20 +34,14 @@ A complete phase requires:
 Current phases (in order):
 1. Data collection & company name normalization — ✅ Done (PRS-44)
 2. Batch report generation (200 companies) — ✅ Done (PRS-38)
-3. Genius Bar integration (on-demand via OpenAI pipeline) — 🔴 PRS-45, due TODAY
+3. Genius Bar integration (on-demand via OpenAI pipeline) — ✅ Done (PRS-45)
 4. Glean investigation — ongoing, not blocking rollout (PRS-118)
 
-## Strategy note (2026-04-03)
-Reverting to the OpenAI pipeline as the primary output — this is what was approved, delivered for the first 300 accounts, and what stakeholders are happy with. Genius Bar integration goes live on this path first.
-
-Glean integration continues as a parallel investigation track (quality and speed issues need more time to resolve properly) but is not a dependency for rollout.
-
 ## Current focus
-**PRS-45 (Genius Bar integration) — due today.** Coordinate with Angel to confirm:
-1. Trigger mechanism from GB is wired correctly
-2. Status updates during generation are delivered to the right place
-3. Drive link is returned to the rep on completion
+**PRS-164 (rollout comms) — due 2026-04-08.** In progress.
+- Collab with Adam on announcement copy
+- Get Craig approval before send
+- PRS-156 (launch support plan) must be done first
 
 ## Open questions
-- **Gong API access**: Is there an internal Gong integration available for tooling? What access level would be needed to pull call data per account? (See PRS-50)
-- **100 Handshakes**: API-driven org chart enrichment opportunity. (See PRS-102)
+- **Third-party enrichment (Gong + 100 Handshakes)**: Both blocked pending DTS API access approval. Consolidated into PRS-50.
