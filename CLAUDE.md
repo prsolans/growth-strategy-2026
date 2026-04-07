@@ -8,8 +8,10 @@ After the standard git + plan status report, also present this project quick-ref
 
 ```
 📦 Project: growth-strategy-2026 (Google Apps Script + Cloudflare Worker)
-   Deploy:   clasp push  (src/*.gs → GAS) | cd workers/sec-edgar-proxy && npm run deploy
-   Test:     No local runner — use "Account Research > Test Generate" in the bound Google Sheet
+   Deploy:   clasp push && clasp deploy --deploymentId AKfycbzdRvRuH3WIYSR6N5ZUR71IJnm4QSzrLGR7uysiBCzLRE4Mn1WwKWEa-izpL9Gobdar --description "<msg>"
+             (push alone does NOT update the live web app URL — must redeploy over the existing deployment ID)
+   Workers:  cd workers/sec-edgar-proxy && npm run deploy
+   Test:     Open the deployed web app URL directly (no "Test Generate" in the sheet menu)
 
 🗂 Key files:
    Config.gs        — LLM endpoint, COLUMN_GROUPS, product catalog, industry agreement tables
