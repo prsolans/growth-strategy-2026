@@ -189,15 +189,57 @@ function runGameARJob() {
   try { job = JSON.parse(raw); } catch(e) { Logger.log('[runGameARJob] Parse error.'); return; }
   PropertiesService.getScriptProperties().deleteProperty('GAME_PENDING_JOB');
 
-  Logger.log('[runGameARJob] Starting: ' + job.companyName);
   try {
-    var docUrl = generateAccountResearchDoc(job.companyName, job.email, '', false);
+    var docUrl;
+    if (job.isGtm) {
+      Logger.log('[runGameARJob] GTM group: ' + job.gtmGroupId);
+      docUrl = generateAccountResearchDocForGroup(job.gtmGroupId, job.email, '');
+    } else {
+      Logger.log('[runGameARJob] Starting: ' + job.companyName + (job.isProspect ? ' [prospect]' : ''));
+      docUrl = generateAccountResearchDoc(job.companyName, job.email, '', !!job.isProspect);
+    }
     _gameUpdateJobRow(job.jobId, 'done', docUrl);
     Logger.log('[runGameARJob] Done: ' + docUrl);
   } catch(err) {
     Logger.log('[runGameARJob] FAILED: ' + err.message);
     _gameUpdateJobRow(job.jobId, 'error', err.message);
   }
+}
+
+/**
+ * Kicks off AR generation for a prospect (no bookscrub data).
+ * @param {string} companyName
+ * @param {string} email
+ * @returns {{ jobId: string }}
+ */
+function triggerProspectAR(companyName, email) {
+  var jobId = Utilities.getUuid();
+  _gameGetJobsSheet().appendRow([jobId, companyName + ' [prospect]', email, 'running', '', new Date(), '']);
+  PropertiesService.getScriptProperties().setProperty(
+    'GAME_PENDING_JOB',
+    JSON.stringify({ jobId: jobId, companyName: companyName, email: email, isProspect: true })
+  );
+  ScriptApp.newTrigger('runGameARJob').timeBased().after(1000).create();
+  Logger.log('[Game] Prospect job queued: ' + jobId + ' for ' + companyName);
+  return { jobId: jobId };
+}
+
+/**
+ * Kicks off AR generation for a GTM group.
+ * @param {string} gtmGroupId  Salesforce GTM Group ID
+ * @param {string} email
+ * @returns {{ jobId: string }}
+ */
+function triggerGtmGroupAR(gtmGroupId, email) {
+  var jobId = Utilities.getUuid();
+  _gameGetJobsSheet().appendRow([jobId, 'GTM: ' + gtmGroupId, email, 'running', '', new Date(), '']);
+  PropertiesService.getScriptProperties().setProperty(
+    'GAME_PENDING_JOB',
+    JSON.stringify({ jobId: jobId, gtmGroupId: gtmGroupId, email: email, isGtm: true })
+  );
+  ScriptApp.newTrigger('runGameARJob').timeBased().after(1000).create();
+  Logger.log('[Game] GTM group job queued: ' + jobId + ' for ' + gtmGroupId);
+  return { jobId: jobId };
 }
 
 /**

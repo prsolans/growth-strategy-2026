@@ -512,6 +512,29 @@ body {
 .suggestion-item.active { background: var(--primary-light); color: var(--primary); }
 .suggestion-loading { padding: 9px 14px; font-size: 13px; color: var(--muted); }
 
+/* ── Entry mode tabs ──────────────────────────────────── */
+.entry-tabs {
+  display: flex; gap: 6px; margin-bottom: 24px;
+}
+.entry-tab {
+  flex: 1; padding: 8px 12px;
+  font-size: 13px; font-weight: 600; font-family: inherit;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  background: white; color: var(--muted); cursor: pointer;
+  transition: all var(--transition);
+}
+.entry-tab:hover { border-color: var(--primary); color: var(--primary); }
+.entry-tab.active {
+  background: var(--primary); border-color: var(--primary);
+  color: white;
+}
+.entry-note {
+  font-size: 12px; color: var(--muted); margin-top: 10px;
+  padding: 10px 12px; background: #fffbea;
+  border: 1px solid #f0e060; border-radius: var(--radius-sm);
+  line-height: 1.5;
+}
+
 /* ── Utilities ────────────────────────────────────────── */
 .hidden { display: none !important; }
 </style>
@@ -530,20 +553,42 @@ body {
 
   <div class="entry-stage-body">
     <div class="entry-content">
-      <h1 class="entry-heading">Know before you go</h1>
+      <h1 class="entry-heading">Everything you need to know</h1>
       <p class="entry-subheading">Generate a comprehensive account brief for any Docusign account — company profile, org map, agreement landscape, and a prioritised opportunity plan.</p>
       <div class="entry-card">
         <label for="ae-name">Your name</label>
         <input type="text" id="ae-name" placeholder="Your name" readonly>
 
-        <label for="company-name">Account to research</label>
-        <div class="suggestion-wrap">
-          <input type="text" id="company-name" placeholder="e.g. Acme Corporation" autocomplete="off">
-          <div id="company-suggestions" class="suggestion-dropdown"></div>
+        <div class="entry-tabs" style="margin-top:20px;">
+          <button class="entry-tab active" id="tab-account"  onclick="setEntryMode('account')">Account</button>
+          <button class="entry-tab"        id="tab-gtm"      onclick="setEntryMode('gtm')">GTM Group</button>
+          <button class="entry-tab"        id="tab-prospect" onclick="setEntryMode('prospect')">Prospect</button>
         </div>
 
-        <button class="btn-primary" id="btn-start" onclick="startGame()">
-          Generate research doc
+        <!-- Mode: known account -->
+        <div id="mode-account">
+          <label for="company-name">Account to research</label>
+          <div class="suggestion-wrap">
+            <input type="text" id="company-name" placeholder="e.g. Acme Corporation" autocomplete="off">
+            <div id="company-suggestions" class="suggestion-dropdown"></div>
+          </div>
+        </div>
+
+        <!-- Mode: GTM group -->
+        <div id="mode-gtm" class="hidden">
+          <label for="gtm-group-id">Salesforce GTM Group ID</label>
+          <input type="text" id="gtm-group-id" placeholder="e.g. 0016g00000ABC123" autocomplete="off">
+        </div>
+
+        <!-- Mode: prospect -->
+        <div id="mode-prospect" class="hidden">
+          <label for="prospect-name">Prospect company name</label>
+          <input type="text" id="prospect-name" placeholder="e.g. Acme Corporation" autocomplete="off">
+          <p class="entry-note">This report will make assumptions in lieu of internal customer data — product usage signals and agreement history will not be available.</p>
+        </div>
+
+        <button class="btn-primary" id="btn-start" onclick="startGame()" disabled>
+          Get account research
         </button>
         <p id="entry-error"></p>
       </div>
@@ -759,7 +804,7 @@ body {
 // ═══════════════════════════════════════════════════════════════
 // Build metadata — update on each deploy (clasp push)
 // ═══════════════════════════════════════════════════════════════
-var BUILD_DATE = '2026-04-07 10:20';
+var BUILD_DATE = '2026-04-07 10:28';
 document.getElementById('footer-build').textContent = 'Build ' + BUILD_DATE;
 
 // ═══════════════════════════════════════════════════════════════
@@ -841,6 +886,7 @@ google.script.url.getLocation(function(location) {
         e.preventDefault(); // prevent blur before click
         input.value = name;
         dd.classList.remove('open');
+        setAccountSelected(true);
       });
       dd.appendChild(item);
     });
@@ -890,6 +936,7 @@ google.script.url.getLocation(function(location) {
   // ── Input handler (debounced 250ms) ────────────────────────
   var debounceTimer = null;
   input.addEventListener('input', function() {
+    setAccountSelected(false);
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(function() {
       var query = input.value.trim();
@@ -919,6 +966,7 @@ google.script.url.getLocation(function(location) {
       e.preventDefault();
       input.value = items[activeIdx].textContent;
       hideDropdown();
+      setAccountSelected(true);
       return;
     } else if (e.key === 'Escape') {
       hideDropdown(); return;
@@ -934,62 +982,112 @@ google.script.url.getLocation(function(location) {
 })();
 
 // ═══════════════════════════════════════════════════════════════
+// Entry mode: account / gtm / prospect
+// ═══════════════════════════════════════════════════════════════
+var entryMode = 'account';
+var accountSelected = false;
+
+function setAccountSelected(val) {
+  accountSelected = val;
+  updateStartButton();
+}
+
+function setEntryMode(mode) {
+  entryMode = mode;
+  ['account', 'gtm', 'prospect'].forEach(function(m) {
+    document.getElementById('mode-' + m).classList.toggle('hidden', m !== mode);
+    document.getElementById('tab-' + m).classList.toggle('active', m === mode);
+  });
+  accountSelected = false;
+  hideEntryError();
+  updateStartButton();
+  // For GTM/prospect modes, enable button on any input
+  if (mode === 'gtm') {
+    document.getElementById('gtm-group-id').addEventListener('input', updateStartButton);
+  }
+  if (mode === 'prospect') {
+    document.getElementById('prospect-name').addEventListener('input', updateStartButton);
+  }
+}
+
+function updateStartButton() {
+  var btn = document.getElementById('btn-start');
+  var enabled = false;
+  if (entryMode === 'account') {
+    enabled = accountSelected && !!document.getElementById('company-name').value.trim();
+  } else if (entryMode === 'gtm') {
+    enabled = !!document.getElementById('gtm-group-id').value.trim();
+  } else if (entryMode === 'prospect') {
+    enabled = !!document.getElementById('prospect-name').value.trim();
+  }
+  btn.disabled = !enabled;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Stage 1 → 2: Start game
 // ═══════════════════════════════════════════════════════════════
 function startGame() {
-  var company = document.getElementById('company-name').value.trim();
-  if (!company) { showEntryError('Please enter an account name.'); return; }
-
   var name = document.getElementById('ae-name').value.trim();
   if (!name) { showEntryError('Please enter your name.'); return; }
-
-  state.aeName  = name;
-  state.company = company;
+  state.aeName = name;
   hideEntryError();
 
   var btn = document.getElementById('btn-start');
   btn.disabled = true;
   btn.textContent = 'Starting…';
 
-  // Load config + questions in parallel, then trigger AR
-  var configDone = false, questionsDone = false, arTriggered = false;
+  if (entryMode === 'account') {
+    state.company = document.getElementById('company-name').value.trim();
+    _loadAndTrigger(function() {
+      google.script.run
+        .withSuccessHandler(function(result) { state.jobId = result.jobId; transitionToGame(); })
+        .withFailureHandler(function(err) { _startFailed(btn, err); })
+        .triggerAR(state.company, state.aeEmail);
+    }, btn);
 
+  } else if (entryMode === 'gtm') {
+    var gtmId = document.getElementById('gtm-group-id').value.trim();
+    state.company = 'GTM Group: ' + gtmId;
+    _loadAndTrigger(function() {
+      google.script.run
+        .withSuccessHandler(function(result) { state.jobId = result.jobId; transitionToGame(); })
+        .withFailureHandler(function(err) { _startFailed(btn, err); })
+        .triggerGtmGroupAR(gtmId, state.aeEmail);
+    }, btn);
+
+  } else if (entryMode === 'prospect') {
+    state.company = document.getElementById('prospect-name').value.trim();
+    _loadAndTrigger(function() {
+      google.script.run
+        .withSuccessHandler(function(result) { state.jobId = result.jobId; transitionToGame(); })
+        .withFailureHandler(function(err) { _startFailed(btn, err); })
+        .triggerProspectAR(state.company, state.aeEmail);
+    }, btn);
+  }
+}
+
+function _loadAndTrigger(triggerFn, btn) {
+  var configDone = false, questionsDone = false, triggered = false;
+  function maybeStart() {
+    if (!configDone || !questionsDone || triggered) return;
+    triggered = true;
+    triggerFn();
+  }
   google.script.run
-    .withSuccessHandler(function(cfg) {
-      if (cfg) state.cfg = Object.assign(state.cfg, cfg);
-      configDone = true;
-      maybeStart();
-    })
+    .withSuccessHandler(function(cfg) { if (cfg) state.cfg = Object.assign(state.cfg, cfg); configDone = true; maybeStart(); })
     .withFailureHandler(function() { configDone = true; maybeStart(); })
     .getGameConfig();
-
   google.script.run
-    .withSuccessHandler(function(questions) {
-      state.questions = questions || [];
-      questionsDone = true;
-      maybeStart();
-    })
-    .withFailureHandler(function(err) {
-      showEntryError('Could not load questions: ' + err.message);
-      btn.disabled = false; btn.textContent = 'Start Research & Play';
-    })
+    .withSuccessHandler(function(questions) { state.questions = questions || []; questionsDone = true; maybeStart(); })
+    .withFailureHandler(function(err) { showEntryError('Could not load questions: ' + err.message); btn.disabled = false; btn.textContent = 'Get account research'; })
     .getQuestions(10);
+}
 
-  function maybeStart() {
-    if (!configDone || !questionsDone || arTriggered) return;
-    arTriggered = true;
-
-    google.script.run
-      .withSuccessHandler(function(result) {
-        state.jobId = result.jobId;
-        transitionToGame();
-      })
-      .withFailureHandler(function(err) {
-        showEntryError('Could not trigger research: ' + err.message);
-        btn.disabled = false; btn.textContent = 'Start Research & Play';
-      })
-      .triggerAR(state.company, state.aeEmail);
-  }
+function _startFailed(btn, err) {
+  showEntryError('Could not trigger research: ' + (err.message || err));
+  btn.disabled = false;
+  btn.textContent = 'Get account research';
+  updateStartButton();
 }
 
 function showEntryError(msg) {
