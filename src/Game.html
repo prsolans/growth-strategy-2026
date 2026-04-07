@@ -1113,10 +1113,28 @@ function showStage(id) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Exit quiz → results
+// Exit quiz → back to entry
 // ═══════════════════════════════════════════════════════════════
 function exitToWatching() {
-  finishGame();
+  clearTimer();
+  clearInterval(state.arPollInterval);
+  clearInterval(state.lbRefreshTimer);
+
+  // Reset game state so a fresh quiz can be started
+  state.questions    = [];
+  state.currentQ     = 0;
+  state.score        = 0;
+  state.correct      = 0;
+  state.jobId        = null;
+  state.scoreSent    = false;
+  state.gameStartTs  = null;
+
+  // Re-enable the start button
+  var btn = document.getElementById('btn-start');
+  btn.disabled    = false;
+  btn.textContent = 'Start Research & Play';
+
+  showStage('stage-entry');
 }
 // ═══════════════════════════════════════════════════════════════
 // Utility
