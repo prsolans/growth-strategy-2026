@@ -510,7 +510,8 @@ body {
         <input type="text" id="ae-name" placeholder="Your name" readonly>
 
         <label for="company-name">Account to research</label>
-        <input type="text" id="company-name" placeholder="e.g. Acme Corporation" autocomplete="off">
+        <input type="text" id="company-name" placeholder="e.g. Acme Corporation" autocomplete="off" list="account-suggestions">
+        <datalist id="account-suggestions"></datalist>
 
         <button class="btn-primary" id="btn-start" onclick="startGame()">
           Generate research doc
@@ -768,6 +769,22 @@ google.script.url.getLocation(function(location) {
   nameEl.value = state.aeName || '';
   if (!state.aeName) nameEl.removeAttribute('readonly');
 });
+
+// ═══════════════════════════════════════════════════════════════
+// Init: load account name autocomplete
+// ═══════════════════════════════════════════════════════════════
+google.script.run
+  .withSuccessHandler(function(names) {
+    var dl = document.getElementById('account-suggestions');
+    if (!dl || !names) return;
+    names.forEach(function(name) {
+      var opt = document.createElement('option');
+      opt.value = name;
+      dl.appendChild(opt);
+    });
+  })
+  .withFailureHandler(function() {})
+  .getAccountNames();
 
 // ═══════════════════════════════════════════════════════════════
 // Stage 1 → 2: Start game

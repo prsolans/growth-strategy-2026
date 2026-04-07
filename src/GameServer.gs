@@ -31,6 +31,34 @@ function doGet(e) {
     .setTitle('Genius Bar — Account Research');
 }
 
+// ── Account name autocomplete ─────────────────────────────────────────────
+
+/**
+ * Returns a sorted, deduplicated list of account names from the Bookscrub sheet.
+ * Called on page load to populate the company-name autocomplete datalist.
+ */
+function getAccountNames() {
+  var ss    = SpreadsheetApp.openById(BOOKSCRUB_SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(BOOKSCRUB_SHEET_NAME);
+  if (!sheet) return [];
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var colIdx  = headers.indexOf(COMPANY_NAME_COL);
+  if (colIdx < 0) return [];
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  var values = sheet.getRange(2, colIdx + 1, lastRow - 1, 1).getValues();
+  var seen   = {};
+  var names  = [];
+  values.forEach(function(row) {
+    var name = String(row[0]).trim();
+    if (name && !seen[name]) { seen[name] = true; names.push(name); }
+  });
+  return names.sort();
+}
+
 // ── AR trigger (direct call — same project) ───────────────────────────────
 
 /**
