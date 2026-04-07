@@ -33,26 +33,111 @@ function doGet(e) {
 
 // ── Account name autocomplete ─────────────────────────────────────────────
 
+var PROP_NAME_CACHE_ID  = 'COMPANY_NAME_CACHE_ID';
+var NAME_CACHE_LETTERS  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0';
+
 /**
- * Returns a sorted, deduplicated list of account names whose first character
- * matches the given letter. Pass '0' to get names starting with a digit.
- * Called on first keypress per letter; results are cached in localStorage.
+ * Reads the pre-built cache spreadsheet and returns the names for a given
+ * first letter. Falls back to scanning the bookscrub sheet if the cache
+ * hasn't been built yet.
  *
  * @param {string} letter  Single uppercase letter A–Z, or '0' for digits.
  * @returns {string[]}
  */
 function getCompanyNameChunk(letter) {
+  var cacheId = PropertiesService.getScriptProperties().getProperty(PROP_NAME_CACHE_ID);
+  if (cacheId) {
+    try {
+      var cacheSheet = SpreadsheetApp.openById(cacheId).getSheetByName(letter);
+      if (cacheSheet && cacheSheet.getLastRow() > 1) {
+        var vals = cacheSheet.getRange(2, 1, cacheSheet.getLastRow() - 1, 1).getValues();
+        return vals.map(function(r) { return String(r[0]); }).filter(Boolean);
+      }
+    } catch(e) {
+      Logger.log('[getCompanyNameChunk] Cache read failed, falling back: ' + e.message);
+    }
+  }
+  // Fallback: scan bookscrub directly (slow but safe)
+  return _getCompanyNameChunkFromBookscrub(letter);
+}
+
+/**
+ * Builds (or rebuilds) the company name cache spreadsheet.
+ * Creates the spreadsheet on first run and stores its ID in Script Properties.
+ * Each tab is named A–Z or 0, containing deduplicated sorted names for that prefix.
+ * Safe to re-run; overwrites existing tab data.
+ */
+function buildCompanyNameCache() {
+  var props   = PropertiesService.getScriptProperties();
+  var cacheId = props.getProperty(PROP_NAME_CACHE_ID);
+  var ss;
+
+  if (cacheId) {
+    try { ss = SpreadsheetApp.openById(cacheId); }
+    catch(e) { cacheId = null; }
+  }
+  if (!ss) {
+    ss = SpreadsheetApp.create('Account Research — Company Name Cache');
+    props.setProperty(PROP_NAME_CACHE_ID, ss.getId());
+    Logger.log('[buildCompanyNameCache] Created new cache sheet: ' + ss.getId());
+  }
+
+  // Read all names from bookscrub once
+  var bookscrub = SpreadsheetApp.openById(BOOKSCRUB_SPREADSHEET_ID).getSheetByName(BOOKSCRUB_SHEET_NAME);
+  if (!bookscrub) throw new Error('Bookscrub sheet not found');
+  var headers = bookscrub.getRange(1, 1, 1, bookscrub.getLastColumn()).getValues()[0];
+  var colIdx  = headers.indexOf(COMPANY_NAME_COL);
+  if (colIdx < 0) throw new Error('COMPANY_NAME column not found');
+  var lastRow = bookscrub.getLastRow();
+  if (lastRow < 2) return;
+  var raw = bookscrub.getRange(2, colIdx + 1, lastRow - 1, 1).getValues();
+
+  // Bucket into chunks
+  var chunks = {};
+  NAME_CACHE_LETTERS.split('').forEach(function(l) { chunks[l] = {}; });
+  raw.forEach(function(row) {
+    var name  = String(row[0]).trim();
+    if (!name) return;
+    var first = name.charAt(0).toUpperCase();
+    var key   = (first >= '0' && first <= '9') ? '0' : first;
+    if (chunks[key]) chunks[key][name] = true;
+  });
+
+  // Write each chunk to its tab
+  NAME_CACHE_LETTERS.split('').forEach(function(letter) {
+    var names = Object.keys(chunks[letter]).sort();
+    var tab   = ss.getSheetByName(letter);
+    if (!tab) {
+      tab = ss.insertSheet(letter);
+    } else {
+      tab.clearContents();
+    }
+    tab.getRange(1, 1).setValue('name');
+    if (names.length) {
+      tab.getRange(2, 1, names.length, 1).setValues(names.map(function(n) { return [n]; }));
+    }
+  });
+
+  // Remove the default blank Sheet1 if still present
+  var blank = ss.getSheetByName('Sheet1');
+  if (blank && ss.getSheets().length > 1) ss.deleteSheet(blank);
+
+  Logger.log('[buildCompanyNameCache] Done. ' + lastRow + ' rows bucketed into ' +
+    NAME_CACHE_LETTERS.length + ' tabs. Sheet ID: ' + ss.getId());
+}
+
+/**
+ * Fallback: scan bookscrub directly (used when cache hasn't been built).
+ */
+function _getCompanyNameChunkFromBookscrub(letter) {
   var ss    = SpreadsheetApp.openById(BOOKSCRUB_SPREADSHEET_ID);
   var sheet = ss.getSheetByName(BOOKSCRUB_SHEET_NAME);
   if (!sheet) return [];
-
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var colIdx  = headers.indexOf(COMPANY_NAME_COL);
   if (colIdx < 0) return [];
-
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-
   var values  = sheet.getRange(2, colIdx + 1, lastRow - 1, 1).getValues();
   var isDigit = (letter === '0');
   var seen    = {};

@@ -318,12 +318,22 @@ function refreshCompanyNames() {
   var nameCol = headerIndex[COMPANY_NAME_COL];
   var count = sheet.getLastRow() - 1;
   invalidatePickerCache(); // clear stale name list from CacheService
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-    'COMPANY_NAME column refreshed. ' + count + ' rows — review col ' +
-    columnLetter(nameCol + 1) + ' before running the batch.',
-    'Company Names Ready',
-    8
-  );
+
+  // Rebuild the autocomplete cache spreadsheet
+  try {
+    buildCompanyNameCache();
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      'COMPANY_NAME column refreshed and autocomplete cache rebuilt. ' + count + ' rows.',
+      'Company Names Ready',
+      8
+    );
+  } catch(e) {
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      'COMPANY_NAME column refreshed (' + count + ' rows) but cache rebuild failed: ' + e.message,
+      'Company Names — Cache Error',
+      12
+    );
+  }
 }
 
 /**

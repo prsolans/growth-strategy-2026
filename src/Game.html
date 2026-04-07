@@ -759,7 +759,7 @@ body {
 // ═══════════════════════════════════════════════════════════════
 // Build metadata — update on each deploy (clasp push)
 // ═══════════════════════════════════════════════════════════════
-var BUILD_DATE = '2026-04-07 09:54';
+var BUILD_DATE = '2026-04-07 10:20';
 document.getElementById('footer-build').textContent = 'Build ' + BUILD_DATE;
 
 // ═══════════════════════════════════════════════════════════════
@@ -893,7 +893,7 @@ google.script.url.getLocation(function(location) {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(function() {
       var query = input.value.trim();
-      if (query.length < 1) { hideDropdown(); return; }
+      if (query.length < 2) { hideDropdown(); return; }
       var first = query.charAt(0).toUpperCase();
       var letter = (first >= '0' && first <= '9') ? '0' : first;
       if (!/^[A-Z0]$/.test(letter)) { hideDropdown(); return; }
