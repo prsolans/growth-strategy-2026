@@ -34,10 +34,14 @@ function doGet(e) {
 // ── Account name autocomplete ─────────────────────────────────────────────
 
 /**
- * Returns a sorted, deduplicated list of account names from the Bookscrub sheet.
- * Called on page load to populate the company-name autocomplete datalist.
+ * Returns a sorted, deduplicated list of account names whose first character
+ * matches the given letter. Pass '0' to get names starting with a digit.
+ * Called on first keypress per letter; results are cached in localStorage.
+ *
+ * @param {string} letter  Single uppercase letter A–Z, or '0' for digits.
+ * @returns {string[]}
  */
-function getAccountNames() {
+function getCompanyNameChunk(letter) {
   var ss    = SpreadsheetApp.openById(BOOKSCRUB_SPREADSHEET_ID);
   var sheet = ss.getSheetByName(BOOKSCRUB_SHEET_NAME);
   if (!sheet) return [];
@@ -49,12 +53,16 @@ function getAccountNames() {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
 
-  var values = sheet.getRange(2, colIdx + 1, lastRow - 1, 1).getValues();
-  var seen   = {};
-  var names  = [];
+  var values  = sheet.getRange(2, colIdx + 1, lastRow - 1, 1).getValues();
+  var isDigit = (letter === '0');
+  var seen    = {};
+  var names   = [];
   values.forEach(function(row) {
-    var name = String(row[0]).trim();
-    if (name && !seen[name]) { seen[name] = true; names.push(name); }
+    var name  = String(row[0]).trim();
+    if (!name) return;
+    var first = name.charAt(0).toUpperCase();
+    var match = isDigit ? (first >= '0' && first <= '9') : (first === letter);
+    if (match && !seen[name]) { seen[name] = true; names.push(name); }
   });
   return names.sort();
 }

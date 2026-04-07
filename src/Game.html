@@ -485,6 +485,33 @@ body {
 .footer-help a:hover { text-decoration: underline; }
 .footer-meta { font-size: 11px; color: var(--muted); }
 
+/* ── Company name autocomplete dropdown ──────────────── */
+.suggestion-wrap { position: relative; }
+.suggestion-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px); left: 0; right: 0;
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 200;
+}
+.suggestion-dropdown.open { display: block; }
+.suggestion-item {
+  padding: 9px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.suggestion-item:last-child { border-bottom: none; }
+.suggestion-item:hover,
+.suggestion-item.active { background: var(--primary-light); color: var(--primary); }
+.suggestion-loading { padding: 9px 14px; font-size: 13px; color: var(--muted); }
+
 /* ── Utilities ────────────────────────────────────────── */
 .hidden { display: none !important; }
 </style>
@@ -510,8 +537,10 @@ body {
         <input type="text" id="ae-name" placeholder="Your name" readonly>
 
         <label for="company-name">Account to research</label>
-        <input type="text" id="company-name" placeholder="e.g. Acme Corporation" autocomplete="off" list="account-suggestions">
-        <datalist id="account-suggestions"></datalist>
+        <div class="suggestion-wrap">
+          <input type="text" id="company-name" placeholder="e.g. Acme Corporation" autocomplete="off">
+          <div id="company-suggestions" class="suggestion-dropdown"></div>
+        </div>
 
         <button class="btn-primary" id="btn-start" onclick="startGame()">
           Generate research doc
@@ -771,20 +800,138 @@ google.script.url.getLocation(function(location) {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// Init: load account name autocomplete
+// Autocomplete: chunked by first letter, cached in localStorage
 // ═══════════════════════════════════════════════════════════════
-google.script.run
-  .withSuccessHandler(function(names) {
-    var dl = document.getElementById('account-suggestions');
-    if (!dl || !names) return;
-    names.forEach(function(name) {
-      var opt = document.createElement('option');
-      opt.value = name;
-      dl.appendChild(opt);
+(function() {
+  var CHUNK_TTL  = 24 * 60 * 60 * 1000; // 24 hours
+  var activeIdx  = -1;
+  var currentChunk = null; // names array for the active letter
+
+  var input = document.getElementById('company-name');
+  var dd    = document.getElementById('company-suggestions');
+
+  // ── localStorage helpers ───────────────────────────────────
+  function cacheKey(letter) { return 'company-chunk-' + letter; }
+
+  function readCache(letter) {
+    try {
+      var raw = localStorage.getItem(cacheKey(letter));
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (Date.now() - obj.ts > CHUNK_TTL) { localStorage.removeItem(cacheKey(letter)); return null; }
+      return obj.names;
+    } catch(e) { return null; }
+  }
+
+  function writeCache(letter, names) {
+    try { localStorage.setItem(cacheKey(letter), JSON.stringify({ ts: Date.now(), names: names })); }
+    catch(e) {}
+  }
+
+  // ── Dropdown render ────────────────────────────────────────
+  function showDropdown(matches) {
+    dd.innerHTML = '';
+    activeIdx = -1;
+    if (!matches.length) { dd.classList.remove('open'); return; }
+    matches.forEach(function(name, i) {
+      var item = document.createElement('div');
+      item.className = 'suggestion-item';
+      item.textContent = name;
+      item.addEventListener('mousedown', function(e) {
+        e.preventDefault(); // prevent blur before click
+        input.value = name;
+        dd.classList.remove('open');
+      });
+      dd.appendChild(item);
     });
-  })
-  .withFailureHandler(function() {})
-  .getAccountNames();
+    dd.classList.add('open');
+  }
+
+  function showLoading() {
+    dd.innerHTML = '<div class="suggestion-loading">Loading…</div>';
+    dd.classList.add('open');
+  }
+
+  function hideDropdown() {
+    dd.classList.remove('open');
+    activeIdx = -1;
+  }
+
+  // ── Filter against loaded chunk ────────────────────────────
+  function filterAndShow(query) {
+    if (!currentChunk) return;
+    var q = query.toLowerCase();
+    var matches = currentChunk.filter(function(n) {
+      return n.toLowerCase().indexOf(q) === 0;
+    }).slice(0, 10);
+    showDropdown(matches);
+  }
+
+  // ── Load chunk (cache-first) then filter ──────────────────
+  function loadAndFilter(letter, query) {
+    var cached = readCache(letter);
+    if (cached) {
+      currentChunk = cached;
+      filterAndShow(query);
+      return;
+    }
+    showLoading();
+    google.script.run
+      .withSuccessHandler(function(names) {
+        if (!names) names = [];
+        writeCache(letter, names);
+        currentChunk = names;
+        filterAndShow(query);
+      })
+      .withFailureHandler(function() { hideDropdown(); })
+      .getCompanyNameChunk(letter);
+  }
+
+  // ── Input handler (debounced 250ms) ────────────────────────
+  var debounceTimer = null;
+  input.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function() {
+      var query = input.value.trim();
+      if (query.length < 1) { hideDropdown(); return; }
+      var first = query.charAt(0).toUpperCase();
+      var letter = (first >= '0' && first <= '9') ? '0' : first;
+      if (!/^[A-Z0]$/.test(letter)) { hideDropdown(); return; }
+      // If the letter changed, clear current chunk so stale results don't flash
+      if (!currentChunk || readCache(letter) !== currentChunk) {
+        currentChunk = readCache(letter);
+      }
+      loadAndFilter(letter, query);
+    }, 250);
+  });
+
+  // ── Keyboard navigation ────────────────────────────────────
+  input.addEventListener('keydown', function(e) {
+    var items = dd.querySelectorAll('.suggestion-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, -1);
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      input.value = items[activeIdx].textContent;
+      hideDropdown();
+      return;
+    } else if (e.key === 'Escape') {
+      hideDropdown(); return;
+    } else { return; }
+    items.forEach(function(el, i) { el.classList.toggle('active', i === activeIdx); });
+    if (activeIdx >= 0) items[activeIdx].scrollIntoView({ block: 'nearest' });
+  });
+
+  // ── Close on outside click ────────────────────────────────
+  document.addEventListener('click', function(e) {
+    if (!input.contains(e.target) && !dd.contains(e.target)) hideDropdown();
+  });
+})();
 
 // ═══════════════════════════════════════════════════════════════
 // Stage 1 → 2: Start game
