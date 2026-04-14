@@ -193,12 +193,15 @@ function runGameARJob() {
     var docUrl;
     if (job.isGtm) {
       Logger.log('[runGameARJob] GTM group: ' + job.gtmGroupId);
-      docUrl = generateAccountResearchDocForGroup(job.gtmGroupId, job.email, '');
+      var groupData = getGtmGroupData(job.gtmGroupId);
+      docUrl = triggerGleanReport(groupData.identity.name, groupData, false, job.email, '');
     } else {
       Logger.log('[runGameARJob] Starting: ' + job.companyName + (job.isProspect ? ' [prospect]' : ''));
-      docUrl = generateAccountResearchDoc(job.companyName, job.email, '', !!job.isProspect);
+      docUrl = triggerGleanReport(job.companyName, null, !!job.isProspect, job.email, '');
     }
-    _gameUpdateJobRow(job.jobId, 'done', docUrl);
+    // docUrl is the brief URL; stash both for the job row
+    var fullUrl = (_lastDocResult && _lastDocResult.fullUrl) || '';
+    _gameUpdateJobRow(job.jobId, 'done', docUrl, fullUrl);
     Logger.log('[runGameARJob] Done: ' + docUrl);
   } catch(err) {
     Logger.log('[runGameARJob] FAILED: ' + err.message);
@@ -306,10 +309,14 @@ function checkJobStatus(jobId) {
   var data  = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(jobId)) {
-      return { status: data[i][3] || 'unknown', docUrl: data[i][4] || '' };
+      return {
+        status:  data[i][3] || 'unknown',
+        docUrl:  data[i][4] || '',   // brief URL
+        fullUrl: data[i][7] || ''    // full report URL (col 8, 0-indexed = 7)
+      };
     }
   }
-  return { status: 'unknown', docUrl: '' };
+  return { status: 'unknown', docUrl: '', fullUrl: '' };
 }
 
 // ── Questions ──────────────────────────────────────────────────────────────
@@ -323,13 +330,23 @@ function getQuestions(n) {
   rows = _gameShuffle(rows);
 
   return rows.slice(0, Math.min(n || 10, rows.length)).map(function(r) {
+    var labels = ['A','B','C','D'];
+    var vals   = [r[1], r[2], r[3], r[4]];
+    var correctVal = vals[labels.indexOf(String(r[5]).trim().toUpperCase())];
+
+    // Shuffle options so the correct answer isn't always in the same position
+    for (var i = 3; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = vals[i]; vals[i] = vals[j]; vals[j] = tmp;
+    }
+
     return {
       question:   r[0],
-      a:          r[1],
-      b:          r[2],
-      c:          r[3],
-      d:          r[4],
-      answer:     String(r[5]).trim().toUpperCase(),
+      a:          vals[0],
+      b:          vals[1],
+      c:          vals[2],
+      d:          vals[3],
+      answer:     labels[vals.indexOf(correctVal)],
       category:   r[6] || '',
       difficulty: r[7] || ''
     };
@@ -347,7 +364,9 @@ function submitScore(payload) {
     payload.correct      || 0,
     payload.total        || 0,
     payload.company      || '',
-    payload.durationSecs || 0
+    payload.durationSecs || 0,
+    payload.diveCount    || 0,
+    payload.cardsRead    || 0
   ]);
 }
 
@@ -400,14 +419,17 @@ function _gameGetJobsSheet() {
   return sheet;
 }
 
-function _gameUpdateJobRow(jobId, status, docUrl) {
+function _gameUpdateJobRow(jobId, status, docUrl, fullUrl) {
   var sheet = _gameGetJobsSheet();
   var data  = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(jobId)) {
       sheet.getRange(i + 1, 4).setValue(status);
-      sheet.getRange(i + 1, 5).setValue(docUrl || '');
+      sheet.getRange(i + 1, 5).setValue(docUrl || '');   // brief URL
       sheet.getRange(i + 1, 7).setValue(new Date());
+      if (fullUrl) {
+        sheet.getRange(i + 1, 8).setValue(fullUrl);      // full report URL
+      }
       return;
     }
   }

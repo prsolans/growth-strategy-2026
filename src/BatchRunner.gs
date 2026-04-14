@@ -27,11 +27,12 @@ var BATCH_TRIGGER_INTERVAL_MINS = 5;    // minutes between trigger fires
 var PROP_BATCH_TRIGGER = 'BATCH_TRIGGER_ID';
 
 // Column positions in Batch Status sheet (1-based)
-var BATCH_COL_COMPANY = 1;
-var BATCH_COL_STATUS  = 2;
-var BATCH_COL_DOC_URL = 3;
-var BATCH_COL_RUN_AT  = 4;
-var BATCH_COL_ERROR   = 5;
+var BATCH_COL_COMPANY  = 1;
+var BATCH_COL_STATUS   = 2;
+var BATCH_COL_DOC_URL  = 3;  // BRIEF_URL
+var BATCH_COL_FULL_URL = 4;  // FULL_URL
+var BATCH_COL_RUN_AT   = 5;
+var BATCH_COL_ERROR    = 6;
 
 // ── Public: Init ───────────────────────────────────────────────────────
 
@@ -59,15 +60,16 @@ function initBatch() {
   if (batchSheet) {
     var lastRow = batchSheet.getLastRow();
     if (lastRow > 1) {
-      var existingData = batchSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+      var existingData = batchSheet.getRange(2, 1, lastRow - 1, BATCH_COL_ERROR).getValues();
       for (var i = 0; i < existingData.length; i++) {
         var name = String(existingData[i][0]).trim();
         if (name) {
           existingStatus[name] = {
-            status: String(existingData[i][1]).trim(),
-            docUrl: existingData[i][2],
-            runAt:  existingData[i][3],
-            error:  existingData[i][4]
+            status:  String(existingData[i][1]).trim(),
+            docUrl:  existingData[i][2],
+            fullUrl: existingData[i][3],
+            runAt:   existingData[i][4],
+            error:   existingData[i][5]
           };
         }
       }
@@ -78,29 +80,30 @@ function initBatch() {
   }
 
   // Write header
-  var headerRange = batchSheet.getRange(1, 1, 1, 5);
-  headerRange.setValues([['COMPANY_NAME', 'STATUS', 'DOC_URL', 'RUN_AT', 'ERROR']]);
+  var headerRange = batchSheet.getRange(1, 1, 1, BATCH_COL_ERROR);
+  headerRange.setValues([['COMPANY_NAME', 'STATUS', 'BRIEF_URL', 'FULL_URL', 'RUN_AT', 'ERROR']]);
   headerRange.setFontWeight('bold');
   headerRange.setBackground('#1B0B3B');
   headerRange.setFontColor('#FFFFFF');
-  batchSheet.setColumnWidth(BATCH_COL_COMPANY, 280);
-  batchSheet.setColumnWidth(BATCH_COL_STATUS,  90);
-  batchSheet.setColumnWidth(BATCH_COL_DOC_URL, 320);
-  batchSheet.setColumnWidth(BATCH_COL_RUN_AT,  160);
-  batchSheet.setColumnWidth(BATCH_COL_ERROR,   300);
+  batchSheet.setColumnWidth(BATCH_COL_COMPANY,  280);
+  batchSheet.setColumnWidth(BATCH_COL_STATUS,    90);
+  batchSheet.setColumnWidth(BATCH_COL_DOC_URL,  320);
+  batchSheet.setColumnWidth(BATCH_COL_FULL_URL, 320);
+  batchSheet.setColumnWidth(BATCH_COL_RUN_AT,   160);
+  batchSheet.setColumnWidth(BATCH_COL_ERROR,    300);
   batchSheet.setFrozenRows(1);
 
   // Write data rows (preserve done, reset everything else to pending)
   var rows = names.map(function(n) {
     var prev = existingStatus[n];
     if (prev && prev.status === 'done') {
-      return [n, 'done', prev.docUrl, prev.runAt, ''];
+      return [n, 'done', prev.docUrl, prev.fullUrl || '', prev.runAt, ''];
     }
-    return [n, 'pending', '', '', ''];
+    return [n, 'pending', '', '', '', ''];
   });
 
   if (rows.length > 0) {
-    batchSheet.getRange(2, 1, rows.length, 5).setValues(rows);
+    batchSheet.getRange(2, 1, rows.length, BATCH_COL_ERROR).setValues(rows);
     batchSheet.getRange(2, 1, rows.length, 5).setVerticalAlignment('middle');
   }
 
@@ -172,7 +175,7 @@ function _batchGenerateChunkBody() {
     return;
   }
 
-  var allRows = batchSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  var allRows = batchSheet.getRange(2, 1, lastRow - 1, BATCH_COL_ERROR).getValues();
 
   // Mark any stuck 'running' rows as 'failed' — they were left by a prior timed-out execution.
   // Do NOT silently re-run them; that causes duplicate doc generation.
@@ -187,7 +190,7 @@ function _batchGenerateChunkBody() {
   SpreadsheetApp.flush();
 
   // Re-read after cleanup so our loop reflects current state
-  allRows = batchSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  allRows = batchSheet.getRange(2, 1, lastRow - 1, BATCH_COL_ERROR).getValues();
   var processedThisChunk = 0;
 
   for (var r = 0; r < allRows.length && processedThisChunk < BATCH_CHUNK_SIZE; r++) {
@@ -208,12 +211,14 @@ function _batchGenerateChunkBody() {
     Logger.log('[Batch] Processing row ' + rowNum + ': ' + companyName);
 
     try {
-      var docUrl = generateAccountResearchDoc(companyName, "", "", false);
+      var briefUrl = generateAccountResearchDoc(companyName, "", "", false);
+      var fullUrl = (_lastDocResult && _lastDocResult.fullUrl) || '';
       batchSheet.getRange(rowNum, BATCH_COL_STATUS).setValue('done');
-      batchSheet.getRange(rowNum, BATCH_COL_DOC_URL).setValue(docUrl);
+      batchSheet.getRange(rowNum, BATCH_COL_DOC_URL).setValue(briefUrl);
+      batchSheet.getRange(rowNum, BATCH_COL_FULL_URL).setValue(fullUrl);
       batchSheet.getRange(rowNum, BATCH_COL_RUN_AT).setValue(new Date());
       batchSheet.getRange(rowNum, BATCH_COL_ERROR).setValue('');
-      Logger.log('[Batch] Done: ' + companyName + ' → ' + docUrl);
+      Logger.log('[Batch] Done: ' + companyName + ' → Brief: ' + briefUrl + ' | Full: ' + fullUrl);
     } catch (e) {
       var errMsg = e.message || String(e);
       batchSheet.getRange(rowNum, BATCH_COL_STATUS).setValue('failed');
@@ -227,7 +232,7 @@ function _batchGenerateChunkBody() {
   }
 
   // Re-read to count remaining pending/running
-  var updatedRows = batchSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  var updatedRows = batchSheet.getRange(2, 1, lastRow - 1, BATCH_COL_ERROR).getValues();
   var remaining = 0;
   var totalDone   = 0;
   var totalFailed = 0;
@@ -275,7 +280,7 @@ function cancelBatch() {
 
   if (batchSheet && batchSheet.getLastRow() > 1) {
     var lastRow = batchSheet.getLastRow();
-    var allRows = batchSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+    var allRows = batchSheet.getRange(2, 1, lastRow - 1, BATCH_COL_ERROR).getValues();
     for (var r = 0; r < allRows.length; r++) {
       if (String(allRows[r][BATCH_COL_STATUS - 1]).trim() === 'running') {
         batchSheet.getRange(r + 2, BATCH_COL_STATUS).setValue('pending');

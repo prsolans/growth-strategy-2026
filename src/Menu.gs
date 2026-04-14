@@ -5,12 +5,9 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Account Research')
-    .addItem('Generate for Company...', 'showCompanyPicker')
-    .addItem('Generate for GTM Group...', 'showGtmGroupPicker')
+    .addItem('Generate for Company...', 'showGleanCompanyPicker')
+    .addItem('Generate for GTM Group...', 'showGleanGtmGroupPicker')
     .addItem('Generate for Prospect...', 'showProspectDialog')
-    .addSeparator()
-    .addItem('Generate via Glean (Company)...', 'showGleanCompanyPicker')
-    .addItem('Generate via Glean (GTM Group)...', 'showGleanGtmGroupPicker')
     .addSeparator()
     .addItem('Refresh Company Names', 'refreshCompanyNames')
     .addItem('Batch Generate All...', 'batchGenerateAll')
@@ -24,7 +21,9 @@ function onOpen() {
     .addItem('Glean: Set API Key', 'promptGleanApiKey')
     .addItem('Glean: Set Agent ID', 'promptGleanAgentId')
     .addSeparator()
-    .addItem('Glean: Export Test Data (Company)...', 'showGleanExportPicker')
+    .addItem('[Legacy] Generate via INFRA (Company)...', 'showCompanyPicker')
+    .addItem('[Legacy] Generate via INFRA (GTM Group)...', 'showGtmGroupPicker')
+    .addItem('Export Glean Test Data (Company)...', 'showGleanExportPicker')
     .addToUi();
 }
 
@@ -60,9 +59,15 @@ function _buildPickerHtml(opts) {
   var note = opts.note
     ? '<div style="color:#888;font-size:11px;margin-top:6px">' + opts.note + '</div>'
     : '';
-  var successBody = opts.returnsUrl === false
-    ? '"Done! Check the alert for the doc link."'
-    : '\'Done! <a href="\'+url+\'" target="_blank">Open Document</a>\'';
+  var successBody;
+  if (opts.returnsUrl === false) {
+    successBody = '"Done! Check the alert for the doc link."';
+  } else if (opts.returnsBothUrls) {
+    // generateAndLog now returns JSON with briefUrl + fullUrl
+    successBody = '(function(){try{var r=JSON.parse(url);return \'Done! <a href="\'+r.briefUrl+\'" target="_blank">Open Brief</a> · <a href="\'+r.fullUrl+\'" target="_blank">Open Full Report</a>\';}catch(e){return \'Done! <a href="\'+url+\'" target="_blank">Open Document</a>\';}})()';
+  } else {
+    successBody = '\'Done! <a href="\'+url+\'" target="_blank">Open Document</a>\'';
+  }
 
   return '<style>' +
     'body{font-family:Arial,sans-serif;padding:16px}' +
@@ -158,7 +163,7 @@ function showCompanyPicker() {
       buttonText: 'Generate Account Research', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
       serverFetchFn: 'getCompanyNames', countSuffix: 'companies in sheet',
       generateFn: 'generateAndLog', generateArgs: 'sel, false',
-      statusMsg: 'Generating... this may take a minute.', returnsUrl: true
+      statusMsg: 'Generating... this may take a minute.', returnsUrl: true, returnsBothUrls: true
     })).setWidth(450).setHeight(280),
     'Account Research Generator'
   );
@@ -207,16 +212,19 @@ function showProspectDialog() {
     '  document.getElementById("status").innerText = "Generating... this may take a minute.";' +
     '  btnEl.disabled = true;' +
     '  google.script.run' +
-    '    .withSuccessHandler(function(url) {' +
-    '      document.getElementById("status").innerHTML = ' +
-    '        \'Done! <a href="\' + url + \'" target="_blank">Open Document</a>\';' +
+    '    .withSuccessHandler(function(resp) {' +
+    '      try{var r=JSON.parse(resp);document.getElementById("status").innerHTML=' +
+    '        \'Done! <a href="\'+r.briefUrl+\'" target="_blank">Open Brief</a>' +
+    '         · <a href="\'+r.fullUrl+\'" target="_blank">Open Full Report</a>\';}' +
+    '      catch(e){document.getElementById("status").innerHTML=' +
+    '        \'Done! <a href="\'+resp+\'" target="_blank">Open Document</a>\';}' +
     '      btnEl.disabled = false;' +
     '    })' +
     '    .withFailureHandler(function(err) {' +
     '      document.getElementById("status").innerText = "Error: " + err.message;' +
     '      btnEl.disabled = false;' +
     '    })' +
-    '    .generateAndLog(name, true);' +
+    '    .generateAndLogViaGlean(name, true);' +
     '}' +
     '' +
     'nameEl.focus();' +
@@ -238,13 +246,13 @@ function showProspectDialog() {
 function showGleanCompanyPicker() {
   SpreadsheetApp.getUi().showModalDialog(
     HtmlService.createHtmlOutput(_buildPickerHtml({
-      badge: '⚡ Glean Agent', label: 'Type to search:', placeholder: 'Start typing a company name...',
-      buttonText: 'Generate via Glean', buttonColor: '#0A6EBD', buttonHover: '#0857A0',
+      badge: null, label: 'Type to search:', placeholder: 'Start typing a company name...',
+      buttonText: 'Generate Account Research', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
       serverFetchFn: 'getCompanyNames', countSuffix: 'companies in sheet',
       generateFn: 'generateAndLogViaGlean', generateArgs: 'sel, false',
-      statusMsg: 'Sending to Glean... this may take 2-3 minutes.', returnsUrl: true
-    })).setWidth(450).setHeight(290),
-    'Account Research via Glean'
+      statusMsg: 'Generating... this may take 2-3 minutes.', returnsUrl: true, returnsBothUrls: true
+    })).setWidth(450).setHeight(280),
+    'Account Research Generator'
   );
 }
 
@@ -254,13 +262,13 @@ function showGleanCompanyPicker() {
 function showGleanGtmGroupPicker() {
   SpreadsheetApp.getUi().showModalDialog(
     HtmlService.createHtmlOutput(_buildPickerHtml({
-      badge: '⚡ Glean Agent', label: 'Type to search GTM groups:', placeholder: 'Start typing a GTM group ID...',
-      buttonText: 'Generate Group via Glean', buttonColor: '#0A6EBD', buttonHover: '#0857A0',
+      badge: null, label: 'Type to search GTM groups:', placeholder: 'Start typing a GTM group ID...',
+      buttonText: 'Generate Group Strategy', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
       serverFetchFn: 'getGtmGroupIds', countSuffix: 'GTM groups in sheet',
       generateFn: 'generateAndLogGroupViaGlean', generateArgs: 'sel',
-      statusMsg: 'Sending to Glean... this may take 2-3 minutes.', returnsUrl: true
-    })).setWidth(480).setHeight(290),
-    'GTM Group via Glean'
+      statusMsg: 'Generating... this may take 2-3 minutes.', returnsUrl: true, returnsBothUrls: true
+    })).setWidth(480).setHeight(280),
+    'Generate for GTM Group'
   );
 }
 
@@ -276,7 +284,7 @@ function showGtmGroupPicker() {
       buttonText: 'Generate Group Strategy', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
       serverFetchFn: 'getGtmGroupIds', countSuffix: 'GTM groups in sheet',
       generateFn: 'generateAndLogGroup', generateArgs: 'sel',
-      statusMsg: 'Generating... this may take a few minutes.', returnsUrl: true
+      statusMsg: 'Generating... this may take a few minutes.', returnsUrl: true, returnsBothUrls: true
     })).setWidth(480).setHeight(280),
     'Generate for GTM Group'
   );
@@ -289,14 +297,15 @@ function showGtmGroupPicker() {
  * @returns {string} doc URL
  */
 function generateAndLogGroup(gtmGroupId) {
-  var docUrl, errorMsg;
+  var briefUrl, errorMsg;
   try {
-    docUrl = generateAccountResearchDocForGroup(gtmGroupId, '', '');
-    logToStatusSheet('[GTM] ' + gtmGroupId, false, 'done', docUrl, '');
-    return docUrl;
+    briefUrl = generateAccountResearchDocForGroup(gtmGroupId, '', '');
+    var fullUrl = (_lastDocResult && _lastDocResult.fullUrl) || '';
+    logToStatusSheet('[GTM] ' + gtmGroupId, false, 'done', briefUrl, '', fullUrl);
+    return JSON.stringify({ briefUrl: briefUrl, fullUrl: fullUrl });
   } catch (e) {
     errorMsg = e.message || String(e);
-    logToStatusSheet('[GTM] ' + gtmGroupId, false, 'error', '', errorMsg);
+    logToStatusSheet('[GTM] ' + gtmGroupId, false, 'error', '', errorMsg, '');
     throw e;
   }
 }
@@ -356,20 +365,22 @@ function columnLetter(n) {
 /**
  * Wrapper called by the company picker and prospect dialogs.
  * Delegates to generateAccountResearchDoc() and logs the result to Batch Status.
+ * Returns a JSON string with both URLs so the picker dialog can show both links.
  *
  * @param {string}  companyName
  * @param {boolean} isProspect
- * @returns {string} doc URL
+ * @returns {string} JSON string: { briefUrl, fullUrl }
  */
 function generateAndLog(companyName, isProspect) {
-  var docUrl, errorMsg;
+  var briefUrl, errorMsg;
   try {
-    docUrl = generateAccountResearchDoc(companyName, "", "", isProspect);
-    logToStatusSheet(companyName, isProspect, 'done', docUrl, '');
-    return docUrl;
+    briefUrl = generateAccountResearchDoc(companyName, "", "", isProspect);
+    var fullUrl = (_lastDocResult && _lastDocResult.fullUrl) || '';
+    logToStatusSheet(companyName, isProspect, 'done', briefUrl, '', fullUrl);
+    return JSON.stringify({ briefUrl: briefUrl, fullUrl: fullUrl });
   } catch (e) {
     errorMsg = e.message || String(e);
-    logToStatusSheet(companyName, isProspect, 'error', '', errorMsg);
+    logToStatusSheet(companyName, isProspect, 'error', '', errorMsg, '');
     throw e;
   }
 }
@@ -381,27 +392,30 @@ function generateAndLog(companyName, isProspect) {
  *
  * @param {string}  companyName
  * @param {boolean} isProspect
- * @param {string}  status      'done' | 'error'
- * @param {string}  docUrl
+ * @param {string}  status       'done' | 'error'
+ * @param {string}  briefUrl     URL of the Account Brief
  * @param {string}  error
+ * @param {string}  fullUrl      URL of the Full Report
  */
-function logToStatusSheet(companyName, isProspect, status, docUrl, error) {
+function logToStatusSheet(companyName, isProspect, status, briefUrl, error, fullUrl) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(BATCH_SHEET_NAME);
+  var NUM_COLS = 6;
 
   // Create the sheet with the standard header if it doesn't exist yet
   if (!sheet) {
     sheet = ss.insertSheet(BATCH_SHEET_NAME);
-    var hdr = sheet.getRange(1, 1, 1, 5);
-    hdr.setValues([['COMPANY_NAME', 'STATUS', 'DOC_URL', 'RUN_AT', 'ERROR']]);
+    var hdr = sheet.getRange(1, 1, 1, NUM_COLS);
+    hdr.setValues([['COMPANY_NAME', 'STATUS', 'BRIEF_URL', 'FULL_URL', 'RUN_AT', 'ERROR']]);
     hdr.setFontWeight('bold');
     hdr.setBackground('#1B0B3B');
     hdr.setFontColor('#FFFFFF');
     sheet.setColumnWidth(BATCH_COL_COMPANY, 280);
     sheet.setColumnWidth(BATCH_COL_STATUS,  90);
     sheet.setColumnWidth(BATCH_COL_DOC_URL, 320);
-    sheet.setColumnWidth(BATCH_COL_RUN_AT,  160);
-    sheet.setColumnWidth(BATCH_COL_ERROR,   300);
+    sheet.setColumnWidth(4, 320);   // FULL_URL
+    sheet.setColumnWidth(5, 160);   // RUN_AT
+    sheet.setColumnWidth(6, 300);   // ERROR
     sheet.setFrozenRows(1);
   }
 
@@ -409,7 +423,7 @@ function logToStatusSheet(companyName, isProspect, status, docUrl, error) {
   var runAt = new Date();
   var lastRow = sheet.getLastRow();
 
-  var newRow = [displayName, status, docUrl, runAt, error];
+  var newRow = [displayName, status, briefUrl || '', fullUrl || '', runAt, error];
 
   if (lastRow > 1) {
     var names = sheet.getRange(2, BATCH_COL_COMPANY, lastRow - 1, 1).getValues();
@@ -417,7 +431,7 @@ function logToStatusSheet(companyName, isProspect, status, docUrl, error) {
     // Update existing row in place (name unchanged, so position stays correct)
     for (var i = 0; i < names.length; i++) {
       if (String(names[i][0]).trim() === displayName) {
-        sheet.getRange(i + 2, 1, 1, 5).setValues([newRow]);
+        sheet.getRange(i + 2, 1, 1, NUM_COLS).setValues([newRow]);
         return;
       }
     }
@@ -432,10 +446,10 @@ function logToStatusSheet(companyName, isProspect, status, docUrl, error) {
       }
     }
     sheet.insertRowBefore(insertAt);
-    sheet.getRange(insertAt, 1, 1, 5).setValues([newRow]);
+    sheet.getRange(insertAt, 1, 1, NUM_COLS).setValues([newRow]);
   } else {
     // Sheet is empty (header only) — just write to row 2
-    sheet.getRange(2, 1, 1, 5).setValues([newRow]);
+    sheet.getRange(2, 1, 1, NUM_COLS).setValues([newRow]);
   }
 }
 

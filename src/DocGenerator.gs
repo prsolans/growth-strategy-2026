@@ -508,7 +508,7 @@ function createQuadrantChart(agreements) {
  * @param {string} companyName  Account name for the subtitle row
  * @param {boolean} isProspect  Prepends [PROSPECT] to company name if true
  */
-function addDocumentHeader(body, companyName, isProspect) {
+function addDocumentHeader(body, companyName, isProspect, subheadText) {
   var label = (isProspect ? '[PROSPECT] ' : '') + companyName;
   var dateStr = 'Generated ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMMM d, yyyy');
 
@@ -571,7 +571,7 @@ function addDocumentHeader(body, companyName, isProspect) {
   nameText.setForegroundColor(DOCUSIGN_PURPLE);
 
   // ── Subhead ───────────────────────────────────────────────────────────
-  var subPara = body.appendParagraph('Account Research Report');
+  var subPara = body.appendParagraph(subheadText || 'Account Research Report');
   subPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
   subPara.setSpacingBefore(0);
   subPara.setSpacingAfter(2);
@@ -863,14 +863,27 @@ function generateAccountResearchDoc(companyName, email, channelId, isProspect, p
     } catch (e7) { Logger.log('[DocGen] Call 7 fallback FAILED: ' + e7.message); bigBets = {}; }
   }
 
-  // ── Step 3: Build the Google Doc ─────────────────────────────────
-  return _buildResearchDoc(
+  // ── Step 3: Build the Google Docs (Brief + Full Report) ──────────
+  var result = _buildResearchDoc(
     data, productSignals, enrichment,
     accountProfile, businessMap, agreementLandscape, contractCommerce,
     priorityMap, briefing, bigBets,
     email, channelId, isProspect, 'og'
   );
+
+  // Notify Slack with both doc links
+  if (email && channelId) {
+    notifyUserOfProgress(email, channelId,
+      'Done! Brief: ' + result.briefUrl + ' | Full Report: ' + result.fullUrl);
+  }
+
+  // Return brief URL as the primary (backward-compat) + stash both
+  _lastDocResult = result;
+  return result.briefUrl;
 }
+
+/** Last doc generation result — { briefUrl, fullUrl }. Used by callers that need both URLs. */
+var _lastDocResult = null;
 
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1005,12 +1018,185 @@ function _buildResearchDoc(data, productSignals, enrichment,
   Logger.log('[DocGen] Appendix: Data Sources & Methodology');
   addDataSourcesSection(body, enrichment, pipeline);
 
-  Logger.log('[DocGen] Saving and closing doc...');
+  Logger.log('[DocGen] Saving and closing full report...');
   doc.saveAndClose();
 
-  var docUrl = doc.getUrl();
-  Logger.log('[DocGen] COMPLETE. Doc URL: ' + docUrl);
-  return docUrl;
+  var fullUrl = doc.getUrl();
+  Logger.log('[DocGen] Full report URL: ' + fullUrl);
+
+  // ── Build the Brief doc ────────────────────────────────────────────
+  var briefUrl = _buildBriefDoc(data, productSignals, enrichment,
+    accountProfile, businessMap, agreementLandscape, contractCommerce,
+    priorityMap, briefing, bigBets,
+    email, channelId, isProspect, pipeline, fullUrl);
+
+  // ── Patch cross-reference link into the full report ────────────────
+  _addCrossReferenceLink(doc.getId(), briefUrl, 'Account Brief');
+
+  Logger.log('[DocGen] COMPLETE. Brief URL: ' + briefUrl + ' | Full URL: ' + fullUrl);
+  return { briefUrl: briefUrl, fullUrl: fullUrl };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// Brief Doc Builder — actionable summary (Phase 1+2 sections only)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Build the Account Brief — a short, actionable doc with only the 6 primary sections.
+ * Called by _buildResearchDoc() after the full report is built.
+ *
+ * @param {Object}  data               Internal bookscrub data
+ * @param {Object}  productSignals      Signal map
+ * @param {Object}  enrichment          Public enrichment
+ * @param {Object}  accountProfile      LLM Call 1 output
+ * @param {Object}  businessMap         LLM Call 2 output
+ * @param {Object}  agreementLandscape  LLM Call 3 output
+ * @param {Object}  contractCommerce    LLM Call 4 output
+ * @param {Object}  priorityMap         LLM Call 5 output
+ * @param {Object}  briefing            LLM Call 6 output
+ * @param {Object}  bigBets             LLM Call 7 output
+ * @param {string}  email               For Slack notifications
+ * @param {string}  channelId           For Slack notifications
+ * @param {boolean} isProspect
+ * @param {string}  pipeline            'og' or 'glean'
+ * @param {string}  fullReportUrl       URL of the full report for cross-reference
+ * @returns {string} Google Doc URL of the brief
+ */
+function _buildBriefDoc(data, productSignals, enrichment,
+    accountProfile, businessMap, agreementLandscape, contractCommerce,
+    priorityMap, briefing, bigBets,
+    email, channelId, isProspect, pipeline, fullReportUrl) {
+
+  Logger.log('[DocGen] Building Account Brief...');
+
+  var docTitle = (isProspect ? '[PROSPECT] ' : '') +
+    data.identity.name + ' — Account Brief' +
+    (data.isGtmGroup ? ' [GTM GROUP: ' + data.context.gtmGroup + ']' : '');
+  var doc = DocumentApp.create(docTitle);
+
+  try {
+    var folderId = getOutputFolder();
+    var file = DriveApp.getFileById(doc.getId());
+    DriveApp.getFolderById(folderId).addFile(file);
+    DriveApp.getRootFolder().removeFile(file);
+  } catch (e) {
+    Logger.log('[DocGen] Could not move brief to output folder: ' + e.message);
+  }
+
+  var body = doc.getBody();
+  body.setMarginTop(36);
+  body.setMarginBottom(36);
+  body.setMarginLeft(48);
+  body.setMarginRight(48);
+
+  // ── Header ──────────────────────────────────────────────────────────
+  addDocumentHeader(body, data.identity.name, isProspect, 'Account Brief');
+
+  // ── Cross-reference to full report ─────────────────────────────────
+  if (fullReportUrl) {
+    var linkPara = body.appendParagraph('');
+    linkPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    linkPara.setSpacingBefore(0);
+    linkPara.setSpacingAfter(8);
+    var linkText = linkPara.appendText('View Full Report →');
+    linkText.setLinkUrl(fullReportUrl);
+    linkText.setFontSize(10);
+    linkText.setForegroundColor(DOCUSIGN_COBALT);
+    linkText.setItalic(true);
+  }
+
+  // ── Primary sections (Phase 1 + Phase 2 only) ─────────────────────
+  if (!isProspect) {
+    Logger.log('[DocGen] Brief: Docusign Today');
+    addDocusignTodayContractSection(body, data);
+    body.appendPageBreak();
+
+    Logger.log('[DocGen] Brief: Product Adoption Opportunity');
+    addProductAdoptionSection(body, data);
+    body.appendPageBreak();
+
+    Logger.log('[DocGen] Brief: Account Health');
+    addAccountHealthSection(body, data, false);
+    body.appendPageBreak();
+  }
+
+  Logger.log('[DocGen] Brief: Strategic Initiatives');
+  addStrategicInitiativesSection(body, data, briefing, accountProfile);
+  if (accountProfile && accountProfile.businessPerformance &&
+      accountProfile.businessPerformance.strategicInitiatives &&
+      accountProfile.businessPerformance.strategicInitiatives.length > 0) {
+    body.appendPageBreak();
+  }
+
+  Logger.log('[DocGen] Brief: Long Term Opportunity Map');
+  addLongTermOpportunityMapSection(body, data, accountProfile, enrichment, businessMap, bigBets);
+  body.appendPageBreak();
+
+  Logger.log('[DocGen] Brief: High Value - Top 3 Big Bets');
+  addBigBetInitiativesSection(body, data, bigBets, accountProfile, contractCommerce);
+
+  Logger.log('[DocGen] Saving and closing brief...');
+  doc.saveAndClose();
+
+  var briefUrl = doc.getUrl();
+  Logger.log('[DocGen] Brief URL: ' + briefUrl);
+  return briefUrl;
+}
+
+
+/**
+ * Add a cross-reference link paragraph at the top of an existing doc.
+ * Opens the doc by ID, inserts a link after the header, and saves.
+ *
+ * @param {string} docId        Google Doc ID to modify
+ * @param {string} targetUrl    URL to link to
+ * @param {string} targetLabel  Display text for the link (e.g. "Account Brief")
+ */
+function _addCrossReferenceLink(docId, targetUrl, targetLabel) {
+  try {
+    var doc = DocumentApp.openById(docId);
+    var body = doc.getBody();
+
+    // Find the horizontal rule that ends the header, insert after it
+    var numChildren = body.getNumChildren();
+    var insertIndex = -1;
+    for (var i = 0; i < numChildren; i++) {
+      var child = body.getChild(i);
+      if (child.getType() === DocumentApp.ElementType.HORIZONTAL_RULE) {
+        insertIndex = i + 1;
+        break;
+      }
+    }
+
+    if (insertIndex === -1) {
+      // Fallback: insert after the first few paragraphs (after header area)
+      insertIndex = Math.min(5, numChildren);
+    }
+
+    // Skip any spacer paragraph after the HR
+    if (insertIndex < numChildren) {
+      var next = body.getChild(insertIndex);
+      if (next.getType() === DocumentApp.ElementType.PARAGRAPH &&
+          next.asParagraph().getText().trim() === '') {
+        insertIndex++;
+      }
+    }
+
+    var linkPara = body.insertParagraph(insertIndex, '');
+    linkPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    linkPara.setSpacingBefore(0);
+    linkPara.setSpacingAfter(8);
+    var linkText = linkPara.appendText('View ' + targetLabel + ' →');
+    linkText.setLinkUrl(targetUrl);
+    linkText.setFontSize(10);
+    linkText.setForegroundColor(DOCUSIGN_COBALT);
+    linkText.setItalic(true);
+
+    doc.saveAndClose();
+  } catch (e) {
+    Logger.log('[DocGen] Cross-reference link failed (non-fatal): ' + e.message);
+  }
 }
 
 
@@ -1033,7 +1219,7 @@ function _buildResearchDoc(data, productSignals, enrichment,
  * @param {string}  email          For Slack progress notifications (pass '' to skip)
  * @param {string}  channelId      For Slack progress notifications (pass '' to skip)
  * @param {boolean} isProspect
- * @returns {string} Google Doc URL
+ * @returns {string} Brief doc URL (primary return for backward compat)
  */
 function generateAccountResearchDocFromGlean(companyName, gleanAnalysis, data, productSignals, enrichment, email, channelId, isProspect) {
   Logger.log('[GleanDoc] Starting Glean-path doc generation for: ' + companyName +
@@ -1060,13 +1246,22 @@ function generateAccountResearchDocFromGlean(companyName, gleanAnalysis, data, p
     Logger.log('[GleanDoc] Fallback generated ' + agreementLandscape.agreements.length + ' agreements.');
   }
 
-  // ── Build the Google Doc (shared builder) ────────────────────────
-  return _buildResearchDoc(
+  // ── Build both docs (shared builder) ───────────────────────────
+  var result = _buildResearchDoc(
     data, productSignals, enrichment,
     accountProfile, businessMap, agreementLandscape, contractCommerce,
     priorityMap, briefing, bigBets,
     email, channelId, isProspect, 'glean'
   );
+
+  // Notify Slack with both doc links
+  if (email && channelId) {
+    notifyUserOfProgress(email, channelId,
+      'Done! Brief: ' + result.briefUrl + ' | Full Report: ' + result.fullUrl);
+  }
+
+  _lastDocResult = result;
+  return result.briefUrl;
 }
 
 

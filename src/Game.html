@@ -360,20 +360,23 @@ body {
 .status-bar.success { color: #059669; font-weight: 600; }
 .status-bar.error   { color: var(--red); }
 
-/* AR status indicator */
-.ar-indicator {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: var(--muted);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  box-shadow: var(--shadow-sm);
+/* AR status strip */
+#ar-strip {
+  display: flex; align-items: center; justify-content: center;
+  gap: 7px; padding: 7px 16px; font-size: 11.5px; font-weight: 500;
+  letter-spacing: 0.1px; border-bottom: 1px solid var(--border);
+  background: var(--primary-light); color: var(--primary);
+  transition: background 0.4s, color 0.4s;
 }
-.ar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); animation: pulse 1.4s ease-in-out infinite; }
-.ar-dot.done  { background: #059669; animation: none; }
-.ar-dot.error { background: var(--red); animation: none; }
-@keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.85); } }
+#ar-strip.done  { background: #f0fdf4; color: #16a34a; }
+#ar-strip.error { background: #fff1f2; color: #b91c1c; }
+.ar-strip-spinner { width: 10px; height: 10px; border: 2px solid currentColor;
+  border-top-color: transparent; border-radius: 50%;
+  animation: spin 0.7s linear infinite; flex-shrink: 0; }
+#ar-strip.done .ar-strip-spinner,
+#ar-strip.error .ar-strip-spinner { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes soft-pulse { 0%,100% { border-color: var(--primary); } 50% { border-color: var(--primary-light); } }
 
 /* Sidebar: leaderboard */
 .lb-section-title {
@@ -541,10 +544,20 @@ body {
   justify-content: center; min-height: calc(100vh - 64px - 52px);
   padding: 40px 24px; gap: 20px;
 }
-.wait-company-label {
-  font-size: 13px; font-weight: 600; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 1px;
+.wait-generating-headline {
+  font-size: 17px; font-weight: 500; color: var(--text);
+  margin: 0 0 8px; text-align: center;
 }
+.progress-track {
+  width: 100%; max-width: 480px; height: 6px;
+  background: rgba(0,0,0,0.08); border-radius: 99px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; width: 0%; border-radius: 99px;
+  background: var(--primary);
+  transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.progress-fill.done { background: #059669; }
 .wait-header-right {
   display: flex; align-items: center; gap: 20px;
 }
@@ -554,6 +567,10 @@ body {
   background: var(--primary-light); border-radius: 20px; padding: 5px 12px;
 }
 .star-counter .star-icon { font-size: 16px; }
+.factoid-category {
+  font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--primary); margin: 0 0 12px;
+}
 .factoid-card {
   background: white; border-radius: 16px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.09);
@@ -574,6 +591,106 @@ body {
   cursor: pointer; font-family: inherit; transition: all var(--transition);
 }
 .btn-next-factoid:hover { border-color: var(--primary); color: var(--primary); }
+/* ── Dive deeper button ───────────────────────────────── */
+.btn-dive-deeper {
+  background: var(--primary); border: none; border-radius: 20px;
+  padding: 7px 18px; font-size: 13px; font-weight: 600; color: white;
+  cursor: pointer; font-family: inherit; transition: all var(--transition);
+  margin-left: 8px;
+}
+.btn-dive-deeper:hover { background: var(--primary-hover); }
+
+/* ── IAM Card ─────────────────────────────────────────── */
+.iam-card {
+  background: white; border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.09);
+  padding: 32px 40px; max-width: 640px; width: 100%;
+  text-align: left; font-size: 15px; line-height: 1.6; color: var(--text);
+  max-height: 75vh; overflow-y: auto;
+}
+.iam-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.iam-type-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 20px;
+}
+.iam-type-badge.product   { background: #ede9ff; color: #4C00FF; }
+.iam-type-badge.objection { background: #fff3cd; color: #9a6000; }
+.iam-type-badge.discovery { background: #dbeafe; color: #1d4ed8; }
+.iam-type-badge.persona   { background: #d1fae5; color: #065f46; }
+.iam-type-badge.pitch     { background: #f3f4f6; color: #374151; }
+.btn-exit-card {
+  background: none; border: 1.5px solid var(--border); border-radius: 20px;
+  padding: 5px 14px; font-size: 12px; font-weight: 600; color: var(--muted);
+  cursor: pointer; font-family: inherit; transition: all var(--transition);
+}
+.btn-exit-card:hover { border-color: var(--primary); color: var(--primary); }
+.iam-card-title { font-size: 20px; font-weight: 800; color: var(--primary-dark); margin-bottom: 6px; }
+.iam-card-hook  { font-size: 14px; font-style: italic; color: var(--muted); margin-bottom: 20px; }
+.iam-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--primary); margin-bottom: 6px;
+}
+.iam-section { margin-bottom: 16px; }
+.iam-proof-block {
+  background: #fffbeb; border-left: 3px solid var(--primary);
+  padding: 12px 16px; border-radius: 0 6px 6px 0;
+}
+.iam-question-block {
+  background: #eff6ff; border-left: 3px solid #3b82f6;
+  padding: 12px 16px; border-radius: 0 6px 6px 0;
+}
+.iam-next-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.iam-next-btn {
+  background: white; border-radius: var(--radius-sm);
+  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all var(--transition);
+  display: flex; align-items: center; gap: 6px;
+}
+.iam-next-btn.product   { border: 1.5px solid #4C00FF; color: #4C00FF; }
+.iam-next-btn.objection { border: 1.5px solid #d97706; color: #9a6000; }
+.iam-next-btn.discovery { border: 1.5px solid #3b82f6; color: #1d4ed8; }
+.iam-next-btn.persona   { border: 1.5px solid #059669; color: #065f46; }
+.iam-next-btn.pitch     { border: 1.5px solid #6b7280; color: #374151; }
+.iam-next-btn:hover { opacity: 0.8; }
+.iam-brief-ready-banner {
+  background: var(--green); color: white; border-radius: 10px;
+  padding: 12px 20px; margin-bottom: 16px; font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.iam-brief-ready-banner button {
+  background: rgba(255,255,255,0.2); border: 1.5px solid rgba(255,255,255,0.5);
+  border-radius: var(--radius-sm); color: white; padding: 6px 14px;
+  font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.cards-explored-counter {
+  position: fixed; bottom: 60px; right: 16px;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  background: white; border: 1px solid var(--border); border-radius: 20px;
+  padding: 4px 10px; box-shadow: var(--shadow-sm); z-index: 91;
+}
+
+/* ── Card full-screen takeover ────────────────────────── */
+#panel-card:not(.hidden) {
+  position: fixed;
+  top: 64px;
+  bottom: 52px;
+  left: 0; right: 0;
+  z-index: 89;
+  background: white;
+  overflow-y: auto;
+  display: flex !important;
+  flex-direction: column;
+  padding: 32px 48px;
+}
+#panel-card:not(.hidden) .iam-card {
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  flex: 1;
+}
+
 .wait-question {
   font-size: 19px; font-weight: 700; text-align: center;
   max-width: 540px; color: var(--text); line-height: 1.4;
@@ -591,6 +708,7 @@ body {
 }
 .wait-opt:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-light); }
 .wait-opt.fading { opacity: 0.12; pointer-events: none; transition: opacity 0.8s; }
+.wait-opt.last-standing { border-color: var(--primary); background: var(--primary-light); animation: soft-pulse 1.4s ease-in-out infinite; }
 .wait-opt.correct { background: #d1fae5; border-color: #059669; color: #065f46; pointer-events: none; }
 .wait-opt.wrong   { background: #fee2e2; border-color: #ef4444; color: #991b1b; pointer-events: none; }
 .wait-opt.reveal  { background: #d1fae5; border-color: #059669; color: #065f46; pointer-events: none; }
@@ -700,14 +818,14 @@ body {
       <div class="ctx-body-wrap">
         <div>
           <div class="sidebar-eyebrow">9 sections</div>
-          <div class="sidebar-title">A complete account brief</div>
+          <div class="sidebar-title">A complete Account Research brief</div>
         </div>
         <div class="sidebar-body">
           Company profile &amp; financials · Executive contacts &amp; tech stack · Business unit map &amp; org hierarchy · Docusign footprint &amp; account health · Agreement landscape (top 20 types) · Contract commerce estimates by department · Priority opportunity map &amp; action plan
         </div>
         <div class="sidebar-why">
           <div class="sidebar-why-label">Why it matters</div>
-          <div class="sidebar-why-text">Every section is grounded in internal Bookscrub signals + AI-powered public research — so you walk in knowing more than anyone in the room.</div>
+          <div class="sidebar-why-text">Every section is grounded in internal Bookscrub signals + AI-powered public research — so you walk in with the most complete picture in the room.</div>
         </div>
       </div>
     </div>
@@ -728,7 +846,7 @@ body {
         </div>
         <div>
           <div class="sidebar-eyebrow">Step 3</div>
-          <div class="sidebar-body">Assembles a 9-section Google Doc and saves it to your team's Drive folder. You get the link when it's ready.</div>
+          <div class="sidebar-body">Assembles a 9-section Account Research brief and saves it to your team's Drive folder. You get the link when it's ready.</div>
         </div>
       </div>
     </div>
@@ -738,9 +856,9 @@ body {
         <span class="ctx-panel-label"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:11px;height:11px;stroke-width:1.75"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Tips</span>
       </div>
       <div class="ctx-body-wrap">
-        <div class="sidebar-tip">This doc is a living asset — share it with your manager, SA, or CSM and build on it together before the meeting.</div>
-        <div class="sidebar-tip">Drop it in your account Slack channel or attach it to the SFDC opportunity so the whole team is working from the same brief.</div>
-        <div class="sidebar-tip">Come back to it. Re-run any time the account situation changes — each run produces a fresh doc reflecting current data.</div>
+        <div class="sidebar-tip">Your Account Research brief is a living asset — share it with your manager, SA, or CSM and build on it together before the meeting.</div>
+        <div class="sidebar-tip">Drop the Account Research brief in your account Slack channel or attach it to the SFDC opportunity so the whole team is working from the same brief.</div>
+        <div class="sidebar-tip">Come back to it. Re-run the Account Research brief any time the account situation changes — each run reflects the latest data.</div>
       </div>
     </div>
   </div>
@@ -762,10 +880,6 @@ body {
       <span class="app-logo-label">Account Research</span>
     </div>
     <div class="wait-header-right">
-      <span class="ar-indicator" id="ar-indicator">
-        <span class="ar-dot" id="ar-dot"></span>
-        <span id="ar-status-text">Generating research…</span>
-      </span>
       <div class="star-counter" id="star-counter">
         <span class="star-icon">⭐</span>
         <span id="star-count">0</span>
@@ -773,16 +887,25 @@ body {
     </div>
   </header>
 
+  <div id="ar-strip">
+    <div class="ar-strip-spinner"></div>
+    <span id="ar-strip-text">Generating your Account Research brief…</span>
+  </div>
+
   <div class="waiting-body">
-    <p class="wait-company-label" id="wait-company-name"></p>
+    <div id="cards-explored-counter" class="cards-explored-counter hidden"></div>
+    <p class="wait-generating-headline">Generating research for <span id="wait-company-name"></span></p>
+    <div class="progress-track"><div class="progress-fill" id="ar-progress"></div></div>
 
     <!-- Factoid panel -->
     <div id="panel-factoid">
       <div class="factoid-card">
+        <p class="factoid-category" id="factoid-category"></p>
         <p id="factoid-text"></p>
       </div>
       <div id="factoid-dots" class="factoid-dots"></div>
       <button class="btn-next-factoid" onclick="skipFactoid()">Next →</button>
+      <button id="btn-dive-deeper" class="btn-dive-deeper hidden" onclick="diveDeeper()">Dive deeper →</button>
     </div>
 
     <!-- Quiz panel -->
@@ -793,6 +916,33 @@ body {
         <button class="wait-opt" id="wopt-b" onclick="waitAnswer('B')"><span id="wopt-b-text"></span></button>
         <button class="wait-opt" id="wopt-c" onclick="waitAnswer('C')"><span id="wopt-c-text"></span></button>
         <button class="wait-opt" id="wopt-d" onclick="waitAnswer('D')"><span id="wopt-d-text"></span></button>
+      </div>
+    </div>
+    <!-- IAM Card panel -->
+    <div id="panel-card" class="hidden">
+      <div id="iam-brief-ready-banner" class="hidden iam-brief-ready-banner">
+        Your brief is ready <button onclick="showResults()">View brief →</button>
+      </div>
+      <div class="iam-card">
+        <div class="iam-card-header">
+          <span class="iam-type-badge" id="iam-badge"></span>
+          <button class="btn-exit-card" onclick="exitCards()">← Back</button>
+        </div>
+        <h2 class="iam-card-title" id="iam-title"></h2>
+        <p class="iam-card-hook" id="iam-hook"></p>
+        <div class="iam-section" id="iam-problem-section">
+          <div class="iam-label" id="iam-problem-label"></div><p id="iam-problem"></p>
+        </div>
+        <div class="iam-section" id="iam-insight-section">
+          <div class="iam-label" id="iam-insight-label"></div><p id="iam-insight"></p>
+        </div>
+        <div class="iam-section iam-proof-block hidden" id="iam-proof-section">
+          <div class="iam-label" id="iam-proof-label"></div><p id="iam-proof"></p>
+        </div>
+        <div class="iam-section iam-question-block hidden" id="iam-question-section">
+          <div class="iam-label" id="iam-question-label"></div><p id="iam-question"></p>
+        </div>
+        <div class="iam-next-row" id="iam-next"></div>
       </div>
     </div>
   </div>
@@ -829,8 +979,7 @@ body {
 // ═══════════════════════════════════════════════════════════════
 // Build metadata — update on each deploy (clasp push)
 // ═══════════════════════════════════════════════════════════════
-var BUILD_DATE = '2026-04-07 11:16';
-document.getElementById('footer-build').textContent = 'Build ' + BUILD_DATE;
+var BUILD_DATE = '2026-04-07 14:15';
 
 // ═══════════════════════════════════════════════════════════════
 // State
@@ -848,6 +997,7 @@ var state = {
   cfg:         { question_timer_seconds: 15, points_per_correct: 10, speed_bonus_max: 5, leaderboard_top_n: 10 },
   arDone:      false,
   docUrl:      '',
+  fullUrl:     '',
   scoreSent:   false,
 
   // Timers
@@ -867,6 +1017,8 @@ google.script.url.getLocation(function(location) {
   var nameEl = document.getElementById('ae-name');
   nameEl.value = state.aeName || '';
   if (!state.aeName) nameEl.removeAttribute('readonly');
+
+  document.getElementById('footer-build').textContent = 'Build ' + BUILD_DATE;
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -1128,20 +1280,924 @@ function hideEntryError() {
 // Factoids + Quiz waiting loop
 // ═══════════════════════════════════════════════════════════════
 
-var FACTOIDS = [
-  'This doc is a living asset — share it with your manager, SA, or CSM and build on it together before the meeting.',
-  'Drop it in your account Slack channel or attach it to the SFDC opportunity so the whole team is working from the same brief.',
-  'Come back to it. Re-run any time the account situation changes — each run produces a fresh doc reflecting current data.',
-  'The Agreement Landscape section scores 20 agreement types by volume and complexity — use it to find the whitespace your competitors haven\'t touched yet.',
-  'The Priority Map is generated last — it synthesises everything before it into ranked opportunities and a concrete action plan.',
-  'The Business Map breaks the account into BUs, departments, and functions. Use it to spot which parts of the org aren\'t using Docusign yet.',
-  'The average enterprise manages over 25,000 agreements a year. The Contract Commerce section estimates what that looks like for your account.',
-  'Every doc ends with a Sources section — links to the filings and web pages behind the research. Click through before quoting anything to a customer.',
-  'The Executive Contacts section pulls publicly available leadership data. Cross-reference with your SFDC contacts before a QBR.',
-  'Run one the morning of any account meeting. From search to doc link in under 5 minutes.',
-  'GTM Group mode covers all accounts in a group in a single brief — useful for territory planning and manager reviews.',
-  'Prospect mode works without internal data — the doc makes reasoned assumptions so you\'re never walking in cold.'
+var IAM_CARDS = [
+  {
+    id: 'iam-core',
+    type: 'product',
+    title: 'IAM Core: Agreements as Data, Not Documents',
+    hook: 'Agreements trapped as static files across scattered systems',
+    problem: '"We have contracts everywhere — shared drives, email, our CRM — but we can\'t actually do anything with them. If someone asks me \'what percentage of our contracts have auto-renewal clauses,\' I honestly couldn\'t tell you without weeks of manual work."',
+    insight: 'The foundational platform that turns your agreements from static files into structured, searchable, actionable data — while automating the workflows around creating, routing, and managing them. Includes eSignature, Maestro, Web Forms, Agreement Prep, Navigator, App Center.',
+    proof: 'Organizations with no agreement workflow automation typically see 40-60% of envelope sends happen manually through the web app. That\'s a direct measure of process that should be automated but isn\'t — and each manual send represents time, inconsistency, and data that never flows downstream.',
+    question: '"If I could show you a single platform where your team creates, sends, signs, and manages agreements — and the data in those agreements automatically flows into your other systems — would that change how you think about your agreement process?"',
+    next: ['navigator', 'maestro', 'iam-for-sales']
+  },
+  {
+    id: 'iam-for-sales',
+    type: 'product',
+    title: 'IAM for Sales: Kill the Contract Bottleneck',
+    hook: 'Sales cycle friction from agreement process delays',
+    problem: '"Our reps spend more time chasing contract approvals and assembling proposals than they do selling. And when the deal finally closes, it takes days for the contract data to make it into billing and comp because someone has to read the PDF and enter it manually."',
+    insight: 'Embeds the entire agreement workflow directly into Salesforce so reps never leave the CRM — from auto-generating proposals with CRM data to routing approvals to pushing signed agreement data into downstream systems. Includes eSignature, Maestro, Web Forms, Agreement Prep, Navigator, App Center, CRM Integration.',
+    proof: 'When reps can generate a proposal from CRM data in clicks instead of hours, and the signed agreement automatically updates billing and comp, you\'re removing days from the sales cycle and eliminating the manual handoffs that cause 80% of post-deal operational errors.',
+    question: '"How much time do your reps spend between \'verbal yes\' and \'fully executed contract\'? What would it mean for your quarter-end velocity if you could compress that from weeks to hours?"',
+    next: ['iam-core', 'commission-dispute-resolution', 'rep-selling-time']
+  },
+  {
+    id: 'iam-for-cx',
+    type: 'product',
+    title: 'IAM for CX: Fix the Agreement Experience Gap',
+    hook: 'Customer-facing agreement friction hurting completion rates',
+    problem: '"We\'ve invested millions in the customer experience — beautiful onboarding flows, slick portals, great support. But the moment a customer needs to sign an agreement, we drop them into a clunky process that feels like it\'s from 2005. And our decline rates show it."',
+    insight: 'Creates seamless, branded agreement experiences that meet customers where they are — mobile-optimized, form-driven, with automated workflows that eliminate friction from onboarding, renewals, and every customer-facing agreement touchpoint. Includes eSignature, Maestro, Web Forms, Agreement Prep, Navigator, App Center.',
+    proof: 'High decline/expire rates on agreements are a direct signal that the agreement experience is creating friction. Organizations in Financial Services, Insurance, Healthcare, and Retail that optimize the customer-facing agreement flow see measurable improvements in completion rates and customer satisfaction.',
+    question: '"What\'s your current decline or expiration rate on customer-facing agreements? And when a customer abandons the signing process, do you know where they dropped off and why?"',
+    next: ['customer-experience-risk', 'already-have-clm', 'renewal-prep-time']
+  },
+  {
+    id: 'clm',
+    type: 'product',
+    title: 'CLM: Turn Contract Liability into Strategic Asset',
+    hook: 'Contract portfolio as unmanaged risk',
+    problem: '"We have thousands of active contracts and I couldn\'t tell you what\'s in half of them. Our legal team is buried in manual negotiation workflows, and we have no systematic way to track obligations, termination windows, or compliance commitments."',
+    insight: 'Full contract lifecycle management — from authoring and negotiation through centralized repository and automated obligation tracking — so your contracts become a managed portfolio, not an unorganized pile of risk. Includes Contract authoring, Negotiation, Repository, Obligation tracking.',
+    proof: 'Organizations with high-ACV, high-complexity agreements in regulated industries that implement CLM move from reactive obligation management to proactive risk mitigation. The alternative — missing a termination window that auto-renews you into unwanted terms, or failing an audit because you can\'t produce the right agreement — has a cost that dwarfs the investment.',
+    question: '"If an auditor or your CEO asked you today to report on all contractual obligations due in the next 90 days, how long would that take? And how confident would you be in the answer?"',
+    next: ['obligation-deadline-tracking', 'already-have-clm', 'navigator']
+  },
+  {
+    id: 'navigator',
+    type: 'product',
+    title: 'Navigator: Agreement Intelligence at Your Fingertips',
+    hook: 'Can\'t answer basic questions about your own contracts',
+    problem: '"I have 20,000 agreements across my organization and I can\'t tell you which ones have price escalation clauses, which have auto-renewal windows coming up next quarter, or which customers have been amended more than three times. The data is in there — I just can\'t get to it."',
+    insight: 'AI-powered agreement intelligence — upload your contracts and Navigator organizes them, extracts clauses, dates, obligations, and commercial terms, and gives you a searchable, reportable view across your entire portfolio.',
+    proof: 'Organizations with 20,000+ envelopes or active CLM but no Navigator are sitting on a data goldmine they can\'t access. The rep prepping for a renewal shouldn\'t need a day and a half to understand what\'s in the contract — Navigator gives her that answer in minutes.',
+    question: '"What would change about your renewal strategy if every rep could pull up a complete, organized view of any customer relationship — current pricing, amendment history, escalation clauses, upcoming obligations — in under a minute?"',
+    next: ['renewal-prep-time', 'rep-selling-time', 'iam-core']
+  },
+  {
+    id: 'maestro',
+    type: 'product',
+    title: 'Maestro: Zero-Touch Post-Signature Workflows',
+    hook: 'Manual post-signature steps that should be automated',
+    problem: '"After a contract gets signed, someone has to email billing, update the CRM, notify the implementation team, create a task for onboarding, and flag the renewal date. It\'s a checklist that someone runs manually every single time. And when they miss a step, we find out weeks later when something breaks."',
+    insight: 'No-code workflow builder that automates the entire pre- and post-signature process — conditional routing, approvals, system updates, notifications — all triggered automatically by agreement events.',
+    proof: 'Organizations using custom APIs for more than 50% of their sends, or running 2+ integrations with no workflow orchestration, are building complexity without automation. Maestro replaces duct-tape processes with designed workflows.',
+    question: '"Walk me through what happens after a contract gets signed. How many manual steps are there? What happens when someone misses one?"',
+    next: ['manual-data-handoff', 'process-works-fine', 'iam-core']
+  },
+  {
+    id: 'docgen',
+    type: 'product',
+    title: 'Agreement Prep (DocGen): Proposals in Clicks, Not Hours',
+    hook: 'Reps hand-building proposals from scratch',
+    problem: '"Every proposal is a custom job. The rep finds a template — maybe the right one, maybe last quarter\'s version — pulls the customer data from Salesforce, manually fills it in, reformats it, and sends it out. It takes hours per deal, and half the time there\'s a mistake in the pricing or the terms."',
+    insight: 'Auto-generates agreements from approved templates using live data from CRM, forms, or other sources. The rep clicks a button in Salesforce and gets a complete, accurate, correctly formatted proposal — ready to send.',
+    proof: 'Organizations with 5,000+ envelopes or active Salesforce integration that aren\'t using DocGen are having reps manually build every agreement. That\'s hours per deal in direct labor, plus the error rate from manual data entry into contract documents.',
+    question: '"How long does it take your reps to go from \'deal is approved\' to \'proposal is in the customer\'s hands\'? What if that was clicks instead of hours?"',
+    next: ['manual-data-rekeying', 'manual-data-handoff', 'iam-for-sales']
+  },
+  {
+    id: 'agreement-desk',
+    type: 'product',
+    title: 'Agreement Desk: Negotiation Without the Black Hole',
+    hook: 'Negotiation process is email and prayer',
+    problem: '"Contract negotiation is our biggest black hole. Redlines go back and forth in email, nobody knows where we are in the process, the AE is chasing legal for approvals, and legal is buried under a backlog they can\'t see the bottom of. By the time we get the contract done, the deal momentum is gone."',
+    insight: 'Centralized intake, real-time collaboration, and AI-assisted review for negotiated agreements — so everyone involved can see the status, legal can prioritize by deal value, and the process moves at the speed of the deal, not the speed of email.',
+    proof: 'Organizations with active CLM and high-complexity agreements are the best fit. In regulated or legal-heavy industries, the negotiation bottleneck isn\'t a people problem — it\'s a visibility and workflow problem.',
+    question: '"What\'s the average cycle time on a negotiated agreement? And when a deal stalls in legal review, does the AE have visibility into where it is and what\'s holding it up?"',
+    next: ['agreement-desk-legal', 'legal-would-never-approve', 'renewal-revenue-risk']
+  },
+  {
+    id: 'web-forms',
+    type: 'product',
+    title: 'Web Forms: Enter Data Once, Flow Everywhere',
+    hook: 'Same data re-keyed into multiple systems',
+    problem: '"The customer fills out an intake form. Then someone on our team takes that information and types it into the CRM. Then someone else types it into the agreement. Then someone types it into the onboarding system. The same data, entered three times, by three different people. And somehow it\'s wrong in at least one of them."',
+    insight: 'Structured digital intake forms that pre-fill agreements and trigger workflows — the data gets entered once by the customer or the rep, and it flows directly into the agreement, the CRM, and any downstream systems. No re-keying.',
+    proof: 'Organizations with 100+ PowerForms or heavy web app sends are already using form-driven processes — but without structured data flow, the form output still gets manually re-entered. Web Forms closes the loop.',
+    question: '"How many times does the same piece of data — a customer name, a price, a term length — get manually entered into different systems during a single deal? What\'s the error rate on that?"',
+    next: ['manual-data-rekeying', 'iam-core', 'already-have-clm']
+  },
+  {
+    id: 'idv',
+    type: 'product',
+    title: 'ID Verification: Know Who\'s Actually Signing',
+    hook: 'No real verification of signer identity',
+    problem: '"We\'re sending out high-value agreements — sometimes six, seven figures — and we have no real verification that the person signing is who they say they are. We trust the email address. That\'s it. And in our industry, that\'s not going to fly with regulators."',
+    insight: 'Verifies signer identity via government-issued photo IDs, passports, eIDs, or liveness checks — before the signature happens. Creates an auditable identity verification trail for every high-value or regulated agreement.',
+    proof: 'In regulated industries (Finance, Healthcare, Insurance, Government), identity verification isn\'t optional — it\'s a compliance requirement. Organizations with void rates or decline rates above 5% may be seeing the symptoms of identity friction.',
+    question: '"For your highest-value agreements, what level of confidence do you have that the person signing is actually the authorized signer? And if a regulator asked you to prove it, could you?"',
+    next: ['legal-would-never-approve', 'contract-risk-visibility', 'contract-risk-exposure']
+  },
+  {
+    id: 'app-center',
+    type: 'product',
+    title: 'App Center: Connect Agreement Data to Your Tech Stack',
+    hook: 'Agreement data siloed from business systems',
+    problem: '"We\'ve got Salesforce, NetSuite, Workday, ServiceNow — and our agreement data lives in its own silo. Every time a contract gets signed, someone manually moves the data into the systems that need it. We looked at building custom integrations but we don\'t have the dev resources."',
+    insight: 'Pre-built integrations with 900+ business applications — connect your agreement workflows to CRM, ERP, HCM, and ITSM systems without custom development. Agreement data flows where it needs to go, automatically.',
+    proof: 'Organizations with zero integrations and 1,000+ envelopes are manually bridging every gap between their agreement process and the rest of their tech stack. Each manual bridge is a delay, an error risk, and a process that scales linearly with volume.',
+    question: '"After an agreement gets signed, how many systems need to be updated? And how much of that happens automatically versus manually?"',
+    next: ['iam-for-sales', 'already-have-clm', 'rep-selling-time']
+  },
+  {
+    id: 'monitor',
+    type: 'product',
+    title: 'Monitor: Full Visibility into Agreement Platform Usage',
+    hook: 'No visibility into agreement platform activity',
+    problem: '"I have 200 people using our agreement platform and I can\'t tell you what they\'re doing with it. Who\'s sending what, how they\'re using the API, whether there are security concerns — it\'s a blind spot. And when our security team asks for audit logs, it\'s a scramble."',
+    insight: 'Full admin visibility into account activity, API usage, user behavior, and security events. Real-time monitoring, audit-ready logging, and the ability to spot anomalies before they become incidents.',
+    proof: 'Organizations with 50+ active seats or 5+ admin seats need governance over their agreement platform. Without Monitor, you\'re trusting that 200 people are using the system correctly with no way to verify it.',
+    question: '"If your CISO asked you today for a complete activity log of everything that\'s happened in your agreement platform this quarter, how quickly could you produce it? And would you be confident in what it shows?"',
+    next: ['legal-would-never-approve', 'system-of-record-chaos', 'nonstandard-terms-slipping-through']
+  },
+  {
+    id: 'esig-to-iam',
+    type: 'product',
+    title: 'Beyond eSignature: Unlock the Other 80% of Agreement Value',
+    hook: 'eSignature-only customers leaving value on the table',
+    problem: '"We love Docusign for getting things signed. It works great. But honestly, that\'s all we use it for — send, sign, done."',
+    insight: 'Reframes their understanding of the platform: eSignature solved the signature problem, but the agreement problem is much bigger. Agreements are data — and right now that data goes dark the moment the document is signed.',
+    proof: 'Signing a document is 20% of the agreement lifecycle. The other 80% — preparing the agreement, automating the workflow, managing what happens after signature, extracting and routing the data — is where the real value and the real cost savings live.',
+    question: '"You\'ve solved the signature. But what happens to the data inside that agreement after it\'s signed? Does it flow into billing, comp, CRM automatically — or is someone still reading the PDF and typing numbers into systems?"',
+    next: ['just-need-esignature', 'contract-data-accessibility', 'iam-core']
+  },
+  {
+    id: 'clm-plus-navigator',
+    type: 'product',
+    title: 'CLM + Navigator: Light Up Your Dark Agreement Data',
+    hook: 'CLM workflow without agreement intelligence',
+    problem: '"We implemented CLM to manage our contracts, and it\'s fine for the workflow — authoring, negotiation, storage. But when someone asks \'what\'s across all our contracts,\' we still can\'t answer that without a manual review project."',
+    insight: 'Adds the intelligence layer that CLM alone doesn\'t provide. CLM manages the process; Navigator reads, structures, and makes the data inside those contracts accessible and actionable.',
+    proof: 'CLM solves the document workflow problem. It doesn\'t solve the agreement intelligence problem. You can author, negotiate, and store contracts all day — but if you can\'t search across 10,000 agreements and answer "which ones have termination windows in Q3," you still have dark data.',
+    question: '"Your CLM handles the process. But can it tell you, right now, which contracts in your portfolio have price escalation clauses that haven\'t been exercised? That\'s the gap between managing contracts and understanding them."',
+    next: ['already-have-clm', 'competitive-positioning', 'contract-data-accessibility']
+  },
+  {
+    id: 'salesforce-upgrade',
+    type: 'product',
+    title: 'Salesforce Integration: From 10% to Full Agreement Automation',
+    hook: 'Basic Salesforce integration underutilized',
+    problem: '"Yeah, we\'ve got the Docusign integration in Salesforce. We can send envelopes from the opportunity record. That\'s... pretty much it."',
+    insight: 'Shows the gap between a basic "send for signature" button and a fully embedded agreement workflow: auto-generating proposals from CRM data, conditional routing for approvals, post-signature data writeback, agreement intelligence surfaced directly in the account view.',
+    proof: 'Most Salesforce+Docusign integrations are configured for the most basic use case: send an envelope from an opportunity. But the integration can auto-populate agreements from CRM fields, trigger multi-step workflows on signature, write agreement data back to custom objects, and surface contract intelligence without leaving Salesforce.',
+    question: '"When a rep closes a deal in Salesforce, does the agreement data — pricing, terms, obligations — automatically flow back into the opportunity record and into downstream systems? Or is someone still doing that manually?"',
+    next: ['iam-for-sales', 'manual-data-rekeying', 'have-procurement-system']
+  },
+  {
+    id: 'navigator-legal',
+    type: 'product',
+    title: 'Navigator for Legal: Portfolio Risk Intelligence',
+    hook: 'No visibility into contract risk across the portfolio',
+    problem: '"We have thousands of agreements and I can\'t tell you which ones have uncapped liability, non-standard indemnification, or termination clauses that deviate from our playbook. When the board asks about our risk exposure, we spend weeks doing manual reviews."',
+    insight: 'Navigator\'s AI analyzes every agreement in the portfolio — extracting clauses, obligations, liability caps, indemnification terms, and non-standard language. Legal teams get a searchable, queryable view of risk across the entire agreement landscape. Ask questions like "show me all contracts with uncapped liability over $1M" or "which agreements have non-standard data processing terms" and get answers in seconds.',
+    proof: 'Legal teams managing 5,000+ agreements typically discover 15-30% contain terms that deviate from their approved playbook — terms they didn\'t know about until Navigator surfaced them. That\'s not a documentation problem. That\'s unmanaged risk that\'s been accumulating with every contract signed.',
+    question: '"If your next board meeting included a complete risk dashboard showing every non-standard clause, every uncapped liability, and every obligation deadline across your entire portfolio — what would that change about how you manage legal risk?"',
+    next: ['navigator', 'legal-would-never-approve', 'pipeline-forecast-exposure']
+  },
+  {
+    id: 'clm-legal',
+    type: 'product',
+    title: 'CLM for Legal: Contract Lifecycle Governance',
+    hook: 'No governed process from authoring through obligation tracking',
+    problem: '"We have no consistent process for how contracts get drafted, reviewed, negotiated, and tracked after signature. Every attorney has their own approach. Playbook compliance is manual. And once a contract is signed, the obligations in it basically disappear."',
+    insight: 'CLM provides end-to-end contract lifecycle governance: clause libraries with approved language, automated playbook compliance checks during drafting, structured negotiation workflows with redline tracking, and post-signature obligation management. Every agreement follows a governed process from first draft to expiration — with AI flagging deviations, tracking obligations, and alerting on upcoming deadlines.',
+    proof: 'Legal teams using CLM reduce agreement cycle time by 40-60% on routine contracts because standardized templates, automated clause insertion, and AI-powered deviation detection eliminate the manual review bottleneck. Post-signature, obligation tracking catches deadlines that manual processes miss — notice periods, compliance certifications, and performance milestones that create liability when they\'re forgotten.',
+    question: '"What would change if every contract your organization signed followed a governed process — approved clauses, automated compliance checks, and tracked obligations — without your attorneys having to manually enforce it?"',
+    next: ['clm', 'already-have-clm', 'renewal-revenue-risk']
+  },
+  {
+    id: 'agreement-desk-legal',
+    type: 'product',
+    title: 'Agreement Desk for Legal: AI-Assisted Contract Review',
+    hook: 'Manual redlining and review consuming attorney time',
+    problem: '"Every contract that comes in for review sits in someone\'s queue. There\'s no triage — a low-risk NDA gets the same treatment as a complex enterprise agreement. And the actual review process is manual: read every line, compare against our playbook in your head, mark up the document, send it back. Repeat until signed."',
+    insight: 'Agreement Desk is the intake, collaboration, and AI-assisted review hub for negotiated agreements. Incoming contracts are automatically triaged by risk level and complexity. AI highlights deviations from your approved playbook and suggests standard alternative language. Attorneys collaborate on reviews within the platform with full version history and audit trail. The result: routine agreements move through faster, complex negotiations get the attention they deserve, and every review decision is documented.',
+    proof: 'Legal teams using Agreement Desk report that AI-assisted review cuts first-pass review time by 50-70% on routine contracts. The AI doesn\'t replace the attorney — it does the mechanical comparison work so the attorney can focus on the judgment calls. And the triage system ensures that senior attorneys aren\'t spending time on agreements that could be handled through standardized workflows.',
+    question: '"What if every incoming agreement was automatically compared against your playbook, with deviations highlighted and alternative language suggested — before an attorney even opens the document? How much review time would that save your team?"',
+    next: ['agreement-desk', 'legal-would-never-approve', 'renewal-revenue-risk']
+  },
+  {
+    id: 'navigator-procurement',
+    type: 'product',
+    title: 'Navigator for Procurement: Vendor Agreement Intelligence',
+    hook: 'No visibility into vendor terms, spend, and renewal timelines',
+    problem: '"I have vendor contracts spread across every department and I can\'t tell you our total spend with any single vendor, what auto-renewal dates are coming up, or whether we\'re paying different rates for the same service in different business units. Every negotiation starts with weeks of data gathering."',
+    insight: 'Navigator ingests every vendor agreement across the organization and uses AI to extract pricing, payment terms, renewal dates, auto-renewal clauses, SLAs, and liability terms. Procurement gets a unified dashboard of vendor relationships — total spend per vendor, upcoming renewal timelines, term inconsistencies across business units, and consolidation opportunities. Automated alerts fire 90 days before renewal windows open, with a summary of current terms and recommended negotiation leverage points.',
+    proof: 'Procurement teams using Navigator for vendor intelligence typically identify 10-20% in cost reduction opportunities within the first 30 days — from missed auto-renewals, duplicate vendor relationships, and pricing inconsistencies they couldn\'t see before. The ROI case usually pays for the platform within the first renewal cycle.',
+    question: '"What if before every vendor renewal, your team had a complete dossier: total spend across all business units, current terms versus market benchmarks, and a 90-day head start on the negotiation? What would that do to your cost savings numbers?"',
+    next: ['vendor-agreement-chaos', 'vendor-renewal-visibility', 'vendor-contracts-not-complex']
+  },
+  {
+    id: 'maestro-procurement',
+    type: 'product',
+    title: 'Maestro for Procurement: Automated Agreement Routing',
+    hook: 'No automated intake or routing for procurement agreements',
+    problem: '"Agreement requests come in from every direction — email, Slack, tickets, phone calls. There\'s no standard intake, no automatic routing based on value or risk, and no visibility into what\'s pending. Departments bypass us because the process is too slow, and we don\'t find out until the invoice shows up."',
+    insight: 'Maestro creates no-code procurement workflows that automate the entire agreement lifecycle from request to execution. Web Forms provide a structured intake that captures the request details. Maestro routes based on your rules — value thresholds, risk categories, vendor type, department — to the right approvers automatically. Conditional logic handles exceptions, escalations, and parallel approvals. The result: a procurement process that\'s fast enough to use and governed enough to trust.',
+    proof: 'Organizations that implement Maestro for procurement intake see a 60-80% reduction in cycle time for standard vendor agreements and a significant drop in maverick spend — because when the approved process is faster than going around it, people actually use it. Procurement gets complete visibility into every agreement in flight without chasing status updates.',
+    question: '"What if every vendor agreement request — from a $500 SaaS subscription to a $5M enterprise contract — automatically followed the right process, with the right approvals, at the right speed? And you had a real-time dashboard of everything in flight?"',
+    next: ['procurement-intake-routing', 'legal-would-never-approve', 'contract-risk-exposure']
+  },
+  {
+    id: 'already-have-clm',
+    type: 'objection',
+    title: 'We already have a CLM tool',
+    hook: 'Existing CLM investment perceived as sufficient',
+    problem: '"We already have a CLM tool — we\'re covered on the contract side."',
+    insight: '"That makes sense — a lot of the organizations we work with have some form of CLM in place. And for getting documents signed and stored, those tools often work fine." "Where we see the gap isn\'t in getting contracts executed — it\'s in what happens to the data afterward. Can your current tool tell you, across your entire portfolio, which contracts have price escalation clauses that aren\'t being exercised? Can it automatically push accurate pricing into billing when an amendment gets signed? Can a rep pull up a complete relationship view before a renewal in under a minute?"',
+    proof: '"Most CLM tools are built around the document workflow — draft, negotiate, sign, store. What they don\'t solve is the agreement intelligence layer: structuring the data inside those contracts and making it flow into the systems that need it. That\'s where the 3 to 12 percent leakage we see across organizations actually lives."',
+    question: '"What if we looked at a handful of your existing contracts and showed you what structured, actionable data looks like compared to what you\'re getting today? It usually makes the gap pretty concrete."',
+    next: ['clm', 'competitive-positioning', 'have-procurement-system']
+  },
+  {
+    id: 'process-works-fine',
+    type: 'objection',
+    title: 'Our process works fine / we\'re not losing money',
+    hook: 'Invisible revenue leakage dismissed as non-issue',
+    problem: '"Honestly, our process works. We\'re not seeing revenue leakage or major problems."',
+    insight: '"I hear that, and I wouldn\'t expect you to see it as a burning platform — that\'s actually part of the challenge." "The nature of agreement data errors is that they\'re quiet. Nobody sounds an alarm. A billing credit here, a commission dispute there, a renewal that didn\'t capture an escalation clause — individually, none of those feel like a crisis. But they compound. The organizations we work with typically discover the leakage is 3 to 12 percent of contract value once they actually measure it."',
+    proof: '"Here\'s a quick way to test it: How many billing credits did you issue last year? How many commission disputes? How many renewals went into negotiation without the rep having the full contract picture? Each of those has a cost — and most organizations are surprised by the total when they add it up."',
+    question: '"We could do a quick analysis on a slice of your portfolio — pick 20 or 30 contracts and look at what\'s actually in them versus what\'s in your downstream systems. It\'s usually an eye-opening exercise."',
+    next: ['iam-core', 'rep-selling-time', 'cant-justify-cost']
+  },
+  {
+    id: 'not-ready-for-ai',
+    type: 'objection',
+    title: 'We\'re not ready for AI',
+    hook: 'AI skepticism or risk aversion',
+    problem: '"We\'re interested in AI long-term, but we\'re not ready for that yet."',
+    insight: '"That\'s a fair concern — there\'s a lot of AI noise right now and not all of it is practical." "The way we think about it: AI isn\'t the point. The outcome is the point. Your reps need to understand what\'s in their contracts without spending a day and a half reading through them. Your ops team needs agreement data to flow into billing and comp without manual re-keying. Those are process problems that have existed for years — AI just happens to be what makes solving them practical now."',
+    proof: '"This isn\'t generative AI writing your contracts or making decisions. It\'s AI reading documents, extracting structured data, organizing contract families hierarchically, and identifying which terms prevail — tasks that are well-defined and verifiable. You can see exactly what it extracted and correct it if needed. It\'s less \'black box\' and more \'very fast, very accurate paralegal.\'"',
+    question: '"The best way to get comfortable with it is to see it work on your own contracts. No hypotheticals — your actual documents, your actual complexity. That tends to move the conversation from abstract to concrete pretty quickly."',
+    next: ['navigator', 'pipeline-forecast-exposure', 'forecast-accuracy']
+  },
+  {
+    id: 'just-need-esignature',
+    type: 'objection',
+    title: 'We just need e-signature',
+    hook: 'Narrow framing limits perceived need',
+    problem: '"We\'re really just looking for a better e-signature solution."',
+    insight: '"Understood — and e-signature is definitely part of the picture. Getting documents signed has actually gotten pretty easy." "Here\'s the thing though: signature is maybe 20 percent of the story. The other 80 percent is what happens to the data inside that document — where it goes, how accurately it gets there, and whether it\'s working for you or creating problems for you. The signature is the easy part. The hard part is everything around it: assembling the right terms, managing the negotiation, and then making sure the agreed-upon data actually flows into billing, comp, CRM, and compliance."',
+    proof: '"We see organizations that solved e-signature years ago but still have reps spending hours prepping for renewals, ops teams manually re-keying data into five systems after every deal closes, and commission disputes because the contract value in the comp system doesn\'t match the actual agreement. The signature works great — everything else is still held together with duct tape."',
+    question: '"We absolutely handle the signature piece, but I\'d love to show you what the full lifecycle looks like — because if you\'re going to invest in this space, solving just the signature leaves 80 percent of the value on the table."',
+    next: ['iam-core', 'navigator', 'the-downstream-problem']
+  },
+  {
+    id: 'tried-before-didnt-work',
+    type: 'objection',
+    title: 'We tried something like this before and it didn\'t work',
+    hook: 'Past implementation failure creating resistance',
+    problem: '"We actually implemented something similar a couple years ago. It was a mess — low adoption, didn\'t deliver what was promised."',
+    insight: '"That\'s really helpful context, and I appreciate you being direct about it. A bad implementation experience is one of the hardest things to overcome." "Can I ask what specifically didn\'t work? Because in most cases we hear about, the issue wasn\'t that the concept was wrong — it\'s that the tool couldn\'t handle the complexity. It couldn\'t organize a family of contracts hierarchically. It couldn\'t make sense of amendments that modified earlier terms. It couldn\'t extract reliable structured data from real-world documents that aren\'t clean and uniform."',
+    proof: '"The AI capability gap between two years ago and today is significant. Two years ago, you couldn\'t point a system at a stack of contracts and say \'organize these, tell me which terms prevail, and extract the key commercial data\' and get a usable answer. Now you can — in minutes, in natural language, and with enough accuracy that it\'s practical for real work."',
+    question: '"The best way to address the \'is it different this time\' question is to test it on the exact contracts that broke the last tool. Bring the hardest, messiest ones you\'ve got. That\'s where the difference shows up."',
+    next: ['commission-disputes', 'rep-trust-commissions', 'not-ready-for-ai']
+  },
+  {
+    id: 'not-a-priority',
+    type: 'objection',
+    title: 'This isn\'t a priority right now',
+    hook: 'Urgency gap — cost of inaction not quantified',
+    problem: '"Interesting, but we\'ve got bigger priorities this quarter. Maybe circle back next year."',
+    insight: '"I completely understand — you\'ve got a finite amount of bandwidth and everything has to earn its spot on the roadmap." "The challenge with agreement data problems is they don\'t feel urgent because they\'re not dramatic. But they are expensive. Every quarter you wait, your team is leaking value on renewals where reps don\'t have the full picture, burning ops cycles on manual data re-keying, and processing commission disputes that didn\'t need to exist. That\'s happening right now, this quarter."',
+    proof: '"Here\'s a way to size it: take your renewal portfolio for next quarter. How many of those reps will go into the conversation fully informed about escalation clauses, amendment history, and current terms? For the ones who don\'t, what\'s the cost per deal of going in blind? Even a 2 to 3 percent improvement in renewal uplift across the portfolio typically dwarfs the investment."',
+    question: '"I\'m not asking you to reprioritize your entire roadmap. What if we just looked at your renewal portfolio for the next two quarters and quantified the exposure? If the number is small, we\'ll shake hands and I\'ll stop bugging you. If it\'s not, at least you\'ll have the data to make the case internally."',
+    next: ['process-works-fine', 'iam-core', 'rep-selling-time']
+  },
+  {
+    id: 'legal-would-never-approve',
+    type: 'objection',
+    title: 'Legal would never go for this',
+    hook: 'Legal as gatekeeper or risk proxy',
+    problem: '"Our legal team would never approve AI touching our contracts."',
+    insight: '"Legal\'s concerns are legitimate — contracts are sensitive documents, and any tool that touches them needs to meet a high bar for security, accuracy, and control." "Here\'s what\'s interesting though: legal teams are often the biggest beneficiaries of this once they see it. Right now, their team is probably spending a huge amount of time on low-value work — hunting down the right template version, manually reviewing amendments against the MSA, answering \'what does our contract with X say about Y\' questions from sales and ops. That\'s not strategic legal work. That\'s document archaeology."',
+    proof: '"We work with legal teams at organizations that started with the exact same concern. What moved them was seeing the accuracy and the controls: the system shows exactly what it extracted and where in the document it came from. Nothing gets changed in a contract — it\'s reading and structuring data, not modifying agreements. Legal reviews and approves the extraction. They\'re not losing control; they\'re gaining leverage."',
+    question: '"What if we set up a conversation that includes your legal stakeholders? We can walk through the security model, the accuracy benchmarks, and the control framework. In our experience, legal goes from skeptic to champion pretty quickly once they see it."',
+    next: ['idv', 'contract-risk-visibility', 'contract-risk-exposure']
+  },
+  {
+    id: 'cant-justify-cost',
+    type: 'objection',
+    title: 'We can\'t justify the cost',
+    hook: 'ROI unclear or budget authority limited',
+    problem: '"The pricing doesn\'t work for us. We can\'t justify that kind of spend right now."',
+    insight: '"Budget is always a constraint, and I wouldn\'t want you to invest in something you can\'t see a clear return on." "Let me flip the question: what is the current process costing you? Not the tools — the process. The rep hours spent on contract archaeology instead of selling. The ops hours spent re-keying data into downstream systems. The billing credits from invoice errors. The commission dispute resolution cycles. The renewals that went flat when an escalation clause could have been exercised."',
+    proof: '"Organizations typically leak 3 to 12 percent of total contract value through these kinds of downstream data errors and missed opportunities. On a $50 million agreement portfolio, that\'s $1.5 to $6 million annually. Even recovering a fraction of that pays for the platform many times over. And that\'s before you factor in the time your team gets back."',
+    question: '"We can build a business case together using your actual numbers — your contract volume, your renewal portfolio, your dispute rate. If the math doesn\'t work, I\'ll be the first to tell you. But in our experience, the ROI conversation gets a lot easier once you quantify what the status quo actually costs."',
+    next: ['renewal-escalation-clauses', 'procurement-not-priority', 'iam-core']
+  },
+  {
+    id: 'contracts-not-complex',
+    type: 'objection',
+    title: 'Our contracts aren\'t that complex',
+    hook: 'Underestimating accumulated contract complexity',
+    problem: '"We don\'t have super complex contracts. This seems like overkill for what we need."',
+    insight: '"That\'s possible — and if your agreement structure is genuinely simple, some of this won\'t apply." "But let me ask: how many of your customer relationships involve just a single, standalone contract with no amendments? In most organizations, even \'simple\' contracts accumulate complexity over time — an amendment here, a change order there, a side letter, an SOW that references the MSA. After two or three years, you\'ve got a family of documents, and the question of \'what did we actually agree to?\' isn\'t as simple as it seems."',
+    proof: '"The rep in your organization who\'s preparing for a renewal on an account that\'s been around for three years — is she looking at one document, or is she piecing together four or five? And is she confident she knows which terms actually prevail? That\'s where complexity hides — not in individual contracts, but in the accumulation over time."',
+    question: '"Here\'s an easy test: pick five accounts that have been customers for more than two years. Pull all the agreements associated with each one. If it takes less than 30 minutes to get a clear, confident picture of the current terms for all five, you\'re right — you might not need this. But if it takes longer, that\'s exactly the problem we solve."',
+    next: ['amendment-data-flow', 'iam-core', 'rep-selling-time']
+  },
+  {
+    id: 'too-many-process-changes',
+    type: 'objection',
+    title: 'We\'d need to change too many processes',
+    hook: 'Change management fear and disruption risk',
+    problem: '"This would require us to overhaul too many processes. We don\'t have the bandwidth for that kind of change management."',
+    insight: '"That\'s a legitimate concern — nobody wants to rip and replace their entire workflow, especially when the team is already stretched." "The good news is this doesn\'t require a process overhaul. It plugs into what you\'re already doing. Your reps still work in the CRM. Your billing team still uses the same system. Your comp process doesn\'t change. What changes is how the data gets there — instead of a human reading a contract and manually entering data into five systems, the data flows from the agreement automatically. Same destination, better pipeline."',
+    proof: '"Think of it this way: right now, every signed contract kicks off a manual data distribution process — someone reads it, extracts the terms, and updates billing, CRM, comp, and maybe a few other systems. That process doesn\'t go away. It just stops being manual. Your people stop being data-entry middleware and start doing the work they were actually hired to do."',
+    question: '"Most of our customers start with a single workflow — usually renewals or post-signature data distribution — and expand from there. We don\'t ask you to boil the ocean. Start with the process that hurts the most, prove the value, and build from there."',
+    next: ['legal-team-too-busy', 'iam-core', 'rep-selling-time']
+  },
+  {
+    id: 'ai-touching-contracts',
+    type: 'objection',
+    title: 'We\'re not comfortable with AI touching our contracts',
+    hook: 'Distrust of AI applied to legal documents',
+    problem: '"We\'re not comfortable with AI reading or making decisions about our contracts. These are sensitive legal documents."',
+    insight: '"That\'s exactly the right instinct — and it\'s one of the most common concerns we hear from legal teams. Contract data is some of the most sensitive information in any organization, and healthy skepticism about AI in this context is a sign of good governance." "The way we approach it is that AI assists — it doesn\'t decide. Navigator\'s AI extracts and organizes clause data, surfaces patterns, and flags deviations from your playbook. But every decision still lives with your attorneys. Think of it as giving your team superpowers for finding and analyzing information, not replacing their judgment."',
+    proof: '"On the data security side: your contracts stay in your Docusign environment. The AI models are purpose-built for agreement analysis — they\'re not general-purpose LLMs trained on your data. And you have full control over which agreements are analyzed and who has access to the results. We can walk you through the security architecture in detail."',
+    question: '"What if we started with a controlled pilot — a subset of your lower-risk agreements — so your team can see exactly what the AI does and doesn\'t do before making any broader decisions?"',
+    next: ['monitor', 'contract-risk-exposure', 'legal-would-never-approve']
+  },
+  {
+    id: 'legal-team-too-busy',
+    type: 'objection',
+    title: 'Our legal team is too busy to implement another tool',
+    hook: 'Implementation burden on already-stretched legal team',
+    problem: '"We\'d love better contract management, but my team is drowning — we can\'t take on a major implementation right now."',
+    insight: '"I completely understand. The last thing an overloaded legal team needs is a six-month implementation project that makes things worse before they get better." "That\'s actually one of the reasons our customers choose IAM — the implementation is designed to deliver value fast, not drain your team\'s time. Navigator can start analyzing your existing agreements within days of upload, not months. There\'s no massive data migration or process redesign required upfront. Your team keeps working the way they work today, and the system starts surfacing insights immediately."',
+    proof: '"Most legal teams see the first value — portfolio visibility, clause extraction, renewal tracking — within the first two weeks. And the setup doesn\'t require your attorneys to do the heavy lifting. Our implementation team handles the configuration, and your team just validates the results."',
+    question: '"What if the implementation itself was the relief? Imagine two weeks from now, your team has a searchable view of every agreement in the portfolio with key clauses already extracted. Would that alone be worth the effort?"',
+    next: ['too-many-process-changes', 'iam-core', 'rep-selling-time']
+  },
+  {
+    id: 'already-have-outside-counsel',
+    type: 'objection',
+    title: 'We rely on outside counsel for contract review',
+    hook: 'Outside counsel perceived as sufficient for contract needs',
+    problem: '"We use outside counsel for most of our contract work — we don\'t need an internal system for this."',
+    insight: '"Outside counsel is a critical part of most legal teams\' strategy, especially for specialized or high-stakes negotiations. We\'re not suggesting you replace that relationship." "The question isn\'t whether you need outside counsel — it\'s whether you\'re sending them work that could be handled more efficiently in-house, and whether you have the visibility to manage them effectively. How much do you spend annually on outside counsel for routine contract review? And when they review your agreements, do you get structured data back — or just marked-up documents?"',
+    proof: '"What we see with legal teams that adopt IAM is that they don\'t eliminate outside counsel — they make better use of them. Routine agreements get handled through standardized internal workflows. AI flags the contracts that actually need attorney review. And when you do send work to outside counsel, you send it with structured data and context so they\'re not starting from scratch. The result is typically a 20-40% reduction in outside legal spend on routine matters."',
+    question: '"What if we looked at your last quarter of outside counsel invoices and identified which of those engagements could have been handled through a standardized internal workflow? That usually makes the ROI case pretty clearly."',
+    next: ['legal-team-leverage', 'iam-core', 'renewal-prep-time']
+  },
+  {
+    id: 'have-procurement-system',
+    type: 'objection',
+    title: 'We already have a procurement system',
+    hook: 'Existing procurement tools perceived as sufficient',
+    problem: '"We already have a procurement system — Coupa, SAP Ariba, Jaggaer — we\'re covered."',
+    insight: '"That makes sense — and those are great tools for what they do. P2P systems like Coupa and Ariba are excellent at managing requisitions, purchase orders, and invoice matching." "Where we see the gap is between the purchase order and the actual agreement. Your procurement system tracks what you ordered and what you paid — but can it tell you what the contract actually says? Can it extract pricing terms, liability caps, auto-renewal dates, and SLAs from the agreements themselves? Can it alert you 90 days before a renewal window opens with a summary of the current terms and your negotiation leverage?"',
+    proof: '"Most procurement systems treat the contract as an attachment — a PDF that gets filed. IAM treats it as structured data. Navigator extracts the commercial terms, obligations, and renewal dates from every vendor agreement and makes them searchable and actionable. It\'s the layer between your procurement workflow and the actual agreement intelligence that most organizations are missing."',
+    question: '"What if we showed you the difference between what your current system knows about your top 10 vendor contracts versus what Navigator can extract? The delta is usually eye-opening."',
+    next: ['salesforce-upgrade', 'competitive-positioning', 'already-have-clm']
+  },
+  {
+    id: 'vendor-contracts-not-complex',
+    type: 'objection',
+    title: 'Our vendor contracts aren\'t that complex',
+    hook: 'Perceived simplicity of vendor agreements',
+    problem: '"Our vendor contracts are pretty straightforward — we don\'t need AI to manage them."',
+    insight: '"You\'re right that any single vendor contract might be relatively straightforward. An NDA, a standard SaaS agreement, a consulting SOW — individually, these aren\'t complicated." "The complexity isn\'t in any one contract — it\'s in the aggregate. When you have hundreds or thousands of vendor agreements across the organization, the questions that matter aren\'t about individual documents. They\'re questions like: What\'s our total exposure to this vendor across all business units? Which contracts have auto-renewal clauses coming due next quarter? Are we paying different rates with the same vendor in different departments? Those are portfolio-level questions that simple contracts add up to."',
+    proof: '"We consistently find that organizations with \'simple\' vendor contracts discover $200K-500K in savings opportunities once they can actually see the full picture — duplicate vendors, missed renewal windows, pricing inconsistencies across departments, and terms that were never renegotiated. The complexity was always there. They just couldn\'t see it."',
+    question: '"What if we ran Navigator against a sample of your vendor agreements — even the \'simple\' ones — and showed you what patterns and opportunities emerge at the portfolio level? Most teams are surprised by what they find."',
+    next: ['navigator-procurement', 'vendor-agreement-chaos', 'vendor-renewal-visibility']
+  },
+  {
+    id: 'procurement-not-priority',
+    type: 'objection',
+    title: 'Procurement optimization isn\'t a priority right now',
+    hook: 'Procurement deprioritized relative to other initiatives',
+    problem: '"We have bigger priorities right now. Procurement optimization is on the list, but it\'s not at the top."',
+    insight: '"That\'s fair — every organization has competing priorities, and procurement modernization isn\'t always the loudest voice in the room." "Here\'s what we\'ve seen, though: the cost of waiting isn\'t zero. Every auto-renewal that triggers without review, every vendor negotiation where you lack consolidation data, every audit that requires weeks of manual preparation — those are costs you\'re paying right now, every quarter. The question isn\'t whether procurement optimization matters, it\'s how much the current state is costing you while it waits on the priority list."',
+    proof: '"When procurement teams quantify the cost of the status quo — missed renewal windows alone typically cost 5-15% in overspend on affected contracts — it usually moves the conversation from \'nice to have\' to \'costing us real money.\' And the implementation effort is measured in weeks, not quarters, so the ROI timeline is short."',
+    question: '"What if we helped you build the business case? We can show you a quick analysis of your vendor renewal timeline and estimated savings from just the renewal visibility alone. That\'s usually enough to get executive attention and move this up the priority stack."',
+    next: ['not-a-priority', 'iam-core', 'rep-selling-time']
+  },
+  {
+    id: 'rep-selling-time',
+    type: 'persona',
+    title: 'Rep Selling Time vs. Contract Archaeology',
+    hook: 'Rep productivity lost to contract research',
+    problem: 'Your best reps are spending a day or more prepping for major renewals — not strategizing, not selling, but digging through shared drives, piecing together MSAs, amendments, and SOWs to figure out what\'s actually in place. They\'re doing document archaeology instead of having customer conversations. And your less disciplined reps? They skip the prep entirely and go in blind.',
+    insight: 'IAM turns contract prep from a day-long scavenger hunt into a five-minute briefing. AI organizes every agreement in the relationship hierarchically, extracts the key terms, and surfaces what matters — current pricing, escalation clauses, amendment history, upcoming obligations. Your reps get complete renewal intelligence without the manual work, which means more time in front of customers and better-prepared conversations when they get there.',
+    proof: null,
+    question: null,
+    next: ['navigator', 'renewal-prep-time', 'iam-for-sales']
+  },
+  {
+    id: 'renewal-revenue-risk',
+    type: 'persona',
+    title: 'Renewal Revenue at Risk from Blind Negotiations',
+    hook: 'Renewal value leakage from unprepared reps',
+    problem: 'Reps are heading into renewal conversations without knowing the full picture. There\'s an escalation clause nobody surfaced. There are three amendments that changed the scope significantly. The customer added products two years ago under terms that should inform the renewal pricing. Your rep doesn\'t know any of this, but the customer probably does. That\'s a weak negotiating position, and it happens on deal after deal.',
+    insight: 'When reps walk into every renewal fully informed — knowing the pricing history, the specific clauses available to them, the amendment trail, and the expansion opportunities — they negotiate from strength. They exercise escalation clauses that were going unused. They identify upsell angles embedded in the existing agreement. They stop defaulting to flat renewals when the contract gives them room to grow.',
+    proof: null,
+    question: null,
+    next: ['renewal-escalation-clauses', 'clm', 'the-hook']
+  },
+  {
+    id: 'pipeline-forecast-exposure',
+    type: 'persona',
+    title: 'Pipeline and Forecast Exposure from Agreement Data Gaps',
+    hook: 'Forecast blind spots from untracked agreement events',
+    problem: 'New business pipeline is well-instrumented — CRM stages, probability weighting, deal reviews. But agreement-driven risk is a blind spot. Auto-renewal windows that nobody\'s tracking. Termination notice periods that could remove revenue from the plan. Escalation clauses that could add upside nobody\'s forecasting. The existing agreement portfolio is a black box that can move the number, and it\'s not reflected in the forecast.',
+    insight: 'IAM surfaces agreement-level risk and opportunity directly into the revenue conversation. Termination windows, auto-renewal dates, escalation triggers, obligation deadlines — all of it extracted, tracked, and flagged before it becomes a surprise. Your forecast incorporates not just pipeline progression but agreement portfolio dynamics. You stop getting blindsided by contract-driven events and start planning around them.',
+    proof: null,
+    question: null,
+    next: ['forecast-accuracy', 'navigator-legal', 'not-ready-for-ai']
+  },
+  {
+    id: 'customer-experience-risk',
+    type: 'persona',
+    title: 'Customer Experience and Relationship Risk from Downstream Errors',
+    hook: 'Customer trust eroded by operational agreement errors',
+    problem: 'A billing error on a key account creates a dispute. The dispute stalls the renewal conversation. The stalled renewal means the rep can\'t close the deal in quarter. Meanwhile, the cross-sell opportunity your team was counting on is dead because the customer is frustrated. And it all traces back to someone fat-fingering a data entry when they moved a number from a contract into the billing system. These aren\'t edge cases — they\'re patterns that erode customer trust one incident at a time.',
+    insight: 'When agreement data flows accurately into downstream systems — billing, fulfillment, compliance — the customer experience is clean. Invoices match the contract. Obligations get met. SLAs get tracked. The relationship isn\'t getting damaged by operational errors that have nothing to do with the quality of your product or service. Your account teams can focus on growing the relationship instead of cleaning up messes.',
+    proof: null,
+    question: null,
+    next: ['iam-for-cx', 'the-downstream-problem', 'already-have-clm']
+  },
+  {
+    id: 'competitive-positioning',
+    type: 'persona',
+    title: 'Competitive Positioning: Reps Armed with Agreement Intelligence',
+    hook: 'Competitive disadvantage from uninformed reps',
+    problem: 'Your competitors are having smarter conversations with your customers. They\'re doing their homework. Meanwhile, your rep is walking into an expansion conversation without knowing the full scope of the existing relationship — what\'s been agreed, what\'s changed, what\'s underutilized, what\'s up for renewal. She\'s not armed with the intelligence she needs, and the customer can feel it. In a competitive situation, the rep who understands the relationship better wins.',
+    insight: 'IAM turns your agreement portfolio into a competitive advantage. Every rep walks into every conversation with a complete view of the relationship: what\'s in place, what\'s changed, what\'s available to leverage, and what\'s coming up. They\'re not guessing or reconstructing — they\'re informed. In competitive deals, that preparedness is visible to the customer, and it signals that you take the relationship seriously. That\'s a differentiator that doesn\'t show up in an RFP but absolutely shows up in win rates.',
+    proof: null,
+    question: null,
+    next: ['clm-plus-navigator', 'already-have-clm', 'renewal-prep-time']
+  },
+  {
+    id: 'commission-disputes',
+    type: 'persona',
+    title: 'Commission Dispute Volume and Trust Erosion',
+    hook: 'Commission disputes consuming ops resources',
+    problem: 'Commission disputes are a recurring tax on the team. Every cycle, a stack of disputes comes in. Each one requires forensic work: pull the contract, find the amendment, compare the deal value in the comp system to what\'s actually in the agreement, build the case, deliver the answer. Hours per dispute, dozens per cycle. And the emotional cost is real — reps lose trust in the system, managers escalate, and the ops team is stuck in the middle of a problem they didn\'t create. The root cause is almost always the same: the data in the comp system doesn\'t match the contract because someone manually entered it and something got lost.',
+    insight: 'When commission calculations pull directly from structured agreement data — the actual contract terms, not someone\'s interpretation of them — you eliminate the most common root cause of disputes. The contract value in the comp system matches the agreement because it came from the agreement. Disputes drop. Trust goes up. Your team gets hours back every cycle to work on strategic comp design instead of firefighting data discrepancies.',
+    proof: null,
+    question: null,
+    next: ['rep-trust-commissions', 'not-ready-for-ai', 'the-downstream-problem']
+  },
+  {
+    id: 'manual-data-rekeying',
+    type: 'persona',
+    title: 'Manual Data Re-Keying Across Billing/CRM/Comp Systems',
+    hook: 'Human middleware between contracts and systems',
+    problem: 'After every signed contract, someone on the team reads the document, extracts the key terms, and manually enters them into three, four, sometimes five systems — billing, CRM, comp, revenue recognition, fulfillment. It\'s tedious, error-prone, and invisible until something breaks. And things break regularly: wrong pricing in billing, mismatched values in CRM, contract data that doesn\'t make it into the comp system until someone disputes a check. The team is functioning as human middleware between a PDF and a bunch of systems.',
+    insight: 'IAM automates the post-signature data flow. Pricing, terms, schedules, obligations — all structured and routed directly from the agreement into the systems that need them. No re-keying. No copy-paste. No hoping someone remembered to update the spreadsheet. Your team stops being data-entry middleware and starts doing the analytical and strategic work they were hired for. And the error rate on downstream data drops to near zero because it\'s coming from the source, not from someone\'s reading of the source.',
+    proof: null,
+    question: null,
+    next: ['manual-data-handoff', 'iam-for-sales', 'the-downstream-problem']
+  },
+  {
+    id: 'system-of-record-chaos',
+    type: 'persona',
+    title: 'System-of-Record Chaos and Data Reconciliation Burden',
+    hook: 'No single source of truth for agreement data',
+    problem: 'Ask three people in the organization what the current terms are for a given customer and you\'ll get three different answers — because CRM says one thing, billing says another, and the actual contract says a third. The ops team knows this and spends time on reconciliation exercises, data cleanup projects, and audit-response work. There\'s no real system of record because the actual source of truth — the agreement — is trapped in an unstructured document that doesn\'t talk to anything.',
+    insight: 'IAM makes the agreement the live, structured system of record. When terms change — an amendment, a renewal, a change order — the structured data updates and flows through to every connected system. No more version drift. No more "which system has the right number." No more quarterly reconciliation exercises. One source, one truth, every system aligned. Your team goes from chasing data consistency to having it by default.',
+    proof: null,
+    question: null,
+    next: ['monitor', 'system-of-record-fragmentation', 'spend-visibility-audit-readiness']
+  },
+  {
+    id: 'agreement-cycle-time',
+    type: 'persona',
+    title: 'Process Bottlenecks from Agreement Cycle Time',
+    hook: 'Agreement process as velocity bottleneck',
+    problem: 'The agreement process is the bottleneck they can\'t fix. Getting a contract from first draft to signature takes days at best, weeks realistically. Someone finds a template — hopefully the right one, hopefully current. They pull data from CRM, maybe a spreadsheet. They assemble a draft. Then it goes out for review via email. Redlines in Word. Track changes flying back and forth. The AE is playing project manager. And after signature, the ops work begins — manually processing the deal into every system. The total cycle from "deal approved" to "fully operationalized" can take weeks, and every day is friction.',
+    insight: 'IAM compresses both sides of the cycle. On the front end: automated template selection, CRM-connected data population, workflow-driven routing and approvals, real-time status visibility. The AE stops being a project manager and goes back to selling. On the back end: automatic post-signature data distribution into billing, comp, CRM, and compliance. The total cycle from deal approval to full operationalization drops from weeks to days, or days to hours. Your team\'s velocity problem isn\'t a people problem — it\'s a process problem with a platform solution.',
+    proof: null,
+    question: null,
+    next: ['iam-for-sales', 'legal-bottleneck-cycle-time', 'manual-data-rekeying']
+  },
+  {
+    id: 'reporting-analytics-gaps',
+    type: 'persona',
+    title: 'Reporting and Analytics Gaps from Unstructured Agreement Data',
+    hook: 'Agreement data locked in documents, unreportable',
+    problem: 'Leadership wants to know: what percentage of our contracts include a price escalation clause? What\'s our average discount by segment? How many obligations are we currently tracking? What does our amendment frequency look like? These are reasonable questions, but the answers are locked inside PDFs and Word docs. To answer them, someone would have to manually read through hundreds or thousands of contracts and build a spreadsheet. So the questions go unanswered, or they get answered with "best guess" estimates that everyone knows are unreliable.',
+    insight: 'When every agreement is structured data — terms, clauses, pricing, obligations, dates, parties — you can report on your contract portfolio the same way you report on your pipeline. Clause adoption rates. Discount trends. Obligation exposure. Amendment patterns. Renewal concentration risk. The data that was trapped in documents becomes the foundation for strategic analysis that drives better decisions on pricing, packaging, risk management, and negotiation strategy.',
+    proof: null,
+    question: null,
+    next: ['vendor-spend-fragmentation', 'the-vision', 'spend-visibility-audit-readiness']
+  },
+  {
+    id: 'contract-risk-visibility',
+    type: 'persona',
+    title: 'Contract Risk Visibility Across the Portfolio',
+    hook: 'Can\'t see aggregate risk exposure across agreements',
+    problem: 'With thousands of agreements scattered across shared drives, CLM repositories, and email, there\'s no way to query the portfolio for specific risk factors. When the board asks "what\'s our total uncapped liability exposure?" or M&A due diligence requires a clause inventory, the team spends weeks on manual review. Non-standard terms slip through because nobody can compare what was signed against what was approved at scale.',
+    insight: 'IAM with Navigator gives legal teams AI-powered visibility into their entire agreement portfolio. Every clause, obligation, and deviation from standard terms is extracted, organized, and searchable. Instead of manual contract-by-contract review, the GC can run portfolio-wide queries in minutes — surface all agreements with uncapped liability, find every non-standard indemnification clause, or identify contracts approaching renewal with unfavorable terms.',
+    proof: null,
+    question: null,
+    next: ['contract-risk-exposure', 'clm', 'legal-would-never-approve']
+  },
+  {
+    id: 'legal-team-leverage',
+    type: 'persona',
+    title: 'Legal Team Leverage and Capacity',
+    hook: 'Senior attorneys consumed by routine agreement work',
+    problem: 'Senior attorneys spend a disproportionate amount of time on routine contract reviews — NDAs, standard vendor agreements, low-risk renewals — while complex negotiations and strategic legal work wait in the queue. There\'s no effective triage system, so everything gets treated with the same urgency. Business teams complain that legal is a bottleneck, and some start routing around legal entirely to avoid delays.',
+    insight: 'IAM automates the intake, triage, and routing of agreements so that routine contracts flow through standardized workflows while complex negotiations get escalated to the right attorney. AI-assisted review flags deviations from approved playbooks, so attorneys focus on judgment calls rather than reading every line. The result: faster turnaround for the business, better use of senior legal talent, and fewer agreements signed without proper review.',
+    proof: null,
+    question: null,
+    next: ['iam-core', 'already-have-outside-counsel', 'manual-data-rekeying']
+  },
+  {
+    id: 'obligation-tracking-liability',
+    type: 'persona',
+    title: 'Obligation Tracking and Post-Signature Liability',
+    hook: 'Obligations buried in signed agreements go unmonitored',
+    problem: 'Once a contract is signed, the obligations embedded in it largely disappear into a filing cabinet (physical or digital). Nobody is systematically tracking which commitments the company has made, when they come due, or who is responsible for fulfilling them. Legal finds out about missed obligations when the other party sends a breach notice or threatens litigation. The team is reactive instead of proactive.',
+    insight: 'IAM extracts obligations from every agreement at the point of signature and creates a structured, trackable register. Deadlines, notice periods, compliance certifications, and performance requirements are automatically surfaced with owners assigned and alerts configured. CLM\'s obligation tracking turns post-signature risk from a black box into a managed workflow — so legal can demonstrate compliance proactively instead of discovering failures after the fact.',
+    proof: null,
+    question: null,
+    next: ['clm', 'legal-would-never-approve', 'obligation-deadline-tracking']
+  },
+  {
+    id: 'vendor-agreement-chaos',
+    type: 'persona',
+    title: 'Vendor Agreement Chaos and Renewal Leverage',
+    hook: 'No control over vendor agreements and renewal timelines',
+    problem: 'Vendor agreements are scattered across departments, with no single view of what\'s been signed, what it costs, or when it renews. Auto-renewals trigger without anyone reviewing whether the terms are still competitive. Multiple business units sign separate agreements with the same vendor, missing volume consolidation opportunities. By the time procurement finds out about a contract, the leverage window has already closed.',
+    insight: 'IAM brings every vendor agreement into a single, searchable repository with automatic renewal tracking and alerts. Navigator extracts pricing, terms, and obligations from existing agreements so procurement can see total vendor spend, identify consolidation opportunities, and prepare for renegotiations with complete data. No more auto-renewal surprises, no more fragmented vendor relationships, no more negotiating blind.',
+    proof: null,
+    question: null,
+    next: ['vendor-renewal-visibility', 'navigator-procurement', 'vendor-contracts-not-complex']
+  },
+  {
+    id: 'procurement-intake-routing',
+    type: 'persona',
+    title: 'Procurement Intake and Agreement Routing',
+    hook: 'No structured process for agreement requests',
+    problem: 'There\'s no standardized intake process that\'s fast enough for the business to actually use. Departments bypass procurement because the process takes too long or isn\'t clear. Requests come in via email, Slack, spreadsheets — there\'s no single queue, no automatic routing based on value or risk, and no visibility into what\'s pending. Low-value agreements consume the same review effort as strategic contracts.',
+    insight: 'IAM with Maestro creates a structured intake workflow that routes every agreement request through the right process automatically. Web Forms capture the request details, Maestro routes based on value thresholds and risk categories, and the right approvers are notified at the right time. The process is fast enough that the business uses it willingly, and procurement gets complete visibility into every agreement in flight.',
+    proof: null,
+    question: null,
+    next: ['maestro-procurement', 'legal-would-never-approve', 'contract-risk-exposure']
+  },
+  {
+    id: 'spend-visibility-audit-readiness',
+    type: 'persona',
+    title: 'Spend Visibility and Audit Readiness',
+    hook: 'Can\'t produce spend reports or pass procurement audits cleanly',
+    problem: 'Pulling together a comprehensive spend report requires data from ERP, accounts payable, individual contract files, and departmental records. The numbers never quite match because agreements, POs, and invoices live in different systems with no linkage. When audit season arrives, the team spends weeks assembling documentation that should be available on demand. And there\'s always a nagging concern about contracts they don\'t know about.',
+    insight: 'IAM creates a single source of truth for every vendor agreement, linked to spend data and organized by vendor, department, and category. Navigator\'s AI extraction pulls pricing, payment terms, and obligations from every contract automatically. When the CFO asks "what\'s our total exposure to Vendor X?" or auditors request documentation, the answer is one search away — not a multi-week exercise.',
+    proof: null,
+    question: null,
+    next: ['clm', 'legal-would-never-approve', 'contract-risk-exposure']
+  },
+  {
+    id: 'renewal-prep-time',
+    type: 'discovery',
+    title: 'Renewal Prep Time and Rep Productivity',
+    hook: 'Rep selling time lost to contract archaeology',
+    problem: 'When one of your reps is preparing for a renewal on a large account — say one with an MSA, a few amendments, maybe some SOWs — how long does it typically take them to piece together the full picture of what\'s actually in place?',
+    insight: 'Mentions of hours or days spent digging through shared drives, SharePoint, or email References to reps asking legal or ops to pull contract details for them Frustration about reps doing "admin work" instead of selling Any acknowledgment that reps sometimes skip the prep and go in blind',
+    proof: null,
+    question: 'If they admit reps spend significant time: > "So if you could give that time back to them and have them walk into every renewal fully prepared in minutes instead of hours, what would that do to your renewal rates?"',
+    next: ['navigator', 'rep-selling-time', 'iam-core']
+  },
+  {
+    id: 'contract-data-accessibility',
+    type: 'discovery',
+    title: 'Contract Data Accessibility for Deal Strategy',
+    hook: 'Strategic deal decisions made without agreement data',
+    problem: 'When your team is putting together a deal strategy for a major account — expansion, cross-sell, competitive defense — how easy is it for them to pull up the full contract history and understand the current terms, pricing, and what\'s been amended?',
+    insight: 'Descriptions of fragmented data across multiple systems or drives Mention of relying on institutional knowledge ("only Karen knows that account") Admission that reps don\'t always know the full scope of what\'s been agreed Workarounds like personal spreadsheets or Slack threads to track deal history',
+    proof: null,
+    question: 'If data accessibility is poor: > "One thing we see a lot: the customer often knows their own contract better than the rep does. That puts you in a weak negotiating position. What if your reps could pull up a complete, organized view of every agreement in that relationship in under a minute?"',
+    next: ['esig-to-iam', 'already-have-clm', 'rep-selling-time']
+  },
+  {
+    id: 'forecast-accuracy',
+    type: 'discovery',
+    title: 'Forecast Accuracy and Agreement-Driven Pipeline Risk',
+    hook: 'Pipeline and forecast exposure from agreement data gaps',
+    problem: 'How confident are you that your forecast fully accounts for what\'s happening inside your existing agreement portfolio — things like auto-renewal windows, termination notice periods, or escalation clauses that could move the number up or down?',
+    insight: 'Hesitation or outright admission that agreement-level detail doesn\'t feed the forecast Mention of renewal surprises — accounts that churned or downsized unexpectedly References to pipeline deals that slipped because a contract issue surfaced late Any discussion of forecast misses that traced back to agreement misunderstanding',
+    proof: null,
+    question: 'If they lack visibility: > "Most CROs we talk to have a great handle on new business pipeline, but agreement-driven risk — renewals, auto-renewals, termination windows — is a blind spot. What would it mean to your forecast accuracy if that data was surfaced automatically?"',
+    next: ['pipeline-forecast-exposure', 'navigator-legal', 'not-ready-for-ai']
+  },
+  {
+    id: 'rep-trust-commissions',
+    type: 'discovery',
+    title: 'Rep Trust in Commission Accuracy',
+    hook: 'Commission disputes eroding rep trust and morale',
+    problem: 'How often do your reps question their commission checks — push back on the numbers, file disputes, escalate to their managers about what they think they\'re owed versus what they got paid?',
+    insight: 'A specific number or frequency of disputes (even "a few a quarter" is meaningful) Mention of reps spending time auditing their own pay instead of selling Comments about trust in the comp system — or lack thereof Stories about top performers who left or threatened to leave over comp issues Acknowledgment that the data in the comp system doesn\'t always match the contract',
+    proof: null,
+    question: 'If disputes are common: > "The thing about commission disputes is they\'re corrosive — reps remember them for years. In most cases the root cause isn\'t a bad comp plan, it\'s that the contract data feeding the comp system was manually entered and something got lost in translation. What if the comp system was pulling directly from the actual agreement terms?"',
+    next: ['commission-disputes', 'not-ready-for-ai', 'the-downstream-problem']
+  },
+  {
+    id: 'manual-data-handoff',
+    type: 'discovery',
+    title: 'Manual Data Handoff Volume and Error Rate',
+    hook: 'Manual re-keying between contract and downstream systems',
+    problem: 'After a deal closes and the contract is signed, how many systems need to be updated with data from that agreement — and how much of that is manual? I\'m thinking billing, CRM, comp, revenue recognition, fulfillment...',
+    insight: 'A long list of systems that need updating (more systems = more pain) Descriptions of manual data extraction from PDFs or Word docs Mention of copy-paste, re-keying, or spreadsheet intermediaries References to errors caught downstream — wrong pricing in billing, mismatched values in CRM Time estimates for post-signature data distribution ("it takes two days to fully process a deal")',
+    proof: null,
+    question: 'If multiple manual handoffs: > "Every one of those handoffs is a chance for something to break — and when it does, it usually shows up as a billing error, a commission dispute, or a compliance question weeks later. What would it mean for your team if that data flowed automatically from the agreement into every downstream system?"',
+    next: ['manual-data-rekeying', 'docgen', 'the-downstream-problem']
+  },
+  {
+    id: 'commission-dispute-resolution',
+    type: 'discovery',
+    title: 'Commission Dispute Frequency and Resolution Cost',
+    hook: 'Time and resources spent resolving commission disputes',
+    problem: 'When commission disputes come in — and I\'m guessing they do — what does the resolution process look like? How much time does your team spend tracking down the contract, comparing it to what\'s in the comp system, and reconciling the difference?',
+    insight: 'Specific time per dispute (hours per case is common) Volume indicators ("we get dozens a month" or "every cycle has a handful") Description of manual forensics — pulling the contract, comparing to system data, building a case Mention of the emotional cost — frustrated reps, strained relationships with sales Any indication that disputes are increasing as the organization scales',
+    proof: null,
+    question: 'If it\'s a significant time sink: > "We see this pattern a lot: the dispute itself usually traces back to a single bad handoff — someone entered the wrong value from the contract into the comp system. The resolution takes hours, but the root cause took seconds. What if you could eliminate that entire category of dispute by having the comp system pull directly from the agreement data?"',
+    next: ['commission-disputes', 'the-downstream-problem', 'rep-trust-commissions']
+  },
+  {
+    id: 'system-of-record-fragmentation',
+    type: 'discovery',
+    title: 'System-of-Record Fragmentation Across Tools',
+    hook: 'No single source of truth for agreement data',
+    problem: 'If I asked three different people in your organization what the current contract terms are for a given customer, would I get three consistent answers? Or would it depend on which system they looked in?',
+    insight: 'Laughter or immediate acknowledgment that the answer is "no" References to conflicting data across CRM, billing, legal, and finance systems Descriptions of "which system is the real source of truth" debates Mention of reconciliation exercises or data cleanup projects Comments about audit risk or compliance concerns from inconsistent data',
+    proof: null,
+    question: 'If fragmentation is real: > "That\'s the system-of-record problem. The contract is technically the source of truth, but because the data in it is trapped in a document rather than structured and flowing into your systems, everyone ends up with their own version. What if the agreement itself was the live, structured data source that fed everything downstream?"',
+    next: ['system-of-record-chaos', 'iam-core', 'already-have-clm']
+  },
+  {
+    id: 'obligation-deadline-tracking',
+    type: 'discovery',
+    title: 'Obligation and Deadline Tracking Process',
+    hook: 'SLAs, milestones, and notice windows tracked manually or not at all',
+    problem: 'How does your team currently track contractual obligations — things like SLAs, delivery milestones, termination notice windows, auto-renewal dates? Is there a system for that, or is it more ad hoc?',
+    insight: 'Admissions of calendar-based tracking or spreadsheet-based tracking References to missed deadlines or near-misses ("we almost auto-renewed into bad terms") Lack of a systematic process — "it depends on the account manager" Mention of penalty clauses triggered by missed obligations Any indication that obligations are only discovered reactively, not proactively managed',
+    proof: null,
+    question: 'If tracking is ad hoc: > "One of our customers described their obligation tracking as \'a prayer, not a process.\' The risk isn\'t just missed deadlines — it\'s the cascade effect. A missed termination window auto-renews you into terms you didn\'t want. A missed SLA triggers a penalty that sours the customer relationship right before a renewal conversation. What if all of those were automatically extracted and tracked the moment the contract was signed?"',
+    next: ['clm', 'pipeline-forecast-exposure', 'the-downstream-problem']
+  },
+  {
+    id: 'amendment-data-flow',
+    type: 'discovery',
+    title: 'Amendment and Change-Order Data Flow',
+    hook: 'Amendments creating data drift across systems',
+    problem: 'When an amendment or change order gets executed mid-contract — new pricing, changed scope, added products — how does that updated information make its way into all the systems that need it? Billing, CRM, comp, fulfillment?',
+    insight: 'Descriptions of manual update chains ("someone emails the billing team") Admission that amendments sometimes don\'t get reflected in all systems Stories of downstream errors caused by amendments not being propagated References to timing gaps — "billing doesn\'t get updated for weeks" Mention of customers being invoiced at old rates after an amendment',
+    proof: null,
+    question: 'If amendments create data drift: > "Amendments are where things really break down, because you\'ve got an existing record in every system and now you need to update all of them simultaneously. The original contract data might have been entered correctly, but the amendment creates a new opportunity for every system to get out of sync. What if amendments automatically flowed through to every downstream system the same way the original agreement did?"',
+    next: ['contracts-not-complex', 'manual-data-rekeying', 'the-downstream-problem']
+  },
+  {
+    id: 'renewal-escalation-clauses',
+    type: 'discovery',
+    title: 'Renewal Playbook and Escalation Clause Leverage',
+    hook: 'Leaving money on the table by not leveraging existing agreement terms',
+    problem: 'When your team goes into a renewal, how systematically are they leveraging what\'s already in the contract — price escalation clauses, volume commitments, expansion triggers? Or is it more of a \'start from scratch\' conversation every time?',
+    insight: 'Admission that reps don\'t always know what clauses are available to them References to "leaving money on the table" or underpricing renewals Descriptions of reps defaulting to flat renewals when escalation clauses existed Mention of inconsistent renewal approaches across the team Any data on renewal uplift rates being lower than expected',
+    proof: null,
+    question: 'If clause leverage is low: > "Here\'s what we see: organizations with price escalation clauses in their contracts frequently don\'t exercise them — not because they chose not to, but because nobody surfaced the clause at renewal time. When you multiply that across your entire renewal portfolio, the revenue impact is material. What if every renewal brief automatically included the specific clauses and leverage points available for that account?"',
+    next: ['renewal-revenue-risk', 'clm', 'cant-justify-cost']
+  },
+  {
+    id: 'contract-risk-exposure',
+    type: 'discovery',
+    title: 'Contract Risk Exposure and Liability Gaps',
+    hook: 'Hidden risk in unstructured agreement portfolios',
+    problem: 'If I asked your legal team right now to tell me which contracts across the organization contain uncapped liability, indemnification carve-outs, or non-standard termination clauses — how quickly could they get me that answer?',
+    insight: 'Admissions that they can\'t query across agreements for specific clause types References to manual contract reviews triggered by M&A, audits, or litigation Frustration about inheriting risk from contracts signed by other departments Any mention of "we\'d have to pull those one by one" or reliance on outside counsel for portfolio-level questions',
+    proof: null,
+    question: 'If they acknowledge the blind spot: > "What we\'re hearing from legal teams is that the risk isn\'t in any one contract — it\'s in the thousands of agreements nobody\'s looked at since they were signed. What if you could surface every non-standard clause across your entire portfolio in minutes instead of months?"',
+    next: ['contract-risk-visibility', 'clm', 'legal-would-never-approve']
+  },
+  {
+    id: 'legal-bottleneck-cycle-time',
+    type: 'discovery',
+    title: 'Legal Bottleneck and Agreement Cycle Time',
+    hook: 'Legal team as deal bottleneck',
+    problem: 'When a new agreement comes in for legal review — say a vendor contract or a customer MSA with redlines — what does the typical turnaround look like from intake to approval? And how does that change when the volume spikes at quarter-end?',
+    insight: 'Cycle times measured in weeks rather than days References to legal being the "last stop" that holds up deals Mentions of business teams routing around legal to avoid delays Frustration about low-value or repeat reviews consuming senior attorney time Any acknowledgment of no triage system — everything hits the same queue',
+    proof: null,
+    question: 'If they admit to bottleneck pressure: > "So your highest-value attorneys are spending time on routine reviews that could be triaged or partially automated, while the complex negotiations wait in line. What would it mean for the business if you could cut that routine review time in half and reserve your team for the agreements that actually need judgment?"',
+    next: ['iam-for-sales', 'ai-touching-contracts', 'agreement-cycle-time']
+  },
+  {
+    id: 'nonstandard-terms-slipping-through',
+    type: 'discovery',
+    title: 'Non-Standard Terms Slipping Through Approvals',
+    hook: 'Unapproved terms making it into executed agreements',
+    problem: 'How confident are you that every agreement being signed across the organization is using approved language? When a sales rep or procurement manager negotiates changes to standard terms, what\'s the process for catching deviations before signature?',
+    insight: 'Admissions that non-standard terms sometimes get signed without legal review References to "we found out after the fact" situations Mentions of no automated clause comparison or deviation detection Frustration about playbook compliance being manual and inconsistent Any acknowledgment that different departments have different (or no) approval gates',
+    proof: null,
+    question: 'If they acknowledge gaps in clause governance: > "The risk isn\'t just the one bad clause that slips through — it\'s the precedent it sets and the liability it creates that nobody discovers until there\'s a dispute. What if every agreement was automatically checked against your approved playbook before it could be sent for signature?"',
+    next: ['monitor', 'ai-touching-contracts', 'rep-selling-time']
+  },
+  {
+    id: 'vendor-renewal-visibility',
+    type: 'discovery',
+    title: 'Vendor Renewal Visibility and Auto-Renewal Traps',
+    hook: 'Missed vendor renewal windows and auto-renewal surprises',
+    problem: 'How many of your vendor contracts have auto-renewal clauses, and how far in advance does your team know when those renewal windows are opening? When was the last time you got caught by an auto-renewal you didn\'t want?',
+    insight: 'Admissions that auto-renewal dates aren\'t tracked systematically References to calendar reminders or spreadsheets as the tracking mechanism Frustration about paying for another year of a tool they wanted to renegotiate or cancel Mentions of no centralized view of vendor renewal timelines Any acknowledgment that renewal leverage is lost because they find out too late',
+    proof: null,
+    question: 'If they admit to auto-renewal surprises: > "Every auto-renewal you miss is leverage you\'ll never get back — and it compounds year over year. What if every vendor agreement was automatically tracked with alerts 90 days before each renewal window, so your team always has time to renegotiate or exit?"',
+    next: ['vendor-agreement-chaos', 'navigator-procurement', 'vendor-contracts-not-complex']
+  },
+  {
+    id: 'maverick-spend-untracked-agreements',
+    type: 'discovery',
+    title: 'Maverick Spend and Untracked Agreements',
+    hook: 'Spend happening outside procurement oversight',
+    problem: 'When a department head or team lead signs a vendor agreement without going through procurement — how do you find out about it? And how often does that happen?',
+    insight: 'Admissions that departments sign SaaS contracts, consulting agreements, or vendor renewals independently References to discovering agreements only during audits or when invoices appear Frustration about lack of spend visibility or duplicate vendor relationships Mentions of "shadow procurement" or "rogue spend" Any acknowledgment that the current intake process is easy to bypass',
+    proof: null,
+    question: 'If they acknowledge maverick spend as a problem: > "The agreements you don\'t know about are the ones that hurt you — duplicate vendors, unapproved terms, missing compliance requirements. What would change if every agreement across the organization was automatically routed through a central intake process that took minutes instead of weeks?"',
+    next: ['clm', 'legal-would-never-approve', 'contract-risk-visibility']
+  },
+  {
+    id: 'vendor-spend-fragmentation',
+    type: 'discovery',
+    title: 'Vendor Spend Fragmentation Across Business Units',
+    hook: 'No consolidated view of vendor spend and terms',
+    problem: 'If I asked you today what your total spend is with your top 20 vendors — including all subsidiaries, departments, and contract types — how long would it take to pull that together? And how confident would you be in the number?',
+    insight: 'Admissions that spend data is scattered across ERP, AP, and individual contract files References to quarterly or annual exercises to compile vendor spend reports Frustration about knowing they have consolidation leverage but lacking the data to prove it Mentions of multiple contracts with the same vendor across different business units Any acknowledgment that procurement decisions are made without full spend context',
+    proof: null,
+    question: 'If they admit to fragmented spend visibility: > "You can\'t negotiate from strength when you don\'t know your total position. What if every vendor agreement across every business unit was automatically organized, with total spend, term variations, and renewal timelines visible in one place — ready for your next negotiation?"',
+    next: ['navigator-procurement', 'reporting-analytics-gaps', 'already-have-clm']
+  },
+  {
+    id: 'the-hook',
+    type: 'pitch',
+    title: 'The Hook',
+    hook: 'Rep renewal prep as visceral pain point',
+    problem: null,
+    insight: 'Let me paint a picture you\'ve probably lived through. Your best rep just landed a renewal conversation with a top-ten account. Great news. Except now she needs to figure out what\'s actually in the current contract. So she digs through a shared drive, maybe SharePoint, maybe someone\'s email. She finds six documents — an MSA, a couple of amendments, an SOW, and something that might be a side letter from 2019. She spends a day and a half reading through all of it just to understand what she\'s working with. She\'s one of your best people. And she\'s doing this instead of selling.',
+    proof: null,
+    question: null,
+    next: ['the-cost', 'navigator', 'rep-selling-time']
+  },
+  {
+    id: 'the-cost',
+    type: 'pitch',
+    title: 'The Cost',
+    hook: '3-12% contract value leakage quantified',
+    problem: null,
+    insight: 'Here\'s a number that should bother you: most organizations leak somewhere between 3 and 12 percent of every contract\'s total value. Not because they negotiated badly. Because the data in those agreements is trapped — in documents, scattered across systems, locked in formats nobody can work with efficiently. On a $10 million book of business, that\'s $300K to $1.2 million just... gone. Every year. And it\'s not one dramatic failure. It\'s a thousand small ones. A renewal that didn\'t capture an escalation clause. An obligation that got missed. A termination window that slipped by because nobody was tracking it. Death by a thousand paper cuts.',
+    proof: null,
+    question: null,
+    next: ['process-works-fine', 'iam-core', 'rep-selling-time']
+  },
+  {
+    id: 'the-two-problems',
+    type: 'pitch',
+    title: 'The Two Problems',
+    hook: 'Can\'t make sense of agreements + duct tape process',
+    problem: null,
+    insight: 'When we talk to organizations about their agreement challenges, it comes down to two things. First: nobody can efficiently make sense of what\'s already been agreed to. You\'ve got tens of thousands of contracts spread across systems, drives, inboxes. Even if they\'re in a central repository, they\'re still just files. They\'re not organized by relationship. They\'re not structured so you know which terms actually prevail. And extracting usable data from them is a manual, error-prone grind. So people skip it. They don\'t do the analysis because the juice isn\'t worth the squeeze. And that\'s where the value leaks. Second: the process of getting agreements done is still held together with duct tape. Somebody finds a template — hopefully the right one, hopefully current. They pull data from a CRM, maybe a spreadsheet. They manually assemble a draft. It goes out for review via email. Redlines in Word. Track changes flying back and forth. The AE is playing project manager instead of seller. Cycle time? Days at best. Weeks, realistically.',
+    proof: null,
+    question: null,
+    next: ['iam-core', 'already-have-clm', 'rep-selling-time']
+  },
+  {
+    id: 'the-downstream-problem',
+    type: 'pitch',
+    title: 'The Downstream Problem',
+    hook: 'Post-signature data errors cascade across systems',
+    problem: null,
+    insight: 'Here\'s what most people miss: signing the document is maybe 20 percent of the story. The other 80 percent is what happens to the data inside it afterward. The moment a contract gets signed, someone reads it and manually types numbers into billing. Someone else types different numbers into the CRM. Someone updates a spreadsheet for revenue recognition. Someone flags a date in their calendar for the renewal. Every one of those handoffs is manual, and every one is a chance to get it wrong. And they do get it wrong. Regularly. Billing gets it wrong — the customer gets invoiced at the old rate because an amendment wasn\'t propagated. You\'re either leaking revenue or creating a dispute. Commissions don\'t match — the data in the comp system doesn\'t reflect the actual agreement. Now you\'ve got a dispute with your best seller, and trust in the system just took a hit. These disputes are corrosive. Reps remember them for years. Obligations fall through the cracks — there\'s an SLA with a penalty clause, a 90-day termination window that triggers auto-renewal. It\'s sitting in a document, not in a system. Somebody might have it in a calendar. That\'s not a process — that\'s a prayer. Renewals are blind — your rep walks in without knowing the pricing history, the escalation clauses, the amendment trail. The customer probably knows their own contract better than she does. That\'s a weak position to negotiate from. And these failures don\'t stay isolated. They cascade. A billing error creates a dispute. The dispute stalls the renewal. The stalled renewal means the rep can\'t close in quarter. Now you\'ve got a forecasting problem. And it all traces back to someone fat-fingering a data entry.',
+    proof: null,
+    question: null,
+    next: ['the-vision', 'clm', 'customer-experience-risk']
+  },
+  {
+    id: 'whats-changed',
+    type: 'pitch',
+    title: 'What\'s Changed',
+    hook: 'AI makes agreement intelligence practical now',
+    problem: null,
+    insight: 'Here\'s what\'s different now. AI has gotten good enough — practically good enough, not just theoretically — that we can do things with agreement data that genuinely weren\'t possible two years ago. You can point AI at a family of contracts and say "organize these hierarchically, tell me which terms prevail, and extract the key commercial terms." And it does it. In minutes, not days. Natural language — you\'re not writing queries. You\'re having a conversation with your contract data. You can have it flag risks, identify obligations that need tracking, and push structured data directly into your downstream systems. No re-keying. No copy-paste. No hoping somebody remembered to update the spreadsheet. And on the execution side — draft to signature to action — you can orchestrate the entire workflow on a single platform. Automated routing, integrated approvals, real-time status visibility. The AE stops being a project manager and goes back to being a seller.',
+    proof: null,
+    question: null,
+    next: ['navigator', 'not-ready-for-ai', 'rep-selling-time']
+  },
+  {
+    id: 'the-vision',
+    type: 'pitch',
+    title: 'The Vision',
+    hook: 'Agreements as structured data powering the business',
+    problem: null,
+    insight: 'The way we think about this: agreements aren\'t documents. They\'re data. They\'re the operating instructions for your business relationships. Right now, for most organizations, that data is dark. It\'s sitting in PDFs and Word docs and shared drives, not doing any work for you. What if it was? What if every agreement your organization has ever executed was structured, searchable, and actively informing decisions — from the next renewal negotiation to your compliance posture to your revenue forecast? What if billing was right the first time because the pricing terms flowed directly from the agreement? What if commissions were clean because the comp system pulled from the actual contract, not someone\'s interpretation of it? What if obligations were tracked automatically — not in someone\'s calendar, but in a system that alerts the right people and escalates when deadlines approach? That\'s what we\'re building. A platform that handles the full agreement lifecycle: preparing them, executing them with real workflow, managing the negotiation, and then — critically — turning that agreement data into something your business can actually use.',
+    proof: null,
+    question: null,
+    next: ['the-downstream-problem', 'clm', 'legal-would-never-approve']
+  },
+  {
+    id: 'the-close',
+    type: 'pitch',
+    title: 'The Close',
+    hook: 'Concrete next step with prospect\'s own data',
+    problem: null,
+    insight: 'Look, every organization is different. Your pain might be on the analysis side, the execution side, the downstream side, or all three. Here\'s what I\'d suggest: bring us your messiest contracts. Pick a customer family — one where you\'ve got an MSA and a bunch of amendments and maybe some SOWs. Let us show you what we can do with it. Not a canned demo. Your data, your contracts, your actual complexity. Because that\'s where this stops being theoretical and starts being real. And I think you\'ll find the gap between where you are today and where you could be is bigger than you expect.',
+    proof: null,
+    question: null,
+    next: ['iam-core', 'already-have-clm', 'rep-selling-time']
+  },
 ];
+
+var FACTOIDS = [
+  // How to use your brief (8) — first 3 are the stable opening batch
+  { cat: 'How to use your brief', text: 'Your Account Research brief is a living asset — share it with your manager, SA, or CSM and build on it together before the meeting.' },
+  { cat: 'How to use your brief', text: 'Drop the brief in your account Slack channel or attach it to the SFDC opportunity so the whole team is working from the same context.' },
+  { cat: 'How to use your brief', text: 'Re-run the brief any time the account situation changes — each run reflects the latest available data.' },
+  { cat: 'How to use your brief', text: 'Run an Account Research brief the morning of any account meeting.' },
+  { cat: 'How to use your brief', text: 'Share the brief with your SA before the call — note which section you want them to focus on so they come prepared with depth, not just presence.' },
+  { cat: 'How to use your brief', text: 'Share the brief with your manager before pipeline reviews so they have the account context before you\'re in the room.' },
+  { cat: 'How to use your brief', text: 'The Sources section lists the filings and web pages behind the research — read at least two before any executive meeting.' },
+  { cat: 'How to use your brief', text: 'Re-run the brief before a QBR or renewal — market conditions and org structure change, and each run reflects the updated context.' },
+
+  // Inside the brief (12)
+  { cat: 'Inside the brief', text: 'The Agreement Landscape section scores 20 agreement types by volume and complexity — use it to find the whitespace your competitors haven\'t touched yet.', cardId: 'iam-core' },
+  { cat: 'Inside the brief', text: 'The Priority Map synthesises all five research calls into ranked opportunities and a concrete action plan.' },
+  { cat: 'Inside the brief', text: 'The Business Map breaks the account into BUs, departments, and functions — use it to identify which parts of the org have no Docusign presence.', cardId: 'iam-core' },
+  { cat: 'Inside the brief', text: 'The average enterprise manages over 25,000 agreements a year. The Contract Commerce section estimates what that looks like for your specific account.' },
+  { cat: 'Inside the brief', text: 'The Sources section links to the filings and web pages behind the research. Click through before quoting anything to a customer.' },
+  { cat: 'Inside the brief', text: 'The Executive Contacts section pulls publicly available leadership data — cross-reference with your SFDC contacts before a QBR.' },
+  { cat: 'Inside the brief', text: 'The Account Health scorecard combines envelope volume, feature adoption, and integration depth — a low score indicates expansion runway, not a weak account.', cardId: 'iam-core' },
+  { cat: 'Inside the brief', text: 'The Docusign Footprint section shows which departments are already active — departments not listed are your whitespace.' },
+  { cat: 'Inside the brief', text: 'The Company Profile includes a SWOT analysis — use the Threats and Weaknesses to frame discovery questions before the meeting.' },
+  { cat: 'Inside the brief', text: 'CIO, CLO, and VP Operations appear in the Executive Contacts section — those are your multithreading targets beyond the primary champion.' },
+  { cat: 'Inside the brief', text: 'The Contract Commerce section estimates annual agreement volume and staff cost by department — use it to build an ROI case without asking the customer for data.' },
+  { cat: 'Inside the brief', text: 'Low integration depth is a signal that the account is doing manual handoffs between systems — that\'s a Maestro or App Center conversation.' },
+
+  // Other modes (2)
+  { cat: 'Other modes', text: 'GTM Group mode generates a single brief covering all accounts in a group — useful for territory planning and manager reviews.' },
+  { cat: 'Other modes', text: 'Prospect mode runs without internal bookscrub data — it generates a full brief using public sources so you\'re not walking into a first call cold.' },
+
+  // Discovery (13)
+  { cat: 'Discovery', text: 'Ask "What happens to a contract after it\'s signed?" Most accounts have no structured answer — that\'s the Navigator and obligation tracking conversation.', cardId: 'renewal-prep-time' },
+  { cat: 'Discovery', text: 'If your prospect mentions contract redlines happening over email, ask how often they lose track of which version was actually signed.', cardId: 'process-works-fine' },
+  { cat: 'Discovery', text: '"How many signatures does your average contract require?" — if the answer is more than three with no routing logic, that\'s a Maestro conversation.', cardId: 'maestro' },
+  { cat: 'Discovery', text: 'When you hear "our onboarding takes two weeks," ask how much of that is waiting for documents to be signed.', cardId: 'maestro' },
+  { cat: 'Discovery', text: '"Who else signs off on agreements in your org?" — if your champion names one person, keep asking.', cardId: 'maestro' },
+  { cat: 'Discovery', text: 'If a customer mentions printing and scanning agreements, ask what the last deal they lost because the paperwork was slow looked like.', cardId: 'rep-selling-time' },
+  { cat: 'Discovery', text: 'Ask procurement teams how they track supplier contract renewals. If the answer is a spreadsheet, that\'s a Navigator deal.', cardId: 'renewal-prep-time' },
+  { cat: 'Discovery', text: 'The clearest IAM signal is when Legal, HR, and Procurement are each solving the same agreement problem with separate tools.', cardId: 'iam-core' },
+  { cat: 'Discovery', text: 'When a legal team says "we review every contract manually," ask what percentage involves standard terms vs. negotiated ones — that split determines the product fit.' },
+  { cat: 'Discovery', text: 'If you hear "we use Docusign for the simple stuff," ask what the complicated stuff looks like.', cardId: 'iam-core' },
+  { cat: 'Discovery', text: 'Field reps spending time on paperwork points to a multi-channel delivery or offline signing conversation.', cardId: 'rep-selling-time' },
+  { cat: 'Discovery', text: 'If a customer mentions compliance audits, ask who pulls the audit trail — manual document retrieval is a Monitor and Certificate of Completion conversation.', cardId: 'obligation-deadline-tracking' },
+  { cat: 'Discovery', text: 'Before any renewal, ask the customer to name their three most time-consuming agreement processes.', cardId: 'renewal-prep-time' },
+
+  // Product knowledge (20)
+  { cat: 'Product knowledge', text: 'Navigator doesn\'t just store agreements — it reads them. AI-extracted clauses, dates, and obligations across the entire contract library without manual tagging.', cardId: 'navigator' },
+  { cat: 'Product knowledge', text: 'Maestro is the no-code workflow builder. If an account has integrations but no automation, the handoffs between them are still manual — that\'s the gap Maestro closes.', cardId: 'maestro' },
+  { cat: 'Product knowledge', text: 'Web Forms turn data collection into a pre-filled agreement trigger — the fix for "our customers keep sending us incomplete or incorrect information."', cardId: 'web-forms' },
+  { cat: 'Product knowledge', text: 'Agreement Prep (DocGen) generates agreements from templates using live CRM or form data. No more copy-pasting deal terms into contract documents.', cardId: 'docgen' },
+  { cat: 'Product knowledge', text: 'IAM for Sales puts agreement workflows inside Salesforce — the rep never leaves the CRM to send, track, or receive a signed contract.', cardId: 'iam-for-sales' },
+  { cat: 'Product knowledge', text: 'ID Verification applies beyond banking — any regulated industry (healthcare, insurance, energy, government) has a signer identity requirement somewhere.', cardId: 'idv' },
+  { cat: 'Product knowledge', text: 'PowerForms create self-service signing links. HR teams use them for onboarding packets; field teams use them for on-the-spot signing with no sender required.' },
+  { cat: 'Product knowledge', text: 'Bulk Send handles thousands of simultaneous personalised sends — HR open enrollment, policy updates, and annual compliance attestations are the natural use cases.' },
+  { cat: 'Product knowledge', text: 'The Certificate of Completion captures every action, IP address, timestamp, and audit event in one document — it\'s Docusign\'s legal record for a completed envelope.' },
+  { cat: 'Product knowledge', text: 'App Center connects Docusign to 900+ business apps without custom integration work — accounts that send manually from the web app are often unaware it exists.', cardId: 'app-center' },
+  { cat: 'Product knowledge', text: 'Multi-Channel Delivery sends agreements via SMS or WhatsApp, not just email — for field-heavy or mobile-first industries, completion rates improve significantly.', cardId: 'iam-for-cx' },
+  { cat: 'Product knowledge', text: 'CLM handles the full agreement lifecycle: authoring, negotiation, repository, and obligation tracking — it\'s for accounts where signing is the straightforward part.', cardId: 'clm' },
+  { cat: 'Product knowledge', text: 'Embedded Signing (click-to-agree) handles standard terms — privacy policies, disclosures, terms of service. Every SaaS company needs it.' },
+  { cat: 'Product knowledge', text: 'SAML/SSO lets enterprise IT provision and deprovision Docusign seats through their identity provider — one question to IT can open a governance conversation.' },
+  { cat: 'Product knowledge', text: 'Monitor gives admins visibility into API usage, security events, and unusual activity — for security-conscious accounts it\'s a governance conversation, not a feature pitch.', cardId: 'monitor' },
+  { cat: 'Product knowledge', text: 'Agreement Desk replaces tracked-changes Word docs over email with a structured negotiation layer — for accounts where contracts go back and forth before signing.', cardId: 'agreement-desk' },
+  { cat: 'Product knowledge', text: 'The Salesforce integration is two-way: send from Opportunity, map signed data back to CRM fields, trigger next steps automatically.', cardId: 'salesforce-upgrade' },
+  { cat: 'Product knowledge', text: 'SMS Authentication adds a second factor to signing without requiring a Docusign account — useful anywhere signers might share a device or email address.' },
+  { cat: 'Product knowledge', text: 'Sequential signing enforces a specific order — legal first, then finance, then VP. Any approval chain with more than two stops benefits from it.', cardId: 'maestro' },
+  { cat: 'Product knowledge', text: 'IAM Core bundles eSign with Maestro, Web Forms, Navigator, and App Center — most mid-market accounts are on eSign only, making it the natural upgrade conversation.', cardId: 'iam-core' },
+
+  // Value drivers (14)
+  { cat: 'Value drivers', text: '65% of a sales rep\'s time goes to non-selling activities. For accounts with large field sales teams, that\'s the opening number in an ROI conversation.', cardId: 'rep-selling-time' },
+  { cat: 'Value drivers', text: 'Manual contract processes cost organisations an average of $2,000–$5,000 per contract in staff time.', cardId: 'the-cost' },
+  { cat: 'Value drivers', text: 'Reducing Days-Sales-Outstanding by two days on a $500M revenue company frees up millions in working capital — that\'s a CFO conversation, not a sales ops one.', cardId: 'renewal-revenue-risk' },
+  { cat: 'Value drivers', text: 'Docusign research shows 20% of deals are lost or delayed due to contracting friction.', cardId: 'the-cost' },
+  { cat: 'Value drivers', text: 'A legal team reviewing 200 contracts per month at 4 hours each — a 60% reduction in review time saves over $36,000 per month in staff cost.', cardId: 'legal-team-leverage' },
+  { cat: 'Value drivers', text: 'The value of IAM is additive: Navigator reduces obligation risk, Maestro reduces handoff time, Web Forms reduce data errors — each has its own ROI line.', cardId: 'iam-core' },
+  { cat: 'Value drivers', text: 'Compliance risk is a cost even when nothing goes wrong — staff time on audit prep, manual trail reconstruction, and contract retrieval. Monitor and CLM address all three.', cardId: 'obligation-deadline-tracking' },
+  { cat: 'Value drivers', text: 'For HR, onboarding paperwork completed before day one vs. on day one is a measurable difference in new hire satisfaction scores.', cardId: 'iam-for-cx' },
+  { cat: 'Value drivers', text: 'The highest-volume manual handoff in an account\'s agreement process is usually the highest-value automation target — find it before the meeting.', cardId: 'manual-data-handoff' },
+  { cat: 'Value drivers', text: 'Navigator surfaces auto-renewing contracts before they roll — most organisations have dozens they don\'t know about until the invoice arrives.', cardId: 'navigator' },
+  { cat: 'Value drivers', text: 'The Contract Commerce section estimates annual agreement volume and staff cost from public sources — use it as your opening ROI stake before asking the customer for data.' },
+  { cat: 'Value drivers', text: 'For procurement-heavy accounts, every extra day in supplier contract negotiation delays a PO, delays delivery, and creates downstream cost.', cardId: 'vendor-agreement-chaos' },
+  { cat: 'Value drivers', text: 'Customer-facing agreement completion rates drop sharply after 24 hours — multi-channel delivery and mobile-optimised signing reduce that decay.', cardId: 'iam-for-cx' },
+  { cat: 'Value drivers', text: 'In regulated industries, a single non-compliant agreement can trigger audit exposure worth multiples of the Docusign contract value.', cardId: 'obligation-deadline-tracking' }
+];
+
+// Shuffle factoids after the first 3 (stable opening batch) using Fisher-Yates
+(function() {
+  for (var i = FACTOIDS.length - 1; i > 3; i--) {
+    var j = 3 + Math.floor(Math.random() * (i - 2));
+    var tmp = FACTOIDS[i]; FACTOIDS[i] = FACTOIDS[j]; FACTOIDS[j] = tmp;
+  }
+})();
 
 var ws = {
   factoidOffset:    0,    // index into FACTOIDS for start of current batch
@@ -1154,7 +2210,22 @@ var ws = {
   stars:            0,    // session stars (loaded from server + earned)
   fadeTimer1:       null,
   fadeTimer2:       null,
-  dissolveTimer:    null
+  dissolveTimer:    null,
+  progressTimer:    null,
+  progressPct:      0,
+  inCardMode:       false,
+  currentCardId:    null,
+  diveCount:        0,
+  cardsRead:        0
+};
+
+
+var SECTION_LABELS = {
+  product:   { problem: 'The problem', insight: 'What it does', proof: 'The proof point', question: 'Bridge question' },
+  objection: { problem: 'The objection', insight: 'How to respond', proof: 'The evidence', question: 'Bridge' },
+  discovery: { problem: 'The question', insight: 'What to listen for', proof: 'Key signal', question: 'Follow-up pivot' },
+  persona:   { problem: 'The pain', insight: 'The value framing', proof: 'The stat', question: 'The question' },
+  pitch:     { problem: '', insight: 'The narrative', proof: '', question: '' }
 };
 
 // ── Entry point ────────────────────────────────────────────────
@@ -1171,7 +2242,9 @@ function transitionToGame() {
       .getStarCount(state.aeEmail);
   }
 
+  state.startTime = Date.now();
   startARPoll();
+  startProgressBar();
   startWaitLoop();
 }
 
@@ -1212,14 +2285,23 @@ function showFactoid(idx) {
     return;
   }
   ws.factoidBatchIdx = idx;
-  document.getElementById('factoid-text').textContent = ws.factoidBatch[idx];
+  document.getElementById('factoid-category').textContent = ws.factoidBatch[idx].cat;
+  document.getElementById('factoid-text').textContent = ws.factoidBatch[idx].text;
+
+  // Show/hide dive deeper button
+  var diveBtn = document.getElementById('btn-dive-deeper');
+  if (ws.factoidBatch[idx].cardId) {
+    diveBtn.classList.remove('hidden');
+  } else {
+    diveBtn.classList.add('hidden');
+  }
 
   // Update dots
   var dots = document.querySelectorAll('.factoid-dot');
   dots.forEach(function(d, i) { d.classList.toggle('active', i === idx); });
 
   clearTimeout(ws.factoidTimer);
-  ws.factoidTimer = setTimeout(function() { showFactoid(idx + 1); }, 4500);
+  ws.factoidTimer = setTimeout(function() { showFactoid(idx + 1); }, 9000);
 }
 
 function skipFactoid() {
@@ -1290,6 +2372,17 @@ function fadeWrong(count) {
   visible.slice(0, count).forEach(function(o) {
     document.getElementById('wopt-' + o.toLowerCase()).classList.add('fading');
   });
+  // If only the correct answer remains, pulse it briefly then move on (no star)
+  var stillVisible = ['A','B','C','D'].filter(function(o) {
+    return !document.getElementById('wopt-' + o.toLowerCase()).classList.contains('fading');
+  });
+  if (stillVisible.length === 1 && !ws.answered) {
+    document.getElementById('wopt-' + stillVisible[0].toLowerCase()).classList.add('last-standing');
+    clearTimeout(ws.fadeTimer1);
+    clearTimeout(ws.fadeTimer2);
+    clearTimeout(ws.dissolveTimer);
+    ws.dissolveTimer = setTimeout(function() { dissolveQuestion(); }, 1800);
+  }
 }
 
 function dissolveQuestion() {
@@ -1339,6 +2432,105 @@ function advanceToNextBatch() {
   showFactoidBatch(nextOffset);
 }
 
+
+// ── IAM Card mode ──────────────────────────────────────────────
+function diveDeeper() {
+  var cardId = ws.factoidBatch[ws.factoidBatchIdx].cardId;
+  if (!cardId) return;
+  clearTimeout(ws.factoidTimer);
+  ws.inCardMode = true;
+  ws.diveCount++;
+  showCard(cardId);
+}
+
+function showCard(cardId) {
+  var card = null;
+  for (var i = 0; i < IAM_CARDS.length; i++) {
+    if (IAM_CARDS[i].id === cardId) { card = IAM_CARDS[i]; break; }
+  }
+  if (!card) return;
+  ws.currentCardId = cardId;
+  ws.cardsRead++;
+
+  var badge = document.getElementById('iam-badge');
+  badge.textContent = card.type;
+  badge.className = 'iam-type-badge ' + card.type;
+
+  document.getElementById('iam-title').textContent = card.title;
+  document.getElementById('iam-hook').textContent  = card.hook || '';
+
+  var labels = SECTION_LABELS[card.type] || SECTION_LABELS.product;
+
+  function fillSection(sectionId, labelId, textId, labelText, content) {
+    var sec = document.getElementById(sectionId);
+    if (content && labelText) {
+      document.getElementById(labelId).textContent = labelText;
+      document.getElementById(textId).textContent  = content;
+      sec.classList.remove('hidden');
+    } else {
+      sec.classList.add('hidden');
+    }
+  }
+
+  fillSection('iam-problem-section',  'iam-problem-label',  'iam-problem',  labels.problem,  card.problem);
+  fillSection('iam-insight-section',  'iam-insight-label',  'iam-insight',  labels.insight,  card.insight);
+  fillSection('iam-proof-section',    'iam-proof-label',    'iam-proof',    labels.proof,    card.proof);
+  fillSection('iam-question-section', 'iam-question-label', 'iam-question', labels.question, card.question);
+
+  var nextRow = document.getElementById('iam-next');
+  nextRow.innerHTML = '';
+  (card.next || []).forEach(function(nextId) {
+    var nextCard = null;
+    for (var i = 0; i < IAM_CARDS.length; i++) {
+      if (IAM_CARDS[i].id === nextId) { nextCard = IAM_CARDS[i]; break; }
+    }
+    if (!nextCard) return;
+    var btn = document.createElement('button');
+    btn.className = 'iam-next-btn ' + nextCard.type;
+    btn.innerHTML = '<span class="iam-type-badge ' + nextCard.type + '">' + nextCard.type + '</span> ' +
+                    escHtml(nextCard.title.split(':')[0].trim()) + ' →';
+    btn.onclick = (function(id) { return function() { showCard(id); }; })(nextId);
+    nextRow.appendChild(btn);
+  });
+
+  var counter = document.getElementById('cards-explored-counter');
+  counter.textContent = ws.cardsRead + (ws.cardsRead === 1 ? ' card explored' : ' cards explored');
+  counter.classList.remove('hidden');
+
+  document.getElementById('panel-factoid').classList.add('hidden');
+  document.getElementById('panel-quiz').classList.add('hidden');
+  document.getElementById('panel-card').classList.remove('hidden');
+}
+
+function exitCards() {
+  ws.inCardMode = false;
+  document.getElementById('panel-card').classList.add('hidden');
+  showFactoidBatch(ws.factoidOffset);
+}
+
+// ── Progress bar ──────────────────────────────────────────────
+function startProgressBar() {
+  ws.progressPct = 0;
+  updateProgressBar(0);
+  clearInterval(ws.progressTimer);
+  ws.progressTimer = setInterval(function() {
+    // Exponential ease: approaches 88% asymptotically (slows near cap)
+    var remaining = 88 - ws.progressPct;
+    ws.progressPct += remaining * 0.025; // advance ~2.5% of remaining gap per tick
+    updateProgressBar(ws.progressPct);
+  }, 1000);
+}
+
+function updateProgressBar(pct) {
+  var fill = document.getElementById('ar-progress');
+  if (!fill) return;
+  fill.style.width = Math.min(pct, 100) + '%';
+  if (pct >= 100) {
+    fill.classList.add('done');
+    clearInterval(ws.progressTimer);
+  }
+}
+
 // ── Star burst animation ───────────────────────────────────────
 function triggerStarBurst(fromEl) {
   var rect  = fromEl.getBoundingClientRect();
@@ -1368,8 +2560,13 @@ function pollAR() {
       if (result.status === 'done') {
         state.arDone = true;
         state.docUrl = result.docUrl || '';
+        state.fullUrl = result.fullUrl || '';
         clearInterval(state.arPollInterval);
         updateARIndicator('done');
+        updateProgressBar(100);
+        if (ws.inCardMode) {
+          document.getElementById('iam-brief-ready-banner').classList.remove('hidden');
+        }
         // If we're between items (not mid-factoid-timer or mid-question) the
         // next advanceToNextBatch() call will catch arDone and go to results.
         // But if we're on the results stage already, just update the link.
@@ -1387,13 +2584,17 @@ function pollAR() {
 }
 
 function updateARIndicator(status) {
-  var dot  = document.getElementById('ar-dot');
-  var text = document.getElementById('ar-status-text');
+  var strip = document.getElementById('ar-strip');
+  var text  = document.getElementById('ar-strip-text');
   if (status === 'done') {
-    dot.className    = 'ar-dot done';
+    strip.classList.add('done');
     text.textContent = 'Research complete!';
+    setTimeout(function() {
+      strip.style.transition = 'opacity 0.5s';
+      strip.style.opacity = '0';
+    }, 3500);
   } else if (status === 'error') {
-    dot.className    = 'ar-dot error';
+    strip.classList.add('error');
     text.textContent = 'Research encountered an error.';
   }
 }
@@ -1412,6 +2613,20 @@ function showResults() {
   document.getElementById('results-company-display').textContent = 'Research: ' + state.company;
   document.getElementById('results-star-count').textContent = ws.stars;
 
+  google.script.run
+    .withFailureHandler(function() {})
+    .submitScore({
+      name:        state.aeName,
+      email:       state.aeEmail,
+      score:       ws.stars,
+      correct:     0,
+      total:       0,
+      company:     state.company,
+      durationSecs: Math.round((Date.now() - (state.startTime || Date.now())) / 1000),
+      diveCount:   ws.diveCount,
+      cardsRead:   ws.cardsRead
+    });
+
   if (state.arDone && state.docUrl) {
     showDocReady(state.docUrl);
   } else {
@@ -1424,10 +2639,27 @@ function showResults() {
 }
 
 function showDocReady(docUrl) {
-  document.getElementById('doc-status-msg').textContent = 'Your account research doc is ready.';
+  document.getElementById('doc-status-msg').textContent = 'Your account research docs are ready.';
   var link = document.getElementById('doc-link');
   link.href = docUrl;
+  link.textContent = 'Open Account Brief';
   link.classList.remove('hidden');
+
+  // Show full report link if available
+  if (state.fullUrl) {
+    var fullLink = document.getElementById('doc-full-link');
+    if (!fullLink) {
+      fullLink = document.createElement('a');
+      fullLink.id = 'doc-full-link';
+      fullLink.target = '_blank';
+      fullLink.className = link.className;
+      fullLink.style.marginLeft = '12px';
+      link.parentNode.insertBefore(fullLink, link.nextSibling);
+    }
+    fullLink.href = state.fullUrl;
+    fullLink.textContent = 'Open Full Report';
+    fullLink.classList.remove('hidden');
+  }
 }
 
 function startOver() {
@@ -1435,12 +2667,21 @@ function startOver() {
   state.jobId   = null;
   state.arDone  = false;
   state.docUrl  = '';
+  state.fullUrl = '';
   state.company = '';
   clearInterval(state.arPollInterval);
   clearTimeout(ws.factoidTimer);
   clearTimeout(ws.fadeTimer1);
   clearTimeout(ws.fadeTimer2);
   clearTimeout(ws.dissolveTimer);
+  clearInterval(ws.progressTimer);
+  ws.inCardMode = false;
+  ws.diveCount  = 0;
+  ws.cardsRead  = 0;
+  document.getElementById('panel-card').classList.add('hidden');
+  document.getElementById('cards-explored-counter').classList.add('hidden');
+  document.getElementById('iam-brief-ready-banner').classList.add('hidden');
+  updateProgressBar(0);
   // Reset entry form
   document.getElementById('company-name').value = '';
   document.getElementById('entry-error').style.display = 'none';
@@ -1457,16 +2698,6 @@ function showStage(id) {
   document.getElementById(id).classList.add('active');
 }
 
-  updateTimerUI(state.timeRemaining, total);
-  state.timerInterval = setInterval(function() {
-    state.timeRemaining--;
-    updateTimerUI(state.timeRemaining, total);
-    if (state.timeRemaining <= 0) {
-      clearTimer();
-      timerExpired();
-    }
-  }, 1000);
-}
 // ═══════════════════════════════════════════════════════════════
 // Utility
 // ═══════════════════════════════════════════════════════════════

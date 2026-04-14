@@ -31,15 +31,16 @@ var PROP_GLEAN_AGENT_ID = 'GLEAN_AGENT_ID';
  * Called by the Glean company picker dialog.
  * @param {string}  companyName
  * @param {boolean} isProspect
- * @returns {string} Google Doc URL
+ * @returns {string} JSON string: { briefUrl, fullUrl }
  */
 function generateAndLogViaGlean(companyName, isProspect) {
   try {
-    var docUrl = triggerGleanReport(companyName, null, isProspect);
-    logToStatusSheet(companyName, isProspect, 'done', docUrl, '');
-    return docUrl;
+    var briefUrl = triggerGleanReport(companyName, null, isProspect);
+    var fullUrl = (_lastDocResult && _lastDocResult.fullUrl) || '';
+    logToStatusSheet(companyName, isProspect, 'done', briefUrl, '', fullUrl);
+    return JSON.stringify({ briefUrl: briefUrl, fullUrl: fullUrl });
   } catch (e) {
-    logToStatusSheet(companyName, isProspect, 'error', '', e.message || String(e));
+    logToStatusSheet(companyName, isProspect, 'error', '', e.message || String(e), '');
     throw e;
   }
 }
@@ -47,16 +48,17 @@ function generateAndLogViaGlean(companyName, isProspect) {
 /**
  * Called by the Glean GTM group picker dialog.
  * @param {string} gtmGroupId  Value of the GTM_GROUP column (Salesforce group ID)
- * @returns {string} Google Doc URL
+ * @returns {string} JSON string: { briefUrl, fullUrl }
  */
 function generateAndLogGroupViaGlean(gtmGroupId) {
   try {
     var groupData = getGtmGroupData(gtmGroupId);
-    var docUrl    = triggerGleanReport(groupData.identity.name, groupData, false);
-    logToStatusSheet('[GTM] ' + gtmGroupId, false, 'done', docUrl, '');
-    return docUrl;
+    var briefUrl  = triggerGleanReport(groupData.identity.name, groupData, false);
+    var fullUrl = (_lastDocResult && _lastDocResult.fullUrl) || '';
+    logToStatusSheet('[GTM] ' + gtmGroupId, false, 'done', briefUrl, '', fullUrl);
+    return JSON.stringify({ briefUrl: briefUrl, fullUrl: fullUrl });
   } catch (e) {
-    logToStatusSheet('[GTM] ' + gtmGroupId, false, 'error', '', e.message || String(e));
+    logToStatusSheet('[GTM] ' + gtmGroupId, false, 'error', '', e.message || String(e), '');
     throw e;
   }
 }
