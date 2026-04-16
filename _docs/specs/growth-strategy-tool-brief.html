@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Growth Strategy Tool — Internal Brief</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    color: #1a1a2e;
+    background: #fff;
+  }
+
+  /* ── Print setup ── */
+  @page {
+    size: letter;
+    margin: 0.75in 0.85in 0.75in 0.85in;
+  }
+
+  @media print {
+    body { font-size: 10pt; }
+    .page-break { page-break-after: always; break-after: page; }
+    .no-break { page-break-inside: avoid; break-inside: avoid; }
+  }
+
+  @media screen {
+    body { background: #d8d8d8; padding: 40px 20px; max-width: 8.5in; margin: 0 auto; }
+  }
+
+  /* ── Section page titles ── */
+  .section-title {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: -0.01em;
+    border-bottom: 1px solid #d0d0e0;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+  }
+
+  .new-page {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  /* ── Document header ── */
+  .doc-header {
+    border-bottom: 2.5px solid #1a1a2e;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+
+  .doc-header .label {
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: #7070a0;
+    margin-bottom: 5px;
+  }
+
+  .doc-header h1 {
+    font-size: 21pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    line-height: 1.15;
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .doc-header .subtitle {
+    font-size: 11pt;
+    color: #4a4a6a;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+
+  .doc-header .meta {
+    font-size: 8pt;
+    color: #9090b0;
+    margin-top: 7px;
+  }
+
+  /* ── Page continuation header ── */
+  .page-header {
+    border-bottom: 1px solid #d0d0e0;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+  }
+
+  .page-header .label {
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #9090b0;
+    margin-bottom: 3px;
+  }
+
+  .page-header h1 {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: -0.01em;
+  }
+
+  /* ── Section headings ── */
+  h2 {
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: #5050a0;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid #e0e0f0;
+  }
+
+  h3 {
+    font-size: 9.5pt;
+    font-weight: 600;
+    color: #1a1a2e;
+    margin-top: 8px;
+    margin-bottom: 4px;
+  }
+
+  p { margin-bottom: 6px; color: #2a2a3e; }
+
+  /* ── Callout box ── */
+  .callout {
+    background: #f0f0ff;
+    border-left: 3px solid #3030b8;
+    padding: 8px 12px;
+    margin: 8px 0;
+    border-radius: 0 5px 5px 0;
+  }
+
+  .callout strong { color: #1a20a0; }
+
+  .callout.sample {
+    background: #f5f5f5;
+    border-left-color: #888;
+  }
+
+  .callout.sample strong { color: #333; }
+
+  /* ── Before / After transform ── */
+  .transform-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 8px 0;
+  }
+
+  .stat-box {
+    flex: 1;
+    border-radius: 6px;
+    padding: 8px 22px;
+  }
+
+  .stat-box.before {
+    background: #fff4f4;
+    border: 1px solid #e8c8c8;
+  }
+
+  .stat-box.after {
+    background: #f0fff4;
+    border: 1px solid #b8e0c8;
+  }
+
+  /* inner 2-col layout */
+  .stat-box table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .stat-box td {
+    border: none;
+    vertical-align: middle;
+    padding: 0;
+  }
+
+  .stat-box td.stat-left {
+    text-align: center;
+    white-space: nowrap;
+    padding-right: 12px;
+    width: 1%;
+  }
+
+  .stat-box td.stat-right {
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  .stat-box .eyebrow {
+    font-size: 6.5pt;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .stat-box.before .eyebrow { color: #a04040; }
+  .stat-box.after  .eyebrow { color: #206040; }
+
+  .stat-box .number {
+    font-size: 20pt;
+    font-weight: 700;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    display: block;
+  }
+
+  .stat-box.before .number { color: #c03030; }
+  .stat-box.after  .number { color: #186040; }
+
+  .stat-box .unit {
+    font-size: 8.5pt;
+    font-weight: 600;
+    display: block;
+  }
+
+  .stat-box.before .unit { color: #a04040; }
+  .stat-box.after  .unit { color: #206040; }
+
+  .stat-box .desc {
+    font-size: 8.5pt;
+    line-height: 1.35;
+  }
+
+  .stat-box.before .desc { color: #804040; }
+  .stat-box.after  .desc { color: #407040; }
+
+  .transform-arrow {
+    flex-shrink: 0;
+    width: 44px;
+    text-align: center;
+    font-size: 18pt;
+    color: #a0a0c0;
+    line-height: 1;
+  }
+
+  /* ── Two-column ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 6px 0;
+  }
+
+  ul { padding-left: 16px; margin-bottom: 6px; }
+  ul li { margin-bottom: 3px; color: #2a2a3e; }
+  ul li strong { color: #1a1a2e; }
+
+  /* ── Output table ── */
+  .output-grid {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 9.5pt;
+  }
+
+  .output-grid thead tr { background: #1a1a2e; color: #fff; }
+
+  .output-grid thead th {
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 8pt;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .output-grid tbody tr:nth-child(even) { background: #f5f5fc; }
+
+  .output-grid tbody td {
+    padding: 5px 10px;
+    vertical-align: top;
+    border-bottom: 1px solid #eaeaf4;
+  }
+
+  .output-grid td.sec-name {
+    font-weight: 600;
+    white-space: nowrap;
+    color: #2020a0;
+    width: 22%;
+  }
+
+  .output-grid td.sec-desc {
+    color: #3a3a5a;
+    width: 52%;
+  }
+
+  .output-grid td.sec-src {
+    width: 26%;
+  }
+
+  /* ── Tags ── */
+  .tag {
+    display: inline-block;
+    background: #e8e8ff;
+    color: #2020a0;
+    font-size: 7pt;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin: 1px 1px 1px 0;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+
+  .tag.internal { background: #e2f5e2; color: #186018; }
+
+  /* ── Health grid ── */
+  .health-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 9pt;
+  }
+
+  .health-table tr { border-bottom: 1px solid #ebebf8; }
+
+  .health-table td {
+    padding: 4px 6px 4px 0;
+    vertical-align: top;
+  }
+
+  .health-table td.ht-name {
+    font-weight: 600;
+    color: #1a1a2e;
+    white-space: nowrap;
+    width: 18%;
+    padding-right: 10px;
+  }
+
+  .health-table td.ht-desc {
+    color: #5a5a7a;
+    font-size: 8.5pt;
+    width: 32%;
+    padding-right: 20px;
+  }
+
+  /* ── Data flow diagram ── */
+  .data-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 12px 0;
+    background: #f4f4fc;
+    border: 1px solid #d8d8f0;
+    border-radius: 7px;
+    padding: 14px 16px;
+  }
+
+  .flow-node {
+    flex: 1;
+    text-align: center;
+  }
+
+  .flow-node .flow-icon {
+    font-size: 16pt;
+    color: #3030b0;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .flow-node .flow-label {
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: 0.01em;
+  }
+
+  .flow-node .flow-sub {
+    font-size: 7.5pt;
+    color: #7070a0;
+    margin-top: 2px;
+    line-height: 1.35;
+  }
+
+  .flow-arrow {
+    flex-shrink: 0;
+    font-size: 16pt;
+    color: #a0a0c0;
+    padding: 0 6px;
+    line-height: 1;
+    align-self: center;
+    margin-bottom: 14px; /* optical alignment with icons */
+  }
+
+  /* ── Architecture boxes ── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin: 10px 0;
+  }
+
+  .arch-box {
+    border: 1px solid #d0d0e8;
+    border-top: 3px solid #3030b0;
+    border-radius: 0 0 5px 5px;
+    padding: 10px 12px;
+    background: #fafafe;
+  }
+
+  .arch-box .arch-label {
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: #7070b0;
+    margin-bottom: 3px;
+  }
+
+  .arch-box .arch-title {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 5px;
+  }
+
+  .arch-box .arch-detail {
+    font-size: 8.5pt;
+    color: #5a5a7a;
+    line-height: 1.4;
+  }
+
+  /* ── Vertical pipeline ── */
+  .pipeline {
+    margin: 10px 0 6px;
+  }
+
+  .pipeline-step {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .pipeline-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 30px;
+  }
+
+  .pipeline-num {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #3030b8;
+    color: #fff;
+    font-weight: 700;
+    font-size: 10pt;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .pipeline-num.synthesis {
+    background: #1a1a2e;
+    width: 32px;
+    height: 32px;
+    margin-left: -1px;
+    font-size: 11pt;
+  }
+
+  .pipeline-line {
+    width: 2px;
+    flex: 1;
+    background: linear-gradient(to bottom, #5050c0 0%, #c0c0e8 100%);
+    margin: 2px 0;
+    min-height: 10px;
+  }
+
+  .pipeline-card {
+    border: 1px solid #d4d4ec;
+    border-left: 3px solid #3030b8;
+    border-radius: 0 5px 5px 0;
+    padding: 8px 12px;
+    background: #fafafe;
+    margin-bottom: 6px;
+    flex: 1;
+  }
+
+  .pipeline-card.synthesis {
+    border-left-color: #1a1a2e;
+    background: #f2f2fa;
+    border-color: #c0c0d8;
+    border-left-color: #1a1a2e;
+  }
+
+  .pipeline-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3px;
+    gap: 8px;
+  }
+
+  .pipeline-card-title {
+    font-weight: 700;
+    font-size: 9.5pt;
+    color: #1a1a2e;
+    white-space: nowrap;
+  }
+
+  .pipeline-uses {
+    font-size: 7pt;
+    color: #5050a0;
+    background: #e8e8ff;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .pipeline-uses.synthesis {
+    background: #1a1a2e;
+    color: #c8c8ff;
+  }
+
+  .pipeline-detail {
+    font-size: 8.5pt;
+    color: #4a4a6a;
+    line-height: 1.45;
+  }
+
+  /* ── Footer ── */
+  .doc-footer {
+    border-top: 1px solid #d8d8e8;
+    margin-top: 22px;
+    padding-top: 7px;
+    font-size: 7.5pt;
+    color: #9090b0;
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ PAGE 1 ══ -->
+
+
+  <div class="doc-header">
+    <div class="label">Internal Tool Brief &nbsp;·&nbsp; Account Intelligence</div>
+    <h1>Growth Strategy Generator</h1>
+    <div class="subtitle">Automated account preparation for enterprise sales &mdash; powered by internal data and LLM research</div>
+    <div class="meta">Docusign Value Consulting &nbsp;&nbsp;·&nbsp;&nbsp; March 2026 &nbsp;&nbsp;·&nbsp;&nbsp; Confidential &mdash; Internal Use Only</div>
+  </div>
+
+  <h2>The Problem</h2>
+  <p>
+    Preparing for a strategic enterprise account conversation at Docusign is a manual, time-intensive process.
+    Before meeting a large customer, account executives must independently research the company across fragmented
+    sources &mdash; public filings, news, LinkedIn, internal CRM, usage reports &mdash; and synthesize that into a
+    coherent narrative that articulates Docusign value, identifies gaps, and surfaces expansion opportunities.
+  </p>
+
+  <div class="callout no-break">
+    <strong>The result is inconsistency at scale.</strong> Research depth varies by rep. Internal usage data sits
+    locked in a spreadsheet and rarely becomes a strategic narrative. Conversations miss executive-level resonance,
+    and expansion opportunities go unrecognized.
+  </div>
+
+  <div class="transform-row no-break">
+    <div class="stat-box before">
+      <table><tr>
+        <td class="stat-left">
+          <div class="eyebrow">Before</div>
+          <span class="number">8–20</span>
+          <span class="unit">hours</span>
+        </td>
+        <td class="stat-right">
+          <div class="desc">manual research and synthesis per account, per rep</div>
+        </td>
+      </tr></table>
+    </div>
+    <div class="transform-arrow">&rarr;</div>
+    <div class="stat-box after">
+      <table><tr>
+        <td class="stat-left">
+          <div class="eyebrow">After</div>
+          <span class="number">&lt;5</span>
+          <span class="unit">minutes</span>
+        </td>
+        <td class="stat-right">
+          <div class="desc">5 AI research calls, 15-product signal analysis, org mapping, and a 9-section executive doc &mdash; fully automated</div>
+        </td>
+      </tr></table>
+    </div>
+  </div>
+
+  <h2>The Solution</h2>
+  <p>
+    The Growth Strategy Generator automates account preparation end-to-end. Given a company name, it reads internal
+    usage data from the bookscrub sheet, runs five sequential LLM research calls against an internal endpoint
+    (GPT-4o with Bing Grounding), and assembles a professionally formatted, nine-section Google Doc ready for
+    executive briefings or account planning sessions.
+  </p>
+  <p>
+    Recommendations are grounded in a deterministic signal-matching engine that evaluates 15 Docusign products and
+    4 bundle configurations against actual customer usage data. The LLM layers business context on top of
+    those signals &mdash; every recommendation can be traced to a specific usage threshold or account behavior.
+  </p>
+
+  <h2>Business Impact</h2>
+
+  <div class="two-col no-break">
+    <div>
+      <h3>For Account Executives</h3>
+      <ul>
+        <li><strong>Speed:</strong> Full account research in under 5 minutes vs. 8&ndash;20 hours of manual prep</li>
+        <li><strong>Depth:</strong> Consistent, executive-level narrative for every account</li>
+        <li><strong>Confidence:</strong> Data-backed expansion recommendations, not instinct</li>
+        <li><strong>Relevance:</strong> Agreement landscape and commerce estimates tailored to the customer&rsquo;s industry and org structure</li>
+      </ul>
+    </div>
+    <div>
+      <h3>For Sales Leadership</h3>
+      <ul>
+        <li><strong>Consistency:</strong> Every rep ships the same quality of prep</li>
+        <li><strong>Coverage:</strong> Run against the entire book of business, not just priority accounts</li>
+        <li><strong>Pipeline intelligence:</strong> Health scorecards surface at-risk renewals and expansion opportunities before they become problems</li>
+        <li><strong>No new infrastructure:</strong> Runs inside Google Workspace &mdash; no IT involvement required</li>
+      </ul>
+    </div>
+  </div>
+
+<!-- ══════════════════════════════════════════════════════════ PAGE 2 ══ -->
+
+  <h1 class="section-title new-page">What the Tool Produces</h1>
+
+  <div class="callout sample no-break">
+    <strong>See attached:</strong> a complete sample output document generated for a real enterprise account.
+    The table below describes what each section contains and how it is sourced.
+  </div>
+
+  <h2>Nine-Section Output Document</h2>
+
+  <table class="output-grid no-break">
+    <thead>
+      <tr>
+        <th>Section</th>
+        <th>What it contains</th>
+        <th>Source</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="sec-name">1 &nbsp;Company Profile</td>
+        <td class="sec-desc">Overview, business units, key metrics, strategic context</td>
+        <td class="sec-src"><span class="tag">LLM Call 1</span></td>
+      </tr>
+      <tr>
+        <td class="sec-name">2 &nbsp;Business Performance</td>
+        <td class="sec-desc">3-year trend, SWOT analysis, top strategic initiatives</td>
+        <td class="sec-src"><span class="tag">LLM Call 1</span></td>
+      </tr>
+      <tr>
+        <td class="sec-name">3 &nbsp;Executive Contacts</td>
+        <td class="sec-desc">Key decision-makers (CLO, CPO, CFO, CIO), tech stack, systems integrators</td>
+        <td class="sec-src"><span class="tag">LLM Call 1</span></td>
+      </tr>
+      <tr>
+        <td class="sec-name">4 &nbsp;Business Map</td>
+        <td class="sec-desc">Org hierarchy (Business Unit &rarr; Dept &rarr; Function) with agreement intensity per node</td>
+        <td class="sec-src"><span class="tag">LLM Call 2</span></td>
+      </tr>
+      <tr>
+        <td class="sec-name">5 &nbsp;Docusign Footprint</td>
+        <td class="sec-desc">Current products, consumption metrics, seat utilization, integrations, ARR</td>
+        <td class="sec-src"><span class="tag internal">Internal</span> <span class="tag">LLM Call 5</span></td>
+      </tr>
+      <tr>
+        <td class="sec-name">6 &nbsp;Account Health</td>
+        <td class="sec-desc">10-indicator scorecard: consumption pacing, seat activation, integration depth, renewal proximity, and more</td>
+        <td class="sec-src"><span class="tag internal">Internal only</span></td>
+      </tr>
+      <tr>
+        <td class="sec-name">7 &nbsp;Agreement Landscape</td>
+        <td class="sec-desc">Top 20 agreement types scored by volume and complexity, with categories and descriptions</td>
+        <td class="sec-src"><span class="tag">LLM Call 3</span></td>
+      </tr>
+      <tr>
+        <td class="sec-name">8 &nbsp;Contract Commerce</td>
+        <td class="sec-desc">Estimated $ flowing through agreements, broken down by department and agreement type</td>
+        <td class="sec-src"><span class="tag">LLM Call 4</span></td>
+      </tr>
+      <tr>
+        <td class="sec-name">9 &nbsp;Priority Map</td>
+        <td class="sec-desc">Company priorities mapped to Docusign capabilities, expansion opportunities, 5+ action items</td>
+        <td class="sec-src"><span class="tag internal">Internal</span> <span class="tag">LLM Call 5</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h1 class="section-title new-page">Account Health &amp; Signal Matching</h1>
+  <h2>Account Health Scorecard &mdash; Section 6</h2>
+  <p>
+    The health scorecard is generated entirely from internal bookscrub data using deterministic, auditable rules &mdash;
+    no LLM involved. Each indicator carries a green / yellow / red rating:
+  </p>
+
+  <table class="health-table no-break">
+    <tr>
+      <td class="ht-name">Consumption Pacing</td>
+      <td class="ht-desc">envelopes sent vs. purchased, adjusted for contract term</td>
+      <td class="ht-name">Integration Depth</td>
+      <td class="ht-desc">Salesforce, Workday, SAP, API, PowerForms, BulkSend</td>
+    </tr>
+    <tr>
+      <td class="ht-name">Usage Trend</td>
+      <td class="ht-desc">directional signal from bookscrub</td>
+      <td class="ht-name">Transaction Health</td>
+      <td class="ht-desc">completion vs. decline / void / expiry rates</td>
+    </tr>
+    <tr>
+      <td class="ht-name">Send Velocity (MoM)</td>
+      <td class="ht-desc">month-over-month envelope change</td>
+      <td class="ht-name">Product Breadth</td>
+      <td class="ht-desc">count of active Docusign products</td>
+    </tr>
+    <tr>
+      <td class="ht-name">Seat Activation Rate</td>
+      <td class="ht-desc">active / purchased seats</td>
+      <td class="ht-name">Renewal Proximity</td>
+      <td class="ht-desc">months to contract renewal</td>
+    </tr>
+    <tr>
+      <td class="ht-name">Seat Growth (MoM)</td>
+      <td class="ht-desc">monthly seat trend</td>
+      <td class="ht-name">Charge Model</td>
+      <td class="ht-desc">seat-based vs. envelope-based context flag</td>
+    </tr>
+  </table>
+
+  <h2 style="margin-top: 16px;">Data-Driven Recommendations &mdash; Signal Matching Engine</h2>
+  <p>
+    Before any LLM call runs, a deterministic signal-matching engine evaluates <strong>15 Docusign products</strong>
+    and <strong>4 bundle configurations</strong> against 60+ bookscrub fields using explicit thresholds. Each product
+    receives a strength rating (Strong, Moderate, Exploratory) and a status (Recommended, In Use, Not Relevant).
+    This output is injected into the LLM system prompt for Call 5, so the Priority Map is grounded in account
+    behavior &mdash; not generated from general knowledge.
+    Products already in use are explicitly excluded from &ldquo;recommended&rdquo; status, and accounts in
+    regulated industries automatically receive boosted recommendations for IDV, SMS Auth, and Agreement Desk.
+  </p>
+
+<!-- ══════════════════════════════════════════════════════════ PAGE 3 ══ -->
+
+  <h1 class="section-title new-page">How It Works &mdash; Solution Design</h1>
+
+  <!-- DATA FLOW -->
+  <h2>End-to-End Data Flow</h2>
+
+  <div class="data-flow no-break">
+    <div class="flow-node">
+      <div class="flow-icon">&#9685;</div>
+      <div class="flow-label">Internal Data</div>
+      <div class="flow-sub">Bookscrub sheet<br>60+ fields &middot; 9 groups</div>
+    </div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-node">
+      <div class="flow-icon">&#9671;</div>
+      <div class="flow-label">Signal Engine</div>
+      <div class="flow-sub">15 products &middot; 4 bundles<br>deterministic rules</div>
+    </div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-node">
+      <div class="flow-icon">&#9670;</div>
+      <div class="flow-label">LLM Research</div>
+      <div class="flow-sub">5 sequential calls<br>GPT-4o + Bing + EDGAR</div>
+    </div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-node">
+      <div class="flow-icon">&#9638;</div>
+      <div class="flow-label">Document Assembly</div>
+      <div class="flow-sub">9 sections<br>Google Doc output</div>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <h2 style="margin-top: 16px;">Components</h2>
+
+  <div class="arch-grid no-break">
+    <div class="arch-box">
+      <div class="arch-label">Runtime</div>
+      <div class="arch-title">Google Apps Script</div>
+      <div class="arch-detail">
+        6 .gs files bound to the bookscrub sheet. Deployed via <code>clasp push</code>. No npm, no build step.
+        Triggered from a custom Google Sheets menu.
+      </div>
+    </div>
+    <div class="arch-box">
+      <div class="arch-label">LLM Endpoint</div>
+      <div class="arch-title">infra.agreementsdemo.com</div>
+      <div class="arch-detail">
+        Internal proxy to GPT-4o with Bing Grounding. Authenticated via API key and user header stored in Script Properties.
+      </div>
+    </div>
+    <div class="arch-box">
+      <div class="arch-label">SEC EDGAR Proxy</div>
+      <div class="arch-title">Cloudflare Worker</div>
+      <div class="arch-detail">
+        Proxies SEC EDGAR API calls, bypassing CORS restrictions from Apps Script. Provides public company financials, filings, and entity data that ground the LLM research.
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE -->
+  <h2 style="margin-top: 18px;">LLM Pipeline &mdash; 5 Sequential Calls</h2>
+  <p style="margin-bottom: 10px;">Each call receives the output of all prior calls as context, building a progressively richer picture of the account.</p>
+
+  <div class="pipeline">
+
+    <div class="pipeline-step no-break">
+      <div class="pipeline-left">
+        <div class="pipeline-num">1</div>
+        <div class="pipeline-line"></div>
+      </div>
+      <div class="pipeline-card">
+        <div class="pipeline-card-header">
+          <span class="pipeline-card-title">Account Profile</span>
+          <span class="pipeline-uses">No prior context</span>
+        </div>
+        <div class="pipeline-detail">Company overview &middot; ~5 business units &middot; financials &middot; SWOT &middot; &ge;5 executives (CLO, CPO, CFO, CIO, CTO) &middot; tech stack &middot; strategic initiatives</div>
+      </div>
+    </div>
+
+    <div class="pipeline-step no-break">
+      <div class="pipeline-left">
+        <div class="pipeline-num">2</div>
+        <div class="pipeline-line"></div>
+      </div>
+      <div class="pipeline-card">
+        <div class="pipeline-card-header">
+          <span class="pipeline-card-title">Business Map</span>
+          <span class="pipeline-uses">Uses: Call 1</span>
+        </div>
+        <div class="pipeline-detail">Full org hierarchy (BU &rarr; Dept &rarr; Function, 40+ nodes) &middot; agreement intensity rating per node &middot; Corporate / Shared Services always included</div>
+      </div>
+    </div>
+
+    <div class="pipeline-step no-break">
+      <div class="pipeline-left">
+        <div class="pipeline-num">3</div>
+        <div class="pipeline-line"></div>
+      </div>
+      <div class="pipeline-card">
+        <div class="pipeline-card-header">
+          <span class="pipeline-card-title">Agreement Landscape</span>
+          <span class="pipeline-uses">Uses: Calls 1 + 2</span>
+        </div>
+        <div class="pipeline-detail">Top 20 agreement types scored by volume + complexity &middot; categorized and ranked &middot; if LLM fails: simplified retry, then deterministic generation from industry config</div>
+      </div>
+    </div>
+
+    <div class="pipeline-step no-break">
+      <div class="pipeline-left">
+        <div class="pipeline-num">4</div>
+        <div class="pipeline-line"></div>
+      </div>
+      <div class="pipeline-card">
+        <div class="pipeline-card-header">
+          <span class="pipeline-card-title">Contract Commerce</span>
+          <span class="pipeline-uses">Uses: Calls 1 + 3</span>
+        </div>
+        <div class="pipeline-detail">$ estimates for commerce flowing through agreements &middot; broken down by department and agreement type &middot; commercial relationship counts (employees, suppliers, customers)</div>
+      </div>
+    </div>
+
+    <div class="pipeline-step no-break">
+      <div class="pipeline-left">
+        <div class="pipeline-num synthesis">5</div>
+      </div>
+      <div class="pipeline-card synthesis">
+        <div class="pipeline-card-header">
+          <span class="pipeline-card-title">Priority Map &mdash; Synthesis</span>
+          <span class="pipeline-uses synthesis">All calls + internal signals</span>
+        </div>
+        <div class="pipeline-detail">5&ndash;7 company priorities mapped to Docusign capabilities &middot; expansion opportunities &middot; action plan &middot; grounded in signal-matched product recommendations injected into system prompt</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RESILIENCE -->
+  <h2 style="margin-top: 16px;">Resilience &amp; Error Handling</h2>
+
+  <div class="two-col no-break">
+    <ul>
+      <li><strong>Per-call isolation:</strong> Any failed call returns <code>{}</code>; the doc renders that section with a graceful fallback and execution continues</li>
+      <li><strong>JSON retry:</strong> Malformed LLM responses trigger an automatic retry with an explicit &ldquo;provide valid JSON&rdquo; prompt</li>
+    </ul>
+    <ul>
+      <li><strong>Call 3 fallback chain:</strong> Primary (20 types) &rarr; simplified retry (15 types) &rarr; deterministic generation from industry config tables if both fail</li>
+      <li><strong>Source filtering:</strong> Hallucinated or placeholder URLs are blocked before the Sources section renders</li>
+    </ul>
+  </div>
+
+  <div class="doc-footer">
+    <span>Growth Strategy Generator &mdash; Internal Brief</span>
+    <span>Page 3 of 3</span>
+  </div>
+
+</body>
+</html>

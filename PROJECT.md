@@ -38,10 +38,19 @@ Current phases (in order):
 4. Glean investigation — ongoing, not blocking rollout (PRS-118)
 
 ## Current focus
-**PRS-164 (rollout comms) — due 2026-04-08.** In progress.
-- Collab with Adam on announcement copy
-- Get Craig approval before send
-- PRS-156 (launch support plan) must be done first
+Three parallel tracks post-launch:
+
+1. **Slides generation** — PRS-170 (slides gen + AR agent exploration)
+   - Auto-generate Google Slides deck from AR doc output
+   - Key sections mapped to slide templates
+
+2. **Data/formula admin** — PRS-109 (document bookscrub process, due Apr 10)
+   - Step-by-step instructions for adding new accounts
+   - Enable others to manage bookscrub without engineering
+
+3. **Scale** — preparing the tool for broader rollout
+   - Phase 2: Wayne Phillips org (after Phase 1 stable)
+   - Phase 3: Broad IAM meeting release (~1 month out)
 
 ## Open questions
 - **Third-party enrichment (Gong + 100 Handshakes)**: Both blocked pending DTS API access approval. Consolidated into PRS-50.

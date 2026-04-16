@@ -30,3 +30,10 @@
 ### 4. Portal Integration Planning
 - [x] Write spec: `_docs/specs/portal-integration.md`
 - [ ] Review with team and answer open questions
+
+### 5. Tiered Health Score (PRS-233)
+- [x] Add indicator tier definitions (critical/contextual/excluded) and `computeTieredStatus()` helper
+- [x] Replace `red > 0` GTM rollup with tiered logic (2 critical OR 1 critical + 2 contextual = At Risk)
+- [x] Update GTM Key Concerns column: bold critical reds, regular contextual reds
+- [x] Add tiered overall assessment text for single-account view (Healthy/Watch/At Risk with green acknowledgment)
+- [x] Deploy (v110/111) — needs Slack library version bump + verification

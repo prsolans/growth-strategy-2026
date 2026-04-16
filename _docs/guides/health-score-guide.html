@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #333; max-width: 700px; margin: 40px auto; padding: 0 20px; }
+h1 { font-size: 22pt; color: #26065D; border-bottom: 2px solid #4C00FF; padding-bottom: 8px; }
+h2 { font-size: 16pt; color: #26065D; margin-top: 28px; }
+h3 { font-size: 13pt; color: #4C00FF; margin-top: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th { background: #26065D; color: white; padding: 8px 12px; text-align: left; font-size: 10pt; }
+td { padding: 6px 12px; border: 1px solid #CBC2FF; font-size: 10pt; }
+tr:nth-child(even) td { background: #F8F3F0; }
+code { background: #f4f0ff; padding: 2px 5px; border-radius: 3px; font-size: 10pt; }
+ul, ol { padding-left: 24px; }
+li { margin-bottom: 4px; }
+</style></head><body><h1 id="account-health-score-how-it-works">Account Health Score — How It Works</h1>
+<p>The Account Health section of the research doc uses <strong>deterministic, rule-based scoring</strong> applied to internal Docusign account metrics. No AI or LLM estimation is involved — every indicator is computed directly from Book of Business data.</p>
+<hr />
+<h2 id="traffic-light-system">Traffic-Light System</h2>
+<p>Each indicator is assigned one of four statuses:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Green</strong></td>
+<td>Healthy</td>
+<td>No action needed</td>
+</tr>
+<tr>
+<td><strong>Yellow</strong></td>
+<td>Watch</td>
+<td>Monitor or investigate</td>
+</tr>
+<tr>
+<td><strong>Red</strong></td>
+<td>Concern</td>
+<td>Action recommended</td>
+</tr>
+<tr>
+<td><strong>Gray</strong></td>
+<td>No Data</td>
+<td>Metric unavailable for this account</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="the-10-health-indicators">The 10 Health Indicators</h2>
+<h3 id="1-consumption-pacing">1. Consumption Pacing</h3>
+<p>Are envelopes being used at a rate that matches the contract timeline?</p>
+<p><strong>How it works:</strong> Compares the percentage of purchased envelopes consumed against the percentage of the contract term elapsed.</p>
+<pre><code>pacingRatio = (envelopesSent / envelopesPurchased) / (% of contract term elapsed)
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Pacing Ratio</th>
+<th>Status</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&gt;= 0.9</td>
+<td>Green</td>
+<td>On Track</td>
+</tr>
+<tr>
+<td>0.6 – 0.89</td>
+<td>Yellow</td>
+<td>Slightly Behind</td>
+</tr>
+<tr>
+<td>&lt; 0.6</td>
+<td>Red</td>
+<td>Significantly Behind</td>
+</tr>
+<tr>
+<td>No envelope data</td>
+<td>Gray</td>
+<td>No Data</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong> An account has sent 45% of purchased envelopes and is 50% through its contract term. Pacing ratio = 0.90 — <strong>Green (On Track)</strong>.</p>
+<p><strong>Edge case:</strong> If the contract term has elapsed (&gt; 100% complete), the term percentage is capped at 100% for the ratio calculation, and a note is appended indicating the term has expired.</p>
+<hr />
+<h3 id="2-usage-trend">2. Usage Trend</h3>
+<p>Directional indicator from the Book of Business usage trend classification.</p>
+<p><strong>How it works:</strong> Matches keywords in the <code>USAGE_TREND</code> field.</p>
+<table>
+<thead>
+<tr>
+<th>Trend contains</th>
+<th>Status</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"over"</td>
+<td>Green</td>
+<td>Over Trending</td>
+</tr>
+<tr>
+<td>"on" or "track"</td>
+<td>Green</td>
+<td>On Track</td>
+</tr>
+<tr>
+<td>"under"</td>
+<td>Red</td>
+<td>Under Trending</td>
+</tr>
+<tr>
+<td>Anything else / empty</td>
+<td>Gray</td>
+<td>No Data</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why it matters:</strong> Over-trending accounts are upsell candidates at renewal. Under-trending accounts may have dormant use cases or onboarding gaps.</p>
+<hr />
+<h3 id="3-send-velocity-mom">3. Send Velocity (MoM)</h3>
+<p>Month-over-month change in envelope send volume — is usage growing, flat, or declining?</p>
+<table>
+<thead>
+<tr>
+<th>MoM Change</th>
+<th>Status</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&gt; +10%</td>
+<td>Green</td>
+<td>Accelerating</td>
+</tr>
+<tr>
+<td>-10% to +10%</td>
+<td>Yellow</td>
+<td>Flat</td>
+</tr>
+<tr>
+<td>&lt; -10%</td>
+<td>Red</td>
+<td>Decelerating</td>
+</tr>
+<tr>
+<td>No data</td>
+<td>Gray</td>
+<td>No Data</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="4-seat-activation">4. Seat Activation</h3>
+<p>What percentage of purchased seats are actively being used?</p>
+<table>
+<thead>
+<tr>
+<th>Activation Rate</th>
+<th>Status</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&gt;= 70%</td>
+<td>Green</td>
+<td>Healthy</td>
+</tr>
+<tr>
+<td>30% – 69%</td>
+<td>Yellow</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>&lt; 30%</td>
+<td>Red</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>Active seats but no purchased limit</td>
+<td>Yellow</td>
+<td>Unmetered</td>
+</tr>
+<tr>
+<td>No seat data</td>
+<td>Gray</td>
+<td>No Data</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Shelfware risk:</strong> Red status signals significant shelfware — purchased seats that aren't being used. This is both a retention risk (customer isn't getting value) and an engagement opportunity.</p>
+<hr />
+<h3 id="5-seat-growth-mom">5. Seat Growth (MoM)</h3>
+<p>Month-over-month change in active seat count — is the user base expanding or contracting?</p>
+<table>
+<thead>
+<tr>
+<th>MoM Change</th>
+<th>Status</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&gt; 0%</td>
+<td>Green</td>
+<td>Growing</td>
+</tr>
+<tr>
+<td>-5% to 0%</td>
+<td>Yellow</td>
+<td>Stable</td>
+</tr>
+<tr>
+<td>&lt; -5%</td>
+<td>Red</td>
+<td>Contracting</td>
+</tr>
+<tr>
+<td>No data</td>
+<td>Gray</td>
+<td>No Data</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="6-integration-depth">6. Integration Depth</h3>
+<p>Number of detected integration types (Salesforce, Workday, SAP, Custom API, PowerForms, Bulk Send) as a proxy for platform stickiness.</p>
+<table>
+<thead>
+<tr>
+<th>Integration Count</th>
+<th>Status</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&gt;= 3</td>
+<td>Green</td>
+<td>Deeply Embedded</td>
+</tr>
+<tr>
+<td>1 – 2</td>
+<td>Yellow</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>0</td>
+<td>Red</td>
+<td>Low Stickiness</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Switching cost signal:</strong> Accounts with 3+ integrations have high switching costs and are strong retention candidates. Zero integrations (web-app-only usage) means the customer could easily switch to a competitor.</p>
+<p><strong>API detail:</strong> For accounts with 1–2 integrations, the system also checks whether more than 50% of sends are API-driven. If so, the account is noted as "technically committed" despite the moderate integration count.</p>
+<hr />
+<h3 id="7-transaction-health">7. Transaction Health</h3>
+<p>How successfully are envelopes completing? Measures the combined failure rate across declined, voided, and expired transactions.</p>
+<pre><code>failRate = pctDeclined + pctVoided + pctExpired
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Failure Rate</th>
+<th>Status</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&lt; 5%</td>
+<td>Green</td>
+<td>Healthy</td>
+</tr>
+<tr>
+<td>5% – 14%</td>
+<td>Yellow</td>
+<td>Moderate Issues</td>
+</tr>
+<tr>
+<td>&gt;= 15%</td>
+<td>Red</td>
+<td>High Failure Rate</td>
+</tr>
+<tr>
+<td>No completion data</td>
+<td>Gray</td>
+<td>No Data</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What to investigate:</strong> High failure rates often point to signer experience issues — confusing workflows, wrong email addresses, or overly complex signing processes.</p>
+<hr />
+<h3 id="8-product-breadth">8. Product Breadth</h3>
+<p>How many Docusign products is the account actively using vs. how many are available?</p>
+<table>
+<thead>
+<tr>
+<th>Active Products</th>
+<th>Status</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&gt;= 5</td>
+<td>Green</td>
+<td>Broad Adoption</td>
+</tr>
+<tr>
+<td>2 – 4</td>
+<td>Yellow</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Red</td>
+<td>Single Product</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Whitespace signal:</strong> Single-product accounts have the most expansion potential but are also least sticky. Multi-product customers are significantly harder to displace.</p>
+<hr />
+<h3 id="9-renewal-proximity">9. Renewal Proximity</h3>
+<p>How much time remains until the contract renewal date?</p>
+<table>
+<thead>
+<tr>
+<th>Months Left</th>
+<th>Status</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&lt;= 3</td>
+<td>Red</td>
+<td>Imminent</td>
+</tr>
+<tr>
+<td>4 – 6</td>
+<td>Yellow</td>
+<td>Approaching</td>
+</tr>
+<tr>
+<td>&gt; 6</td>
+<td>Green</td>
+<td>Runway</td>
+</tr>
+<tr>
+<td>No renewal date</td>
+<td>Gray</td>
+<td>No Data</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Action triggers:</strong>
+- <strong>Red (Imminent):</strong> Renewal conversation should already be active.
+- <strong>Yellow (Approaching):</strong> Time to begin renewal planning and build the expansion case.
+- <strong>Green (Runway):</strong> Focus on building value and identifying expansion opportunities.</p>
+<hr />
+<h3 id="10-charge-model">10. Charge Model</h3>
+<p>This is a <strong>contextual indicator</strong>, not a health score. It tells you which metrics matter most for this account.</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Label</th>
+<th>What to prioritize</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seat-based</td>
+<td>Seat-Based</td>
+<td>Focus on Seat Activation (#4) and Seat Growth (#5)</td>
+</tr>
+<tr>
+<td>Envelope-based</td>
+<td>Envelope-Based</td>
+<td>Focus on Consumption Pacing (#1) and Send Velocity (#3)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="single-account-presentation">Single-Account Presentation</h2>
+<p>For a single Docusign account, the health section renders a <strong>full scorecard table</strong> with all 10 indicators:</p>
+<table>
+<thead>
+<tr>
+<th>Indicator</th>
+<th>Status</th>
+<th>Assessment</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Consumption Pacing</td>
+<td>On Track</td>
+<td>Consumption at 72% vs 68% through term (1.06x ratio).</td>
+</tr>
+<tr>
+<td>Usage Trend</td>
+<td>On Track</td>
+<td>On Track.</td>
+</tr>
+<tr>
+<td>Send Velocity (MoM)</td>
+<td>Flat</td>
+<td>Send volume changed 3% month-over-month. Stable but not growing.</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+</tbody>
+</table>
+<p>Each row is color-coded using the traffic-light system. The Status column shows the label text on the corresponding background color (green, yellow, red, or gray).</p>
+<h3 id="overall-assessment">Overall Assessment</h3>
+<p>Below the scorecard, a narrative summary is generated:</p>
+<ol>
+<li>
+<p><strong>Summary line:</strong> Count of indicators by status — e.g., <em>"6 healthy, 2 watch, 1 concern, 1 no data — out of 10 indicators evaluated."</em></p>
+</li>
+<li>
+<p><strong>Charge model context:</strong> Calls out which metrics to prioritize based on whether the account is seat-based or envelope-based.</p>
+</li>
+<li>
+<p><strong>Red flag callouts:</strong> Every red indicator is listed with its full detail text so the reader immediately sees what needs attention.</p>
+</li>
+<li>
+<p><strong>Growth opportunity:</strong> If Product Breadth is not green, highlights the number of unadopted products and the current ACV to frame the expansion case.</p>
+</li>
+<li>
+<p><strong>Retention risk:</strong> If Integration Depth is red (zero integrations), explicitly recommends prioritizing Salesforce or API integration to increase switching cost.</p>
+</li>
+</ol>
+<hr />
+<h2 id="multi-account-gtm-group-presentation">Multi-Account (GTM Group) Presentation</h2>
+<p>When multiple Docusign accounts are linked under the same GTM Group (e.g., a parent company with separate regional or divisional accounts), the health section uses a different presentation optimized for comparison.</p>
+<h3 id="how-gtm-groups-work">How GTM Groups Work</h3>
+<p>The bookscrub data links accounts via the <code>GTM_GROUP</code> field. When a company name resolves to a GTM Group, all member accounts are loaded and analyzed individually. The research doc covers the group as a single entity, but the health section scores each account separately.</p>
+<h3 id="health-summary-table">Health Summary Table</h3>
+<p>Instead of a full 10-indicator scorecard, the multi-account view renders a <strong>compact summary table</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Account</th>
+<th>Healthy</th>
+<th>Watch</th>
+<th>Concern</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Acme Corp (US)</td>
+<td>6</td>
+<td>2</td>
+<td>1</td>
+<td>At Risk</td>
+</tr>
+<tr>
+<td>Acme Corp (EMEA)</td>
+<td>7</td>
+<td>3</td>
+<td>0</td>
+<td>Watch</td>
+</tr>
+<tr>
+<td>Acme Corp (APAC)</td>
+<td>8</td>
+<td>1</td>
+<td>0</td>
+<td>Watch</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Column definitions:</strong></p>
+<ul>
+<li><strong>Account:</strong> The account name from the bookscrub identity data.</li>
+<li><strong>Healthy / Watch / Concern:</strong> Count of indicators that scored green, yellow, or red respectively. Gray (no data) indicators are excluded from these counts.</li>
+<li><strong>Status:</strong> A single rollup label for the account:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Status Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Any red indicators</td>
+<td><strong>At Risk</strong></td>
+</tr>
+<tr>
+<td>No red, but any yellow</td>
+<td><strong>Watch</strong></td>
+</tr>
+<tr>
+<td>All green (no red or yellow)</td>
+<td><strong>Healthy</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The Status column is color-coded: At Risk on red background, Watch on yellow, Healthy on green.</p>
+<h3 id="whats-different-from-single-account">What's Different from Single-Account</h3>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Single Account</th>
+<th>Multi-Account (GTM Group)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Scorecard</strong></td>
+<td>Full 10-row table with indicator names, status labels, and detail text</td>
+<td>Compact summary — one row per account with indicator counts</td>
+</tr>
+<tr>
+<td><strong>Overall Assessment</strong></td>
+<td>Narrative with red-flag callouts, growth opportunities, retention risk</td>
+<td>Not shown — the summary table replaces it</td>
+</tr>
+<tr>
+<td><strong>Indicator detail</strong></td>
+<td>Every indicator's assessment text is visible</td>
+<td>Only the count of green/yellow/red per account</td>
+</tr>
+<tr>
+<td><strong>Scoring</strong></td>
+<td><code>analyzeAccountHealth()</code> runs once against the single account's data</td>
+<td><code>analyzeAccountHealth()</code> runs independently for each member account</td>
+</tr>
+</tbody>
+</table>
+<h3 id="how-each-account-is-scored">How Each Account Is Scored</h3>
+<p>Each account in the GTM Group is scored using exactly the same 10 indicators and thresholds as a single account. The system:</p>
+<ol>
+<li>Iterates over each member account in the group</li>
+<li>Runs <code>analyzeAccountHealth()</code> against that account's individual data (not the aggregated group data)</li>
+<li>Counts how many of the 10 indicators scored green, yellow, or red</li>
+<li>Assigns the rollup status (At Risk / Watch / Healthy)</li>
+</ol>
+<p>This means the contract term, consumption pacing, seat activation, and all other metrics reflect each account's specific situation — not a blended average across the group.</p>
+<h3 id="why-no-full-scorecard-for-groups">Why No Full Scorecard for Groups</h3>
+<p>The multi-account view intentionally omits the per-indicator detail to keep the section scannable. A GTM Group with 5 accounts would produce 50 indicator rows — too dense for a research doc that's meant to be read quickly. The compact table gives an at-a-glance comparison and flags which accounts need attention. Reps can then dive into individual account data for specifics.</p>
+<hr />
+<h2 id="data-source">Data Source</h2>
+<p>All health score inputs come from the internal Docusign Book of Business spreadsheet, extracted by the <code>DataExtractor.gs</code> module. No external APIs or LLM calls are used. The health section is the only section of the research doc that is entirely AI-free.</p>
+<h3 id="key-bookscrub-fields-used">Key Bookscrub Fields Used</h3>
+<table>
+<thead>
+<tr>
+<th>Indicator</th>
+<th>Bookscrub Fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Consumption Pacing</td>
+<td><code>ENVELOPES_SENT</code>, <code>ENVELOPES_PURCHASED</code>, <code>PERCENTAGE_TERM_COMPLETED</code></td>
+</tr>
+<tr>
+<td>Usage Trend</td>
+<td><code>USAGE_TREND</code></td>
+</tr>
+<tr>
+<td>Send Velocity</td>
+<td><code>SEND_VELOCITY_MOM</code></td>
+</tr>
+<tr>
+<td>Seat Activation</td>
+<td><code>SEATS_PURCHASED</code>, <code>ACTIVE_SEATS</code>, <code>PERCENTAGE_SVA</code></td>
+</tr>
+<tr>
+<td>Seat Growth</td>
+<td><code>ACTIVE_SEATS_MOM</code></td>
+</tr>
+<tr>
+<td>Integration Depth</td>
+<td><code>ENVELOPES_VIA_SALESFORCE</code>, <code>ENVELOPES_VIA_WORKDAY</code>, <code>ENVELOPES_VIA_SAP</code>, <code>CUSTOM_API_SENT</code>, <code>COUNT_POWERFORM_SENT</code>, <code>COUNT_BULKSEND_SENT</code></td>
+</tr>
+<tr>
+<td>Transaction Health</td>
+<td><code>ENVELOPES_COMPLETED_RATE</code>, <code>PERCENT_DECLINED</code>, <code>PERCENT_VOIDED</code>, <code>PERCENT_EXPIRED</code></td>
+</tr>
+<tr>
+<td>Product Breadth</td>
+<td>Derived from product signal matching (15 products + 4 bundles)</td>
+</tr>
+<tr>
+<td>Renewal Proximity</td>
+<td><code>MONTHS_LEFT</code>, <code>TERM_END_FYQ</code></td>
+</tr>
+<tr>
+<td>Charge Model</td>
+<td><code>CHARGE_MODEL</code></td>
+</tr>
+</tbody>
+</table></body></html>

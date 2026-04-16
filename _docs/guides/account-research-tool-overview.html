@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Account Research Tool — Executive Overview</title>
+<style>
+  @page { size: letter portrait; margin: 0.6in 0.75in 0.5in; }
+
+  body {
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.5;
+    color: #111;
+    background: #fff;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1.5px solid #111;
+  }
+  .header img.logo  { height: 22px; width: auto; }
+  .header img.genius { height: 18px; width: auto; }
+
+  /* ── Title ── */
+  h1 {
+    font-size: 18pt;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 4px;
+  }
+  .tagline {
+    font-size: 9.5pt;
+    color: #555;
+    margin: 0 0 18px;
+  }
+
+  /* ── Section label ── */
+  .label {
+    font-size: 7pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #888;
+    margin: 0 0 6px;
+  }
+
+  /* ── Section block ── */
+  .section {
+    margin-bottom: 16px;
+  }
+
+  p {
+    font-size: 9.5pt;
+    color: #333;
+    line-height: 1.55;
+    margin: 0 0 6px;
+  }
+
+  /* ── Pills ── */
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 7px;
+  }
+  .pill {
+    font-size: 7.5pt;
+    color: #333;
+    background: #f2f2f2;
+    border-radius: 3px;
+    padding: 2px 8px;
+    white-space: nowrap;
+  }
+  .pill-num { font-weight: 700; color: #999; margin-right: 3px; }
+
+  /* ── Pipeline diagram ── */
+  .pipeline-diagram {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .sources {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  .source-box {
+    font-size: 8pt;
+    font-weight: 600;
+    color: #111;
+    background: #f2f2f2;
+    border-radius: 4px;
+    padding: 5px 10px;
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+  .source-sub {
+    font-size: 6.5pt;
+    font-weight: 400;
+    color: #888;
+    display: block;
+  }
+
+  .arrow {
+    font-size: 14pt;
+    color: #bbb;
+    flex-shrink: 0;
+  }
+
+  .steps-col {
+    flex: 1;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .steps-header {
+    background: #111;
+    color: #fff;
+    font-size: 7pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 4px 10px;
+  }
+
+  .steps-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .step-row {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 4px 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 8.5pt;
+  }
+  .step-row:last-child { border-bottom: none; }
+
+  .sn {
+    font-size: 7pt;
+    font-weight: 800;
+    color: #999;
+    min-width: 10px;
+    flex-shrink: 0;
+  }
+  .step-row strong { color: #111; font-weight: 700; }
+  .step-row span   { color: #555; }
+
+  .output-box {
+    flex-shrink: 0;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    overflow: hidden;
+    width: 110px;
+  }
+
+  .output-header {
+    background: #111;
+    color: #fff;
+    font-size: 7pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 4px 8px;
+  }
+
+  .output-sections {
+    padding: 5px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .out-item {
+    font-size: 7pt;
+    color: #444;
+    line-height: 1.4;
+  }
+  .out-item span { color: #bbb; margin-right: 3px; font-weight: 700; }
+
+  /* ── Access block ── */
+  .access-row {
+    display: flex;
+    gap: 14px;
+    margin-top: 8px;
+  }
+
+  .access-item {
+    flex: 1;
+    border-left: 2px solid #ddd;
+    padding-left: 10px;
+  }
+
+  .access-title {
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: #111;
+    margin-bottom: 2px;
+  }
+
+  .access-desc {
+    font-size: 8pt;
+    color: #555;
+    line-height: 1.45;
+  }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid #eee; margin: 14px 0; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 14px;
+    padding-top: 7px;
+    border-top: 1px solid #ddd;
+    font-size: 7.5pt;
+    color: #999;
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img class="logo"   src="../reference/Docusign Horizontal_Black.png" alt="Docusign">
+  <img class="genius" src="../reference/genius_bar.png" alt="Genius Bar">
+</div>
+
+<h1>Account Research Tool</h1>
+<p class="tagline">AI-generated, research-backed growth strategy documents for any Docusign customer account.</p>
+
+<!-- ── 1. What AEs Get ── -->
+<div class="section">
+  <div class="label">Account Plan Output</div>
+  <p>
+    The tool produces a six-section Google Doc that gives AEs a ready-to-use baseline for account research. The document opens with current contract data — ACV, seat utilization, and envelope volume — alongside a side-by-side view of active vs. unused products, surfacing immediate upsell opportunities from internal book-of-business data. An account health scorecard follows, derived entirely from internal signals.
+  </p>
+  <p>
+    The second half of the main document is AI-synthesized: a narrative of the customer's strategic business initiatives and where Docusign fits, a long-term opportunity map organized by business unit with agreement intensity scoring (with a column left intentionally blank for the AE to complete), and a scored shortlist of the top three high-value "Big Bet" expansion opportunities with estimated size and ROI. Supporting research — company profile, org structure, agreement landscape, and commerce estimates — is compiled in an appendix.
+  </p>
+  <div class="pills">
+    <span class="pill"><span class="pill-num">1</span>Docusign Today</span>
+    <span class="pill"><span class="pill-num">2</span>Product Adoption Opportunity</span>
+    <span class="pill"><span class="pill-num">3</span>Account Health</span>
+    <span class="pill"><span class="pill-num">4</span>Strategic Initiatives</span>
+    <span class="pill"><span class="pill-num">5</span>Long-Term Opportunity Map</span>
+    <span class="pill"><span class="pill-num">6</span>Top 3 Big Bets</span>
+    <span class="pill" style="background:#e8e8e8;color:#888;font-style:italic;">Appendix: Company Profile · Business Performance · Exec &amp; Tech · Priority Map · Agreement Landscape · Commerce Estimate · Sources</span>
+  </div>
+</div>
+
+<hr>
+
+<!-- ── 2. Pipeline ── -->
+<div class="section">
+  <div class="label">How It Works — Research Pipeline</div>
+  <div class="pipeline-diagram">
+
+    <div class="sources">
+      <div class="source-box">Internal Customer Data<span class="source-sub">Bookscrub · product adoption · contract signals</span></div>
+      <div class="source-box">SEC EDGAR Filings<span class="source-sub">Financials · 10-K · material disclosures</span></div>
+      <div class="source-box">DS Best Practices<span class="source-sub">Product catalog · agreement intelligence</span></div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <div class="steps-col">
+      <div class="steps-header">5-Step AI Pipeline</div>
+      <div class="steps-body">
+        <div class="step-row"><span class="sn">1</span><div><strong>Account Profile</strong> <span>— overview, BUs, financials, SWOT, executives, tech stack</span></div></div>
+        <div class="step-row"><span class="sn">2</span><div><strong>Business Map</strong> <span>— org hierarchy with agreement intensity per node</span></div></div>
+        <div class="step-row"><span class="sn">3</span><div><strong>Agreement Landscape</strong> <span>— top 20 types by volume &amp; complexity, industry-tailored</span></div></div>
+        <div class="step-row"><span class="sn">4</span><div><strong>Commerce Estimate</strong> <span>— revenue potential by department and agreement type</span></div></div>
+        <div class="step-row"><span class="sn">5</span><div><strong>Priority Map</strong> <span>— ranked opportunities and 90-day action plan</span></div></div>
+      </div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <div class="output-box">
+      <div class="output-header">Strategy Doc</div>
+      <div class="output-sections">
+        <div class="out-item"><span>1</span>Docusign Today</div>
+        <div class="out-item"><span>2</span>Product Adoption</div>
+        <div class="out-item"><span>3</span>Account Health</div>
+        <div class="out-item"><span>4</span>Strategic Initiatives</div>
+        <div class="out-item"><span>5</span>Opportunity Map</div>
+        <div class="out-item"><span>6</span>Top 3 Big Bets</div>
+        <div class="out-item" style="color:#aaa;font-style:italic;">+ Appendix</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<hr>
+
+<!-- ── 3. Access ── -->
+<div class="section">
+  <div class="label">Access &amp; Infrastructure</div>
+  <div class="access-row">
+    <div class="access-item">
+      <div class="access-title">Available through the Genius Bar</div>
+      <div class="access-desc">Request access or onboarding via the Genius Bar. The tool is provisioned per territory and configured with your Drive folder and API credentials before first use.</div>
+    </div>
+    <div class="access-item">
+      <div class="access-title">Built on internal Docusign tooling</div>
+      <div class="access-desc">Runs entirely within Google Workspace using the standard enterprise bookscrub sheet. AI calls route through Docusign's internal LLM infrastructure — no data leaves the corporate environment.</div>
+    </div>
+    <div class="access-item">
+      <div class="access-title">No data preparation required</div>
+      <div class="access-desc">Select an account from the sheet, click Generate, and the completed document is saved to Drive in under 5 minutes. Five AI research calls, signal analysis across 15 products, and a fully formatted 9-section executive report — the bookscrub export is the only input needed.</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>Google Apps Script · Docusign Infra LLM · SEC EDGAR Proxy</span>
+  <span>Confidential · Internal Use Only</span>
+</div>
+
+</body>
+</html>
