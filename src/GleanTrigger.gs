@@ -1,16 +1,13 @@
 /**
  * GleanTrigger — GAS orchestration for the Glean agent multi-step workflow (V5).
  *
- * Architecture (V5):
+ * Architecture (V5 + 3-layer cache):
  *   GAS drives 5 sequential calls to one Glean agent endpoint.
  *   Each call passes a STEP: marker so Glean routes to the correct branch.
  *
- *   Steps 1+2 — PARALLEL: company-search + web-search (research, lightweight)
- *   Step 3     — think1: Company Profile Synthesis → accountProfile JSON
- *   Step 4     — think2: Business Map + Agreements + Commerce → appendix JSON
- *   Step 5     — think3: Docusign Strategy → priorityMap + briefing + bigBets JSON
- *
- *   GAS assembles all results and calls generateAccountResearchDocFromGlean().
+ *   L1: gatherResearch()           — bookscrub + enrichment + Glean research → research.json
+ *   L2: synthesizeIntelligence()   — think1/2/3 → 7 intelligence objects → intelligence.json
+ *   L3: triggerGleanReport()       — orchestrates L1→L2→doc generation
  *
  * Entry points (called from Menu.gs):
  *   generateAndLogViaGlean(companyName, isProspect)   — single account
@@ -63,21 +60,22 @@ function generateAndLogGroupViaGlean(gtmGroupId) {
   }
 }
 
-// ── Core pipeline ──────────────────────────────────────────────────────
+// ── Research gathering (L1) ────────────────────────────────────────────
 
 /**
- * Orchestrates 5 Glean calls, accumulates results, builds the Google Doc.
+ * Gathers all L1 research: bookscrub data, product signals, enrichment,
+ * and Glean research (company-search + web-search).
+ *
+ * Writes result to Drive cache via writeResearchCache().
  *
  * @param {string}       companyName   Display name
- * @param {Object|null}  prebuiltData  Optional pre-built group data
  * @param {boolean}      isProspect
- * @param {string}       email         Optional — for Slack progress notifications
- * @param {string}       channelId     Optional — for Slack progress notifications
- * @returns {string} Google Doc URL
+ * @param {Object|null}  prebuiltData  Optional pre-built group data
+ * @returns {Object} { data, productSignals, enrichment, gleanResearch }
  */
-function triggerGleanReport(companyName, prebuiltData, isProspect, email, channelId) {
-  Logger.log('[Glean] Starting V5 multi-step report for: ' + companyName +
-    (prebuiltData && prebuiltData.isGtmGroup ? ' [GTM GROUP]' : '') +
+function gatherResearch(companyName, isProspect, prebuiltData) {
+  var start = Date.now();
+  Logger.log('[Glean] gatherResearch: starting for "' + companyName + '"' +
     (isProspect ? ' [PROSPECT]' : ''));
 
   // ── 1. Extract internal bookscrub data ───────────────────────────
@@ -97,26 +95,57 @@ function triggerGleanReport(companyName, prebuiltData, isProspect, email, channe
     Logger.log('[Glean] Enrichment failed (non-fatal): ' + e.message);
   }
 
-  var payload    = { account: data, productSignals: productSignals, enrichment: enrichment };
-  var payloadStr = JSON.stringify(payload);
-  Logger.log('[Glean] Payload size: ' + payloadStr.length + ' chars');
-
-  var companyName_ = data.identity.name;
-  var industry     = data.context.industry;
-
-  // ── Steps 1+2: Research — PARALLEL ──────────────────────────────
-  Logger.log('[Glean] Steps 1+2: company-search + web-search (parallel)...');
-  var internalResearch = '';
-  var externalResearch = '';
+  // ── 4. Glean research — PARALLEL ─────────────────────────────────
+  var gleanResearch = { internal: '', external: '' };
   try {
-    var research     = _runResearchParallel(companyName_, industry);
-    internalResearch = research.internal;
-    externalResearch = research.external;
-    Logger.log('[Glean] Research done. Internal: ' + internalResearch.length +
-      ' chars | External: ' + externalResearch.length + ' chars');
+    gleanResearch = _runResearchParallel(data.identity.name, data.context.industry);
+    Logger.log('[Glean] Research done. Internal: ' + gleanResearch.internal.length +
+      ' chars | External: ' + gleanResearch.external.length + ' chars');
   } catch (e) {
     Logger.log('[Glean] Research steps failed (non-fatal): ' + e.message);
   }
+
+  var result = {
+    data: data,
+    productSignals: productSignals,
+    enrichment: enrichment,
+    gleanResearch: gleanResearch
+  };
+
+  // ── Write to Drive cache ─────────────────────────────────────────
+  try {
+    writeResearchCache(companyName, result, 'glean');
+  } catch (e) {
+    Logger.log('[Glean] writeResearchCache failed (non-fatal): ' + e.message);
+  }
+
+  var elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  Logger.log('[Glean] gatherResearch: done for "' + companyName + '" (' + elapsed + 's)');
+  return result;
+}
+
+// ── Intelligence synthesis (L2) ───────────────────────────────────────
+
+/**
+ * Synthesizes L2 intelligence from L1 research via three Glean think steps.
+ *
+ * Writes result to Drive cache via writeIntelligenceCache().
+ *
+ * @param {string}  companyName
+ * @param {Object}  research     L1 research object from gatherResearch()
+ * @param {boolean} isProspect
+ * @returns {Object} The 7 intelligence objects
+ */
+function synthesizeIntelligence(companyName, research, isProspect) {
+  var start = Date.now();
+  Logger.log('[Glean] synthesizeIntelligence: starting for "' + companyName + '"');
+
+  var payload    = { account: research.data, productSignals: research.productSignals, enrichment: research.enrichment };
+  var payloadStr = JSON.stringify(payload);
+  Logger.log('[Glean] Payload size: ' + payloadStr.length + ' chars');
+
+  var internalResearch = (research.gleanResearch && research.gleanResearch.internal) || '';
+  var externalResearch = (research.gleanResearch && research.gleanResearch.external) || '';
 
   // ── Step 3: Think 1 — Company Profile ───────────────────────────
   Logger.log('[Glean] Step 3: think1 — Company Profile...');
@@ -133,15 +162,24 @@ function triggerGleanReport(companyName, prebuiltData, isProspect, email, channe
   var think2Data = _parseStepJson(think2Text, 'think2');
   Logger.log('[Glean] think2 done. Keys: ' + Object.keys(think2Data).join(', '));
 
-  // ── Step 5: Think 3 — Docusign Strategy ─────────────────────────
+  // ── Step 5: Think 3 — Docusign Strategy (with retry) ──────────
   Logger.log('[Glean] Step 5: think3 — Docusign Strategy...');
-  var think3Text = _postToGleanStep('think3',
-    _buildThink3Message(payloadStr, accountProfile, think2Data, isProspect));
+  var think3Msg = _buildThink3Message(payloadStr, accountProfile, think2Data, isProspect);
+  var think3Text = _postToGleanStep('think3', think3Msg);
   var think3Data = _parseStepJson(think3Text, 'think3');
+
+  // Retry once if think3 returned an error envelope or empty result
+  if (!think3Data.priorityMap && !think3Data.briefing && !think3Data.bigBets) {
+    Logger.log('[Glean] think3 — no usable data on first attempt. Retrying in 30s...');
+    Utilities.sleep(30000);
+    think3Text = _postToGleanStep('think3-retry', think3Msg);
+    think3Data = _parseStepJson(think3Text, 'think3-retry');
+  }
+
   Logger.log('[Glean] think3 done. Keys: ' + Object.keys(think3Data).join(', '));
 
-  // ── Assemble full analysis ───────────────────────────────────────
-  var gleanAnalysis = {
+  // ── Assemble the 7 intelligence objects ──────────────────────────
+  var intel = {
     accountProfile:     accountProfile,
     businessMap:        think2Data.businessMap         || {},
     agreementLandscape: think2Data.agreementLandscape  || {},
@@ -152,13 +190,86 @@ function triggerGleanReport(companyName, prebuiltData, isProspect, email, channe
   };
 
   Logger.log('[Glean] Analysis assembled. agreementLandscape count: ' +
-    ((gleanAnalysis.agreementLandscape.agreements || []).length));
+    ((intel.agreementLandscape.agreements || []).length));
 
-  // ── Build the Google Doc ─────────────────────────────────────────
+  // ── Write to Drive cache ─────────────────────────────────────────
+  try {
+    writeIntelligenceCache(companyName, intel, 'glean');
+  } catch (e) {
+    Logger.log('[Glean] writeIntelligenceCache failed (non-fatal): ' + e.message);
+  }
+
+  // Update card preview for fast landing page loads
+  try { updateCardPreview(companyName); } catch (e) {
+    Logger.log('[Glean] updateCardPreview failed (non-fatal): ' + e.message);
+  }
+
+  var elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  Logger.log('[Glean] synthesizeIntelligence: done for "' + companyName + '" (' + elapsed + 's)');
+  return intel;
+}
+
+// ── Core pipeline ──────────────────────────────────────────────────────
+
+/**
+ * Orchestrates 5 Glean calls, accumulates results, builds the Google Doc.
+ * Uses gatherResearch() and synthesizeIntelligence() internally.
+ *
+ * @param {string}       companyName   Display name
+ * @param {Object|null}  prebuiltData  Optional pre-built group data
+ * @param {boolean}      isProspect
+ * @param {string}       email         Optional — for Slack progress notifications
+ * @param {string}       channelId     Optional — for Slack progress notifications
+ * @returns {string} Google Doc URL
+ */
+function triggerGleanReport(companyName, prebuiltData, isProspect, email, channelId) {
+  var start = Date.now();
+  Logger.log('[Glean] Starting V5 multi-step report for: ' + companyName +
+    (prebuiltData && prebuiltData.isGtmGroup ? ' [GTM GROUP]' : '') +
+    (isProspect ? ' [PROSPECT]' : ''));
+
+  var research, intel;
+
+  // ── L1: Check cache, then gather if stale ────────────────────────
+  if (!prebuiltData && !isResearchStale(companyName)) {
+    var cachedL1 = getResearchCache(companyName);
+    if (cachedL1 && cachedL1.research) {
+      research = cachedL1.research;
+      Logger.log('[Glean] L1 CACHE HIT for "' + companyName + '" — skipping research');
+    }
+  }
+  if (!research) {
+    research = gatherResearch(companyName, isProspect, prebuiltData);
+  }
+
+  // ── L2: Check cache, then synthesize if stale ───────────────────
+  if (!isIntelligenceStale(companyName)) {
+    var cachedL2 = getIntelligenceCache(companyName);
+    if (cachedL2 && cachedL2.intelligence) {
+      intel = cachedL2.intelligence;
+      Logger.log('[Glean] L2 CACHE HIT for "' + companyName + '" — skipping synthesis');
+    }
+  }
+  if (!intel) {
+    intel = synthesizeIntelligence(companyName, research, isProspect);
+  }
+
+  var elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  Logger.log('[Glean] Pipeline complete for "' + companyName + '" (' + elapsed + 's)');
+
+  // ── L3: Build the Google Doc ─────────────────────────────────────
   return generateAccountResearchDocFromGlean(
-    data.identity.name, gleanAnalysis, data, productSignals, enrichment,
-    email || '', channelId || '', isProspect
+    research.data.identity.name, intel, research.data, research.productSignals,
+    research.enrichment, email || '', channelId || '', isProspect
   );
+}
+
+/**
+ * V2 wrapper for triggerGleanReport — returns { briefUrl, fullUrl } directly.
+ */
+function triggerGleanReportV2(companyName, prebuiltData, isProspect, email, channelId) {
+  var briefUrl = triggerGleanReport(companyName, prebuiltData, isProspect, email, channelId);
+  return _lastDocResult || { briefUrl: briefUrl, fullUrl: '' };
 }
 
 // ── Step runners ───────────────────────────────────────────────────────
@@ -316,6 +427,16 @@ function _parseStepJson(responseText, stepName) {
     return {};
   }
 
+  // Detect proxy error envelope — { Success: false, Error: "..." }
+  if (parsed.hasOwnProperty('Success') && !parsed.Success) {
+    Logger.log('[Glean] ' + stepName + ' — ERROR ENVELOPE: ' + JSON.stringify(parsed));
+    return {};
+  }
+  if (parsed.hasOwnProperty('Error') && parsed.Error && !parsed.hasOwnProperty('priorityMap') && !parsed.hasOwnProperty('accountProfile') && !parsed.hasOwnProperty('businessMap')) {
+    Logger.log('[Glean] ' + stepName + ' — ERROR RESPONSE: ' + JSON.stringify(parsed));
+    return {};
+  }
+
   Logger.log('[Glean] ' + stepName + ' — parsed OK. Keys: ' + Object.keys(parsed).join(', '));
   return parsed;
 }
@@ -433,6 +554,71 @@ function promptGleanAgentId() {
 }
 
 // ── Test runners ───────────────────────────────────────────────────────
+
+/**
+ * Test: gatherResearch() for the canary company.
+ * Verifies L1 research is gathered and written to Drive cache.
+ * Run from the Apps Script editor.
+ */
+function testGatherResearch() {
+  var companyName = 'Merck Sharp & Dohme LLC';
+  Logger.log('[TEST] gatherResearch for: ' + companyName);
+  try {
+    var result = gatherResearch(companyName, false);
+    if (!result.data || !result.data.identity) { Logger.log('FAIL: missing data.identity'); return; }
+    if (!result.productSignals) { Logger.log('FAIL: missing productSignals'); return; }
+    if (!result.gleanResearch) { Logger.log('FAIL: missing gleanResearch'); return; }
+    Logger.log('[TEST] gatherResearch returned. data.identity.name: ' + result.data.identity.name);
+    Logger.log('[TEST] productSignals keys: ' + Object.keys(result.productSignals).join(', '));
+    Logger.log('[TEST] gleanResearch.internal: ' + (result.gleanResearch.internal || '').length + ' chars');
+
+    // Verify cache was written
+    var cached = getResearchCache(companyName);
+    if (!cached || !cached.research) { Logger.log('FAIL: research not found in Drive cache after write'); return; }
+    if (!cached.research.data || !cached.research.data.identity) { Logger.log('FAIL: cached research missing data.identity'); return; }
+    Logger.log('PASS: gatherResearch + Drive cache write verified');
+  } catch (e) {
+    Logger.log('FAIL: ' + e.message);
+  }
+}
+
+/**
+ * Test: synthesizeIntelligence() using cached L1 research.
+ * Requires testGatherResearch() to have run first (needs L1 in cache).
+ * Run from the Apps Script editor.
+ */
+function testSynthesizeFromCache() {
+  var companyName = 'Merck Sharp & Dohme LLC';
+  Logger.log('[TEST] synthesizeIntelligence from cache for: ' + companyName);
+  try {
+    var cached = getResearchCache(companyName);
+    if (!cached || !cached.research) {
+      Logger.log('FAIL: no cached research — run testGatherResearch first');
+      return;
+    }
+    Logger.log('[TEST] Using cached L1 research (' +
+      Math.round(JSON.stringify(cached.research).length / 1024) + 'KB)');
+
+    var intel = synthesizeIntelligence(companyName, cached.research, false);
+    var expectedKeys = ['accountProfile', 'businessMap', 'agreementLandscape',
+                        'contractCommerce', 'priorityMap', 'briefing', 'bigBets'];
+    var missingKeys = expectedKeys.filter(function(k) { return !intel[k]; });
+    if (missingKeys.length > 0) {
+      Logger.log('WARN: missing intelligence keys: ' + missingKeys.join(', ') + ' (may be empty from Glean)');
+    }
+    Logger.log('[TEST] Intelligence keys: ' + Object.keys(intel).join(', '));
+
+    // Verify cache was written
+    var cachedIntel = getIntelligenceCache(companyName);
+    if (!cachedIntel || !cachedIntel.intelligence) {
+      Logger.log('FAIL: intelligence not found in Drive cache after write');
+      return;
+    }
+    Logger.log('PASS: synthesizeIntelligence + Drive cache write verified');
+  } catch (e) {
+    Logger.log('FAIL: ' + e.message);
+  }
+}
 
 /**
  * Test Glean V5 path for a single account.

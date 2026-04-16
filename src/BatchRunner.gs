@@ -104,7 +104,7 @@ function initBatch() {
 
   if (rows.length > 0) {
     batchSheet.getRange(2, 1, rows.length, BATCH_COL_ERROR).setValues(rows);
-    batchSheet.getRange(2, 1, rows.length, 5).setVerticalAlignment('middle');
+    batchSheet.getRange(2, 1, rows.length, BATCH_COL_ERROR).setVerticalAlignment('middle');
   }
 
   SpreadsheetApp.flush();

@@ -885,6 +885,43 @@ function generateAccountResearchDoc(companyName, email, channelId, isProspect, p
 /** Last doc generation result — { briefUrl, fullUrl }. Used by callers that need both URLs. */
 var _lastDocResult = null;
 
+// ── V2 wrappers — return { briefUrl, fullUrl } directly ────────────
+
+/**
+ * V2 of generateAccountResearchDoc — returns { briefUrl, fullUrl } instead of just briefUrl.
+ * Internal callers (Menu, Batch, Glean, Game) use this. Slack stays on v1 until cutover.
+ */
+function generateAccountResearchDocV2(companyName, email, channelId, isProspect, prebuiltData) {
+  var briefUrl = generateAccountResearchDoc(companyName, email, channelId, isProspect, prebuiltData);
+  return _lastDocResult || { briefUrl: briefUrl, fullUrl: '' };
+}
+
+/**
+ * V2 of generateAccountResearchDocFromGlean — returns { briefUrl, fullUrl }.
+ */
+function generateAccountResearchDocFromGleanV2(name, gleanAnalysis, data, productSignals, enrichment, email, channelId, isProspect) {
+  var briefUrl = generateAccountResearchDocFromGlean(name, gleanAnalysis, data, productSignals, enrichment, email, channelId, isProspect);
+  return _lastDocResult || { briefUrl: briefUrl, fullUrl: '' };
+}
+
+/**
+ * V2 of generateReportByAccountId — returns { briefUrl, fullUrl }.
+ * Slack can cut over to this when ready.
+ */
+function generateReportByAccountIdV2(salesforceAccountId, email, channelId, isProspect) {
+  var briefUrl = generateReportByAccountId(salesforceAccountId, email, channelId, isProspect);
+  return _lastDocResult || { briefUrl: briefUrl, fullUrl: '' };
+}
+
+/**
+ * V2 of generateAccountResearchDocForGroup — returns { briefUrl, fullUrl }.
+ * Slack can cut over to this when ready.
+ */
+function generateAccountResearchDocForGroupV2(gtmGroupId, email, channelId) {
+  var briefUrl = generateAccountResearchDocForGroup(gtmGroupId, email, channelId);
+  return _lastDocResult || { briefUrl: briefUrl, fullUrl: '' };
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════
 // Shared Doc Builder
@@ -1033,8 +1070,75 @@ function _buildResearchDoc(data, productSignals, enrichment,
   // ── Patch cross-reference link into the full report ────────────────
   _addCrossReferenceLink(doc.getId(), briefUrl, 'Account Brief');
 
+  // ── Cache structured AR data for Command Center dashboard ──────────
+  notifyUserOfProgress(email, channelId, 'Caching data for Command Center..');
+  try {
+    _cacheARResult(data, productSignals, enrichment,
+      accountProfile, businessMap, agreementLandscape, contractCommerce,
+      priorityMap, briefing, bigBets, briefUrl, fullUrl, pipeline);
+    Logger.log('[DocGen] Cache write complete (L1 research + L2 intelligence)');
+  } catch (cacheErr) {
+    Logger.log('[DocGen] WARNING: AR cache write failed (non-fatal): ' + cacheErr.message);
+  }
+
   Logger.log('[DocGen] COMPLETE. Brief URL: ' + briefUrl + ' | Full URL: ' + fullUrl);
   return { briefUrl: briefUrl, fullUrl: fullUrl };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// AR Result Cache — persists to Drive cache for the Command Center
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Cache all structured AR outputs to Drive (L1 research + L2 intelligence).
+ * Also logs deliverable URLs to the Deliverables tab.
+ */
+function _cacheARResult(data, productSignals, enrichment,
+    accountProfile, businessMap, agreementLandscape, contractCommerce,
+    priorityMap, briefing, bigBets, briefUrl, fullUrl, pipeline) {
+
+  var companyName = data.identity.name;
+  Logger.log('[Cache] Writing Drive cache for "' + companyName + '"');
+
+  // Log deliverables for Content Factory
+  try {
+    if (briefUrl) logDeliverable(companyName, 'ar_brief', 'Account Intelligence Brief', briefUrl, 'AR Pipeline');
+    if (fullUrl)  logDeliverable(companyName, 'ar_full', 'Full Account Research Report', fullUrl, 'AR Pipeline');
+  } catch (e) {
+    Logger.log('[Cache] Deliverable logging failed (non-fatal): ' + e.message);
+  }
+
+  // ── Write L1 research cache to Drive ─────────────────────────────
+  try {
+    writeResearchCache(companyName, {
+      data:            data,
+      productSignals:  productSignals,
+      enrichment:      enrichment
+    }, pipeline || 'og');
+    Logger.log('[Cache] L1 research.json written');
+  } catch (e) {
+    Logger.log('[Cache] L1 write failed (non-fatal): ' + e.message);
+  }
+
+  // ── Write L2 intelligence cache to Drive ───────────────────────
+  try {
+    writeIntelligenceCache(companyName, {
+      accountProfile:     accountProfile,
+      businessMap:        businessMap,
+      agreementLandscape: agreementLandscape,
+      contractCommerce:   contractCommerce,
+      priorityMap:        priorityMap,
+      briefing:           briefing,
+      bigBets:            bigBets
+    }, pipeline || 'og');
+    Logger.log('[Cache] L2 intelligence.json written');
+    try { updateCardPreview(companyName); } catch (e2) {
+      Logger.log('[Cache] updateCardPreview failed (non-fatal): ' + e2.message);
+    }
+  } catch (e) {
+    Logger.log('[Cache] L2 write failed (non-fatal): ' + e.message);
+  }
 }
 
 
@@ -1643,12 +1747,17 @@ function addDocusignTodayContractSection(body, data) {
     ]);
 
     addSubHeading(body, 'Consumption & Usage');
-    var consRows = [['Account', 'Env Purchased', 'Env Sent', 'Pacing %', 'Usage Trend']];
+    var consRows = [['Account', 'Env Purchased', 'Env Sent', 'Pacing Ratio', 'Usage Trend']];
     var totalPurch = 0, totalSent = 0;
     data.accounts.forEach(function(acc) {
       var purch = acc.consumption.envelopesPurchased || 0;
       var sent  = acc.consumption.envelopesSent || 0;
-      var pacing = purch > 0 ? ((sent / purch) * 100).toFixed(1) + '%' : 'N/A';
+      var rawTermPct = acc.contract.percentComplete || 0;
+      var termPct = rawTermPct > 100 ? 100 : rawTermPct;
+      var consumptionPct = purch > 0 ? (sent / purch) * 100 : 0;
+      var pacing = (purch > 0 && termPct > 0)
+        ? (consumptionPct / termPct).toFixed(2) + 'x'
+        : 'N/A';
       totalPurch += purch;
       totalSent  += sent;
       consRows.push([
@@ -1659,8 +1768,7 @@ function addDocusignTodayContractSection(body, data) {
         acc.consumption.usageTrend || 'N/A'
       ]);
     });
-    var groupPacing = totalPurch > 0 ? ((totalSent / totalPurch) * 100).toFixed(1) + '%' : 'N/A';
-    consRows.push(['GROUP TOTAL', formatNumber(totalPurch), formatNumber(totalSent), groupPacing, '—']);
+    consRows.push(['GROUP TOTAL', formatNumber(totalPurch), formatNumber(totalSent), '—', '—']);
     addStyledTable(body, consRows);
     return;
   }
@@ -2447,6 +2555,66 @@ function assessHealth(status, label, detail) {
 }
 
 /**
+ * Indicator tier definitions for weighted rollup.
+ * 'critical' — directly reflects account health; drives At Risk status
+ * 'contextual' — informational signal; indicates opportunity, not necessarily risk
+ * 'excluded' — not factored into rollup (e.g. Charge Model)
+ */
+var INDICATOR_TIERS = {
+  consumptionPacing: 'critical',
+  usageTrend:        'critical',
+  sendVelocity:      'critical',
+  seatActivation:    'critical',
+  renewalProximity:  'critical',
+  seatGrowth:        'contextual',
+  integrationDepth:  'contextual',
+  transactionHealth: 'contextual',
+  productBreadth:    'contextual',
+  chargeModel:       'excluded'
+};
+
+/**
+ * Compute tiered rollup status from health results.
+ * @param {Object} health  Output of analyzeAccountHealth()
+ * @param {Array} indicatorOrder  Array of {key, name} objects
+ * @returns {Object} { status, criticalReds, contextualReds, totalGreens, redNames }
+ *   redNames: [{name, tier}] for formatting (critical first)
+ */
+function computeTieredStatus(health, indicatorOrder) {
+  var criticalReds = 0, contextualReds = 0, totalGreens = 0;
+  var criticalRedNames = [], contextualRedNames = [];
+  indicatorOrder.forEach(function(ind) {
+    var h = health[ind.key];
+    if (!h) return;
+    var tier = INDICATOR_TIERS[ind.key] || 'excluded';
+    if (tier === 'excluded') return;
+    if (h.status === 'green') totalGreens++;
+    if (h.status === 'red') {
+      if (tier === 'critical') { criticalReds++; criticalRedNames.push(ind.name); }
+      else { contextualReds++; contextualRedNames.push(ind.name); }
+    }
+  });
+
+  var status;
+  if (criticalReds >= 2 || (criticalReds >= 1 && contextualReds >= 2)) {
+    status = 'At Risk';
+  } else if (criticalReds === 1 || contextualReds >= 2) {
+    status = 'Watch';
+  } else {
+    status = 'Healthy';
+  }
+
+  return {
+    status: status,
+    criticalReds: criticalReds,
+    contextualReds: contextualReds,
+    totalGreens: totalGreens,
+    criticalRedNames: criticalRedNames,
+    contextualRedNames: contextualRedNames
+  };
+}
+
+/**
  * Analyze all health indicators from the internal data.
  * @param {Object} data  Output of getCompanyData
  * @returns {Object} grouped health assessments
@@ -2663,7 +2831,14 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
   // ── GTM Group: compact per-account summary table ──────────────────
   if (data.isGtmGroup && data.accounts && data.accounts.length > 0) {
     addSubHeading(body, 'Health Summary by Account');
-    var summaryRows = [['Account', 'Healthy', 'Watch', 'Concern', 'Status']];
+    addBodyText(body,
+      'Each account is scored across 10 health indicators: Consumption Pacing, Usage Trend, ' +
+      'Send Velocity, Seat Activation, Seat Growth, Integration Depth, Transaction Health, ' +
+      'Product Breadth, Renewal Proximity, and Charge Model. Indicators are scored green ' +
+      '(healthy), yellow (watch), or red (concern) based on internal account metrics. ' +
+      'No AI estimation is involved.');
+    var summaryRows = [['Account', '# Healthy', '# Watch', '# Concern', 'Key Concerns', 'Status']];
+    var summaryTiered = []; // parallel array of tiered status info for formatting
     data.accounts.forEach(function(acc) {
       var h = analyzeAccountHealth(acc);
       var green = 0, yellow = 0, red = 0;
@@ -2673,20 +2848,21 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
         else if (h[ind.key].status === 'yellow') yellow++;
         else if (h[ind.key].status === 'red') red++;
       });
-      var status = red > 0 ? 'At Risk' : yellow > 0 ? 'Watch' : 'Healthy';
-      summaryRows.push([acc.identity.name, String(green), String(yellow), String(red), status]);
+      var tiered = computeTieredStatus(h, indicatorOrder);
+      var concernText = tiered.criticalRedNames.concat(tiered.contextualRedNames).join(', ') || '—';
+      summaryRows.push([acc.identity.name, String(green), String(yellow), String(red), concernText, tiered.status]);
+      summaryTiered.push(tiered);
     });
 
     var summaryTable = safeAppendTable(body, summaryRows);
     summaryTable.setBorderColor('#CCCCCC');
     summaryTable.setBorderWidth(1);
-    var PAGE_WIDTH = 516;
-    var colWidths = [210, 60, 60, 70, 80];
+    var colWidths = [150, 55, 50, 55, 130, 76];
     colWidths.forEach(function(w, i) { summaryTable.setColumnWidth(i, w); });
 
     // Header row
     var hdr = summaryTable.getRow(0);
-    for (var c = 0; c < 5; c++) {
+    for (var c = 0; c < 6; c++) {
       var hCell = hdr.getCell(c);
       hCell.setBackgroundColor(HEADER_BG);
       hCell.editAsText().setForegroundColor(HEADER_FG);
@@ -2696,20 +2872,36 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
       hCell.setPaddingLeft(8); hCell.setPaddingRight(8);
     }
 
-    // Data rows — color the Status column
+    // Data rows — color the Status column, style Key Concerns with tiered formatting
     for (var r = 1; r < summaryTable.getNumRows(); r++) {
       var row = summaryTable.getRow(r);
-      var statusVal = summaryRows[r][4];
+      var statusVal = summaryRows[r][5];
       var statusBg = statusVal === 'At Risk' ? HEALTH_RED : statusVal === 'Watch' ? HEALTH_YELLOW : HEALTH_GREEN;
       var statusFg = statusVal === 'At Risk' ? LABEL_RED  : statusVal === 'Watch' ? LABEL_YELLOW  : LABEL_GREEN;
-      for (var c2 = 0; c2 < 5; c2++) {
+      var tiered = summaryTiered[r - 1];
+      for (var c2 = 0; c2 < 6; c2++) {
         var cell = row.getCell(c2);
-        cell.setBackgroundColor(c2 === 4 ? statusBg : '#FFFFFF');
-        cell.editAsText().setFontSize(10);
-        cell.editAsText().setBold(c2 === 0 || c2 === 4);
-        cell.editAsText().setForegroundColor(c2 === 4 ? statusFg : '#333333');
+        cell.setBackgroundColor(c2 === 5 ? statusBg : '#FFFFFF');
+        cell.editAsText().setFontSize(c2 === 4 ? 9 : 10);
+        cell.editAsText().setForegroundColor(c2 === 5 ? statusFg : c2 === 4 ? '#666666' : '#333333');
         cell.setPaddingTop(4); cell.setPaddingBottom(4);
         cell.setPaddingLeft(8); cell.setPaddingRight(8);
+
+        if (c2 === 4 && tiered.criticalRedNames.length > 0) {
+          // Bold critical red names, regular weight for contextual
+          var cellText = cell.editAsText();
+          var fullText = cellText.getText();
+          cellText.setBold(false);
+          tiered.criticalRedNames.forEach(function(name) {
+            var idx = fullText.indexOf(name);
+            if (idx >= 0) cellText.setBold(idx, idx + name.length - 1, true);
+          });
+        } else if (c2 === 4) {
+          cell.editAsText().setBold(false);
+          cell.editAsText().setItalic(true);
+        } else {
+          cell.editAsText().setBold(c2 === 0 || c2 === 5);
+        }
       }
     }
     addSpacer(body);
@@ -2791,16 +2983,43 @@ function addAccountHealthSection(body, data, showOverallAssessment) {
     detailCell.setPaddingLeft(8); detailCell.setPaddingRight(8);
   });
 
-  // ── Overall Assessment ─────────────────────────────────────────
+  // ── Overall Assessment (tiered rollup) ─────────────────────────
   if (showOverallAssessment === false) return;
   addSubHeading(body, 'Overall Assessment');
 
+  var tiered = computeTieredStatus(health, indicatorOrder);
   var total = greenCount + yellowCount + redCount + grayCount;
+
   var summaryText = greenCount + ' healthy, ' + yellowCount + ' watch, ' + redCount + ' concern';
   if (grayCount > 0) summaryText += ', ' + grayCount + ' no data';
   summaryText += ' — out of ' + total + ' indicators evaluated.';
   var overallPara = addBodyText(body, summaryText);
   overallPara.editAsText().setBold(true);
+
+  // Build green indicator names for strength acknowledgment
+  var greenNames = [];
+  indicatorOrder.forEach(function(ind) {
+    var h = health[ind.key];
+    if (h && h.status === 'green' && INDICATOR_TIERS[ind.key] !== 'excluded') greenNames.push(ind.name);
+  });
+
+  // Tiered overall assessment sentence
+  var assessmentText = '';
+  if (tiered.status === 'Healthy') {
+    assessmentText = 'Strong account health: ' + tiered.totalGreens + ' of 9 indicators are healthy.';
+    if (greenNames.length > 0) assessmentText += ' Strengths: ' + greenNames.join(', ') + '.';
+  } else if (tiered.status === 'Watch') {
+    var watchConcerns = tiered.criticalRedNames.concat(tiered.contextualRedNames);
+    assessmentText = 'Mixed signals: ' + tiered.totalGreens + ' healthy indicator' + (tiered.totalGreens !== 1 ? 's' : '') +
+      ', but ' + watchConcerns.join(', ') + ' need' + (watchConcerns.length === 1 ? 's' : '') + ' monitoring.';
+    if (greenNames.length > 0) assessmentText += ' Strengths include ' + greenNames.join(', ') + '.';
+  } else {
+    var criticalConcerns = tiered.criticalRedNames.join(', ');
+    assessmentText = 'Attention needed: ' + criticalConcerns + '.';
+    if (tiered.contextualRedNames.length > 0) assessmentText += ' Also flagged: ' + tiered.contextualRedNames.join(', ') + '.';
+    if (greenNames.length > 0) assessmentText += ' Strengths include ' + greenNames.join(', ') + '.';
+  }
+  addBodyText(body, assessmentText);
 
   var narrativeLines = [];
   if (health.chargeModel) narrativeLines.push(health.chargeModel.detail);

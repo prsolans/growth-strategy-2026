@@ -31,6 +31,10 @@ var PROP_SEC_PROXY_URL = 'SEC_PROXY_URL';     // Script property for SEC EDGAR p
 var WIKI_API_URL     = 'https://en.wikipedia.org/api/rest_v1';
 var WIKIDATA_API_URL = 'https://www.wikidata.org/w/api.php';
 
+// ── Intelligence Cache ────────────────────────────────────────────────
+var PROP_CACHE_FOLDER  = 'INTELLIGENCE_CACHE_FOLDER_ID';
+var CACHE_STALE_DAYS   = 7;  // L1 research considered stale after this many days
+
 // ── Helpers to read Script Properties ─────────────────────────────────
 
 function getConfig(key) {

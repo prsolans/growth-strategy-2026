@@ -26,6 +26,11 @@ var GAME_SHEET_CONFIG      = 'Config';
  * URL params: ?user=Jane+Smith&email=jsmith@docusign.com
  */
 function doGet(e) {
+  var view = (e && e.parameter && e.parameter.view) || 'game';
+  if (view === 'dashboard') {
+    return HtmlService.createHtmlOutputFromFile('Dashboard')
+      .setTitle('Command Center — Genius Bar');
+  }
   return HtmlService
     .createHtmlOutputFromFile('Game')
     .setTitle('Genius Bar — Account Research');

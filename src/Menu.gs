@@ -16,6 +16,7 @@ function onOpen() {
     .addItem('Set API Key', 'promptApiKey')
     .addItem('Set API User', 'promptApiUser')
     .addItem('Set Output Folder ID', 'promptOutputFolder')
+    .addItem('Set Cache Folder ID', 'promptCacheFolder')
     .addSeparator()
     .addItem('Glean: Set API Base URL', 'promptGleanApiBase')
     .addItem('Glean: Set API Key', 'promptGleanApiKey')
@@ -246,7 +247,7 @@ function showProspectDialog() {
 function showGleanCompanyPicker() {
   SpreadsheetApp.getUi().showModalDialog(
     HtmlService.createHtmlOutput(_buildPickerHtml({
-      badge: null, label: 'Type to search:', placeholder: 'Start typing a company name...',
+      badge: 'Glean-powered', label: 'Type to search:', placeholder: 'Start typing a company name...',
       buttonText: 'Generate Account Research', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
       serverFetchFn: 'getCompanyNames', countSuffix: 'companies in sheet',
       generateFn: 'generateAndLogViaGlean', generateArgs: 'sel, false',
@@ -262,7 +263,7 @@ function showGleanCompanyPicker() {
 function showGleanGtmGroupPicker() {
   SpreadsheetApp.getUi().showModalDialog(
     HtmlService.createHtmlOutput(_buildPickerHtml({
-      badge: null, label: 'Type to search GTM groups:', placeholder: 'Start typing a GTM group ID...',
+      badge: 'Glean-powered', label: 'Type to search GTM groups:', placeholder: 'Start typing a GTM group ID...',
       buttonText: 'Generate Group Strategy', buttonColor: '#1B0B3B', buttonHover: '#2D1B5E',
       serverFetchFn: 'getGtmGroupIds', countSuffix: 'GTM groups in sheet',
       generateFn: 'generateAndLogGroupViaGlean', generateArgs: 'sel',
@@ -413,9 +414,9 @@ function logToStatusSheet(companyName, isProspect, status, briefUrl, error, full
     sheet.setColumnWidth(BATCH_COL_COMPANY, 280);
     sheet.setColumnWidth(BATCH_COL_STATUS,  90);
     sheet.setColumnWidth(BATCH_COL_DOC_URL, 320);
-    sheet.setColumnWidth(4, 320);   // FULL_URL
-    sheet.setColumnWidth(5, 160);   // RUN_AT
-    sheet.setColumnWidth(6, 300);   // ERROR
+    sheet.setColumnWidth(BATCH_COL_FULL_URL, 320);
+    sheet.setColumnWidth(BATCH_COL_RUN_AT,   160);
+    sheet.setColumnWidth(BATCH_COL_ERROR,    300);
     sheet.setFrozenRows(1);
   }
 
@@ -614,6 +615,26 @@ function promptOutputFolder() {
   if (result.getSelectedButton() === ui.Button.OK) {
     PropertiesService.getScriptProperties().setProperty(PROP_OUTPUT_FOLDER, result.getResponseText().trim());
     ui.alert('Output folder saved.');
+  }
+}
+
+function promptCacheFolder() {
+  var ui = SpreadsheetApp.getUi();
+  var result = ui.prompt(
+    'Set Intelligence Cache Folder',
+    'Enter the Google Drive folder ID for the intelligence cache:',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (result.getSelectedButton() === ui.Button.OK) {
+    var folderId = result.getResponseText().trim();
+    try {
+      var folder = DriveApp.getFolderById(folderId);
+      PropertiesService.getScriptProperties().setProperty(PROP_CACHE_FOLDER, folderId);
+      Logger.log('[Config] INTELLIGENCE_CACHE_FOLDER_ID set to: ' + folderId + ' (' + folder.getName() + ')');
+      ui.alert('Cache folder saved: ' + folder.getName());
+    } catch (e) {
+      ui.alert('Error: Could not access folder ' + folderId + '. ' + e.message);
+    }
   }
 }
 
