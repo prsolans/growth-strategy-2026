@@ -636,12 +636,12 @@ function generateReportByAccountId(salesforceAccountId, email, channelId, isPros
     companyName = findCompanyNameByAccountId(salesforceAccountId);
   }
   Logger.log('[DocGen] Resolved account ID "' + salesforceAccountId + '" → "' + companyName + '"');
-  return generateAccountResearchDoc(companyName, email, channelId, isProspect);
+  return triggerGleanReport(companyName, null, isProspect, email, channelId);
 }
 
 /**
  * Generate an account research doc for all accounts in a GTM group.
- * Merges account data via getGtmGroupData() and delegates to generateAccountResearchDoc().
+ * Merges account data via getGtmGroupData() and delegates to triggerGleanReport().
  * @param {string} gtmGroupId  Value of the GTM_GROUP column (Salesforce group ID)
  * @param {string} email       Optional — for Slack progress notifications
  * @param {string} channelId   Optional — for Slack progress notifications
@@ -650,7 +650,7 @@ function generateReportByAccountId(salesforceAccountId, email, channelId, isPros
 function generateAccountResearchDocForGroup(gtmGroupId, email, channelId) {
   Logger.log('[DocGen] generateAccountResearchDocForGroup called for ID: ' + gtmGroupId);
   var groupData = getGtmGroupData(gtmGroupId);
-  return generateAccountResearchDoc(groupData.identity.name, email || '', channelId || '', false, groupData);
+  return triggerGleanReport(groupData.identity.name, groupData, false, email || '', channelId || '');
 }
 
 /**
@@ -889,7 +889,7 @@ var _lastDocResult = null;
 
 /**
  * V2 of generateAccountResearchDoc — returns { briefUrl, fullUrl } instead of just briefUrl.
- * Internal callers (Menu, Batch, Glean, Game) use this. Slack stays on v1 until cutover.
+ * Internal callers (Menu, Batch, Glean, Game) use this. Slack entry points now use the Glean pipeline.
  */
 function generateAccountResearchDocV2(companyName, email, channelId, isProspect, prebuiltData) {
   var briefUrl = generateAccountResearchDoc(companyName, email, channelId, isProspect, prebuiltData);
@@ -1747,7 +1747,7 @@ function addDocusignTodayContractSection(body, data) {
     ]);
 
     addSubHeading(body, 'Consumption & Usage');
-    var consRows = [['Account', 'Env Purchased', 'Env Sent', 'Pacing Ratio', 'Usage Trend']];
+    var consRows = [['Account', 'Env Purchased', 'Env Sent', 'Pacing %', 'Usage Trend']];
     var totalPurch = 0, totalSent = 0;
     data.accounts.forEach(function(acc) {
       var purch = acc.consumption.envelopesPurchased || 0;
@@ -1756,7 +1756,7 @@ function addDocusignTodayContractSection(body, data) {
       var termPct = rawTermPct > 100 ? 100 : rawTermPct;
       var consumptionPct = purch > 0 ? (sent / purch) * 100 : 0;
       var pacing = (purch > 0 && termPct > 0)
-        ? (consumptionPct / termPct).toFixed(2) + 'x'
+        ? ((consumptionPct / termPct) * 100).toFixed(0) + '%'
         : 'N/A';
       totalPurch += purch;
       totalSent  += sent;

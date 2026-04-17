@@ -1,4 +1,4 @@
-# Glean Agent: Account Research Tool — Manual Setup Guide (v6)
+# Glean Agent: Account Research Tool — Manual Setup Guide (v7)
 
 GAS-orchestrated multi-step workflow. GAS calls the same agent endpoint multiple times,
 each time passing a different `step` field in the JSON body. Glean routes to the
@@ -12,12 +12,13 @@ GAS assembles all JSON results and builds the full Google Doc.
 
 ---
 
-## What's new in v6
+## What's new in v7
 
-- **Branch 6: Similar Customers** — queries Glean for comparable Docusign customers
-  in the same or adjacent industries, returning use cases, personas, and benefits.
+- **Branch 7: Recent Activity** — searches across web, Slack, and Drive for recent
+  activity (last 7 days) related to a selected account. Returns a unified feed of
+  news, internal discussions, and documents for the dashboard's Recent Activity panel.
 
-All v5 branches are unchanged.
+All v6 branches are unchanged.
 
 ---
 
@@ -68,6 +69,7 @@ Each branch condition matches on the `step` field in the JSON body.
 | 4 | Message contains `STEP: think2` | Think → Respond |
 | 5 | Message contains `STEP: think3` | Think → Respond |
 | 6 | Message contains `STEP: similar-customers` | Company Search → Think → Respond |
+| 7 | Message contains `STEP: recent-activity` | Company Search → Respond |
 
 ---
 
@@ -90,6 +92,8 @@ Look for:
 - Account plans, QBRs, or strategy docs
 - Recent customer meeting notes or call summaries
 - Slack discussions about this customer
+
+Ignore tool-generated docs — skip any result whose title contains "| Account Research", "— Account Brief", or starts with "INTERNAL_DATA —".
 
 Summarize findings in 3–5 bullet points. If nothing found, write "No internal results found."
 ```
@@ -491,15 +495,18 @@ Using the internal search results and your knowledge, identify 5–10 similar Do
 customers in the same or adjacent industries.
 
 For each similar customer, provide:
-  name:       customer name
-  industry:   their industry
-  similarity: why they're comparable (size, industry, use case pattern)
-  useCases:   2–4 specific Docusign use cases they've deployed
-  personas:   2–3 buyer/user personas involved (e.g. VP Legal, Head of Procurement)
-  benefits:   2–3 measurable outcomes or benefits realized
+  name:                customer name
+  industry:            their industry
+  similarity:          why they're comparable (size, industry, use case pattern)
+  useCases:            2–4 specific Docusign use cases they've deployed
+  personas:            2–3 buyer/user personas involved (e.g. VP Legal, Head of Procurement)
+  benefits:            2–3 measurable outcomes with quantified results (dollar figures, percentages, time saved)
+  sources:             1–3 internal docs or resources found during search ({ title, url, type: "internal"|"external" })
+  conversationStarter: one-line talking point an AE could use in a meeting referencing this customer
 
 Prioritize customers where Docusign usage is well-documented.
-Focus on use cases and benefits that would resonate with the target company.
+Focus on use cases and quantified outcomes that would resonate with the target company.
+For benefits, always try to include specific dollar figures or percentages (e.g. "reduced cycle time by 60%", "saved $2M annually").
 ```
 
 ### Step: Respond
@@ -526,7 +533,77 @@ Return ONLY this JSON structure in a code block:
       "similarity": "string",
       "useCases": ["string"],
       "personas": [{ "title": "string", "relevance": "string" }],
-      "benefits": [{ "outcome": "string", "metric": "string" }]
+      "benefits": [{ "outcome": "string", "metric": "string (quantified — dollars, %, or time)" }],
+      "sources": [{ "title": "string", "url": "string", "type": "internal|external" }],
+      "conversationStarter": "string (one-line talking point for meetings)"
+    }
+  ]
+}
+```
+
+No other text. No commentary.
+~~~
+
+---
+
+## Branch 7 — Recent Activity
+
+**Condition:** Message contains `STEP: recent-activity`
+
+### Step: Company Search
+
+**Action type:** Company search
+
+**Instructions:**
+```
+The message contains COMPANY and INDUSTRY fields in companyNameForResearch.
+
+Search Glean for recent internal Docusign activity related to that company.
+Limit to: Slack and Google Drive only. Last 30 days.
+
+Look for:
+- Slack messages or threads mentioning this customer
+- Google Docs, Slides, or Sheets created or modified about this customer
+- Meeting notes, call summaries, or account plans updated recently
+```
+
+### Step: Respond
+
+**Action type:** Respond
+
+**Instructions:**
+~~~
+Take every result from the Company Search step and format each one as a JSON object.
+
+Skip any result whose title contains "| Account Research" or "— Account Brief"
+or starts with "INTERNAL_DATA".
+
+For each remaining result:
+  source:    "slack" if from Slack, "drive" if from Google Docs/Sheets/Slides
+  title:     title or subject line from the search result
+  snippet:   1-2 sentence summary of the content
+  url:       link from the search result (null if none)
+  date:      ISO-8601 date (best estimate if exact date unknown)
+  relevance: "high" for strategic shifts, exec changes, M&A, earnings, reorgs;
+             "medium" for routine account activity; "low" for tangential mentions
+  trigger:   true for deal-relevant events (exec changes, M&A, earnings, reorgs,
+             major partnerships); false otherwise
+
+Sort by date descending. Maximum 15 items.
+
+Return ONLY this JSON:
+
+```json
+{
+  "recentActivity": [
+    {
+      "source": "slack|drive",
+      "title": "string",
+      "snippet": "string",
+      "url": "string or null",
+      "date": "ISO-8601 string",
+      "relevance": "high|medium|low",
+      "trigger": true|false
     }
   ]
 }

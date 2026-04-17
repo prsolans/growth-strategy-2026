@@ -28,12 +28,17 @@ var GAME_SHEET_CONFIG      = 'Config';
 function doGet(e) {
   var view = (e && e.parameter && e.parameter.view) || 'game';
   if (view === 'dashboard') {
-    return HtmlService.createHtmlOutputFromFile('Dashboard')
+    return HtmlService.createTemplateFromFile('Dashboard').evaluate()
       .setTitle('Command Center — Genius Bar');
   }
   return HtmlService
     .createHtmlOutputFromFile('Game')
     .setTitle('Genius Bar — Account Research');
+}
+
+/** Include an HTML partial (used by <?!= include('file') ?> in templates). */
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 // ── Account name autocomplete ─────────────────────────────────────────────

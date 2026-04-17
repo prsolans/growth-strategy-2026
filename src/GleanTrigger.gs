@@ -73,18 +73,20 @@ function generateAndLogGroupViaGlean(gtmGroupId) {
  * @param {Object|null}  prebuiltData  Optional pre-built group data
  * @returns {Object} { data, productSignals, enrichment, gleanResearch }
  */
-function gatherResearch(companyName, isProspect, prebuiltData) {
+function gatherResearch(companyName, isProspect, prebuiltData, email, channelId) {
   var start = Date.now();
   Logger.log('[Glean] gatherResearch: starting for "' + companyName + '"' +
     (isProspect ? ' [PROSPECT]' : ''));
 
   // ── 1. Extract internal bookscrub data ───────────────────────────
+  notifyUserOfProgress(email, channelId, 'Fetching consumption data..');
   var data = prebuiltData || getCompanyData(companyName, isProspect);
 
   // ── 2. Run signal matching ───────────────────────────────────────
   var productSignals = generateProductSignals(data);
 
   // ── 3. Run enrichment ────────────────────────────────────────────
+  notifyUserOfProgress(email, channelId, 'Fetching SEC, Wikipedia and Wikidata data..');
   var enrichment = {};
   try {
     enrichment = enrichCompanyData(data.identity.name, data.context.industry);
@@ -96,6 +98,7 @@ function gatherResearch(companyName, isProspect, prebuiltData) {
   }
 
   // ── 4. Glean research — PARALLEL ─────────────────────────────────
+  notifyUserOfProgress(email, channelId, 'Researching company via Glean..');
   var gleanResearch = { internal: '', external: '' };
   try {
     gleanResearch = _runResearchParallel(data.identity.name, data.context.industry);
@@ -136,7 +139,7 @@ function gatherResearch(companyName, isProspect, prebuiltData) {
  * @param {boolean} isProspect
  * @returns {Object} The 7 intelligence objects
  */
-function synthesizeIntelligence(companyName, research, isProspect) {
+function synthesizeIntelligence(companyName, research, isProspect, email, channelId) {
   var start = Date.now();
   Logger.log('[Glean] synthesizeIntelligence: starting for "' + companyName + '"');
 
@@ -148,6 +151,7 @@ function synthesizeIntelligence(companyName, research, isProspect) {
   var externalResearch = (research.gleanResearch && research.gleanResearch.external) || '';
 
   // ── Step 3: Think 1 — Company Profile ───────────────────────────
+  notifyUserOfProgress(email, channelId, 'Synthesizing company profile..');
   Logger.log('[Glean] Step 3: think1 — Company Profile...');
   var think1Text = _postToGleanStep('think1',
     _buildThink1Message(payloadStr, internalResearch, externalResearch, isProspect));
@@ -156,6 +160,7 @@ function synthesizeIntelligence(companyName, research, isProspect) {
   Logger.log('[Glean] think1 done. accountProfile keys: ' + Object.keys(accountProfile).join(', '));
 
   // ── Step 4: Think 2 — Business Map + Agreements + Commerce ──────
+  notifyUserOfProgress(email, channelId, 'Synthesizing business map and agreements..');
   Logger.log('[Glean] Step 4: think2 — Business Map + Agreements + Commerce...');
   var think2Text = _postToGleanStep('think2',
     _buildThink2Message(payloadStr, accountProfile, isProspect));
@@ -163,6 +168,7 @@ function synthesizeIntelligence(companyName, research, isProspect) {
   Logger.log('[Glean] think2 done. Keys: ' + Object.keys(think2Data).join(', '));
 
   // ── Step 5: Think 3 — Docusign Strategy (with retry) ──────────
+  notifyUserOfProgress(email, channelId, 'Synthesizing strategy and priorities..');
   Logger.log('[Glean] Step 5: think3 — Docusign Strategy...');
   var think3Msg = _buildThink3Message(payloadStr, accountProfile, think2Data, isProspect);
   var think3Text = _postToGleanStep('think3', think3Msg);
@@ -231,27 +237,35 @@ function triggerGleanReport(companyName, prebuiltData, isProspect, email, channe
   var research, intel;
 
   // ── L1: Check cache, then gather if stale ────────────────────────
-  if (!prebuiltData && !isResearchStale(companyName)) {
-    var cachedL1 = getResearchCache(companyName);
-    if (cachedL1 && cachedL1.research) {
-      research = cachedL1.research;
-      Logger.log('[Glean] L1 CACHE HIT for "' + companyName + '" — skipping research');
+  try {
+    if (!prebuiltData && !isResearchStale(companyName)) {
+      var cachedL1 = getResearchCache(companyName);
+      if (cachedL1 && cachedL1.research) {
+        research = cachedL1.research;
+        Logger.log('[Glean] L1 CACHE HIT for "' + companyName + '" — skipping research');
+      }
     }
+  } catch (e) {
+    Logger.log('[Glean] L1 cache check failed (non-fatal, running fresh): ' + e.message);
   }
   if (!research) {
-    research = gatherResearch(companyName, isProspect, prebuiltData);
+    research = gatherResearch(companyName, isProspect, prebuiltData, email, channelId);
   }
 
   // ── L2: Check cache, then synthesize if stale ───────────────────
-  if (!isIntelligenceStale(companyName)) {
-    var cachedL2 = getIntelligenceCache(companyName);
-    if (cachedL2 && cachedL2.intelligence) {
-      intel = cachedL2.intelligence;
-      Logger.log('[Glean] L2 CACHE HIT for "' + companyName + '" — skipping synthesis');
+  try {
+    if (!isIntelligenceStale(companyName)) {
+      var cachedL2 = getIntelligenceCache(companyName);
+      if (cachedL2 && cachedL2.intelligence) {
+        intel = cachedL2.intelligence;
+        Logger.log('[Glean] L2 CACHE HIT for "' + companyName + '" — skipping synthesis');
+      }
     }
+  } catch (e) {
+    Logger.log('[Glean] L2 cache check failed (non-fatal, running fresh): ' + e.message);
   }
   if (!intel) {
-    intel = synthesizeIntelligence(companyName, research, isProspect);
+    intel = synthesizeIntelligence(companyName, research, isProspect, email, channelId);
   }
 
   var elapsed = ((Date.now() - start) / 1000).toFixed(1);

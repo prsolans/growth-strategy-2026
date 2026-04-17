@@ -88,6 +88,17 @@ function getDashboardData(companyName) {
           }
         }
 
+        // Read gvs-results.json if present
+        var gvsResults = null;
+        try {
+          var gvsFile = folder.getFilesByName('gvs-results.json');
+          if (gvsFile.hasNext()) {
+            gvsResults = JSON.parse(gvsFile.next().getBlob().getDataAsString());
+          }
+        } catch (ge) {
+          Logger.log('[Dashboard] gvs-results.json read failed (non-fatal): ' + ge.message);
+        }
+
         var result = {
           companyName:        companyName,
           generatedAt:        meta.l2GeneratedAt || null,
@@ -102,6 +113,7 @@ function getDashboardData(companyName) {
           priorityMap:        intel.priorityMap         || null,
           briefing:           intel.briefing            || null,
           bigBets:            intel.bigBets             || null,
+          gvsResults:         gvsResults,
           productSignals:     l1Signals,
           enrichment:         l1Enrichment,
           liveData:           l1Data,
@@ -554,6 +566,193 @@ function getGVSUrl() {
 function getUserEmail() {
   try { return Session.getActiveUser().getEmail(); }
   catch (e) { return ''; }
+}
+
+// ── Recent Activity (live Glean call) ──────────────────────────────────
+
+/**
+ * Returns recent activity feed for a company via Glean agent Branch 7.
+ * Searches web, Slack, and Drive for activity in the last 7 days.
+ * No caching — always live.
+ * @param {string} companyName
+ * @returns {string} JSON string of { recentActivity: [...] }
+ */
+function getRecentActivity(companyName) {
+  if (!companyName) return JSON.stringify({ recentActivity: [] });
+
+  // Get industry context from cached research or bookscrub
+  var industry = '';
+  try {
+    var cached = getResearchCache(companyName);
+    if (cached && cached.research && cached.research.data &&
+        cached.research.data.context && cached.research.data.context.industry) {
+      industry = cached.research.data.context.industry;
+    }
+    if (!industry) {
+      var data = getCompanyData(companyName);
+      if (data && data.context && data.context.industry) {
+        industry = data.context.industry;
+      }
+    }
+  } catch (e) {
+    Logger.log('[Dashboard] getRecentActivity — industry lookup failed (non-fatal): ' + e.message);
+  }
+
+  // Get renewal + products context for relevance scoring
+  var renewalMonths = '';
+  var products = '';
+  try {
+    var cached = getResearchCache(companyName);
+    if (cached && cached.research && cached.research.data) {
+      var rd = cached.research.data;
+      if (rd.contract && rd.contract.monthsLeft != null) renewalMonths = String(rd.contract.monthsLeft);
+      if (rd.activeProducts && rd.activeProducts.length > 0) {
+        products = rd.activeProducts.map(function(p) { return typeof p === 'string' ? p : (p.name || ''); }).join(', ');
+      }
+    }
+  } catch (e) {
+    Logger.log('[Dashboard] getRecentActivity — renewal/products lookup failed (non-fatal): ' + e.message);
+  }
+
+  // Build message and call Glean
+  var msg = 'STEP: recent-activity\n\nCOMPANY: ' + companyName + '\nINDUSTRY: ' + (industry || 'Unknown') +
+    '\nRENEWAL_MONTHS: ' + (renewalMonths || 'Unknown') + '\nPRODUCTS: ' + (products || 'Unknown');
+
+  try {
+    var responseText = _postToGleanStep('recent-activity', msg);
+    var parsed = _parseStepJson(responseText, 'recent-activity');
+    var items = parsed.recentActivity || [];
+    Logger.log('[Dashboard] getRecentActivity for "' + companyName + '": ' + items.length + ' items');
+    return JSON.stringify({ recentActivity: items });
+  } catch (e) {
+    Logger.log('[Dashboard] getRecentActivity failed for "' + companyName + '": ' + e.message);
+    return JSON.stringify({ recentActivity: [] });
+  }
+}
+
+// ── Similar Customers (live Glean call) ───────────────────────────────
+
+/**
+ * Returns similar Docusign customers via Glean agent Branch 6.
+ * Searches for comparable customers in the same/adjacent industries.
+ * No caching — always live.
+ * @param {string} companyName
+ * @returns {string} JSON string of { similarCustomers: [...] }
+ */
+function getSimilarCustomers(companyName) {
+  if (!companyName) return JSON.stringify({ similarCustomers: [] });
+
+  // ── Check Drive cache first ──
+  try {
+    var folder = _getCompanyFolder(companyName, false);
+    if (folder) {
+      var cached = _readJsonFile(folder, 'similar-customers.json');
+      if (cached && cached.similarCustomers) {
+        Logger.log('[Dashboard] getSimilarCustomers CACHE HIT for "' + companyName + '" — ' + cached.similarCustomers.length + ' customers');
+        return JSON.stringify(cached);
+      }
+    }
+  } catch (e) {
+    Logger.log('[Dashboard] getSimilarCustomers cache read failed (non-fatal): ' + e.message);
+  }
+
+  // ── Cache miss — call Glean ──
+  var industry = '';
+  var products = '';
+  try {
+    var researchCache = getResearchCache(companyName);
+    if (researchCache && researchCache.research && researchCache.research.data) {
+      var d = researchCache.research.data;
+      if (d.context && d.context.industry) industry = d.context.industry;
+      if (d.activeProducts && d.activeProducts.length > 0) {
+        products = d.activeProducts.map(function(p) { return typeof p === 'string' ? p : (p.name || ''); }).join(', ');
+      }
+    }
+    if (!industry || !products) {
+      var data = getCompanyData(companyName);
+      if (data) {
+        if (!industry && data.context && data.context.industry) industry = data.context.industry;
+        if (!products && data.activeProducts && data.activeProducts.length > 0) {
+          products = data.activeProducts.map(function(p) { return typeof p === 'string' ? p : (p.name || ''); }).join(', ');
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('[Dashboard] getSimilarCustomers — context lookup failed (non-fatal): ' + e.message);
+  }
+
+  var msg = 'STEP: similar-customers\n\nCOMPANY: ' + companyName +
+    '\nINDUSTRY: ' + (industry || 'Unknown') +
+    '\nPRODUCTS: ' + (products || 'Unknown');
+
+  try {
+    var responseText = _postToGleanStep('similar-customers', msg);
+    var parsed = _parseStepJson(responseText, 'similar-customers');
+    var items = parsed.similarCustomers || [];
+    Logger.log('[Dashboard] getSimilarCustomers for "' + companyName + '": ' + items.length + ' customers');
+
+    // Write to Drive cache
+    var result = { similarCustomers: items, generatedAt: new Date().toISOString() };
+    try {
+      var writeFolder = _getCompanyFolder(companyName, true);
+      _writeJsonFile(writeFolder, 'similar-customers.json', result);
+      Logger.log('[Dashboard] getSimilarCustomers cached for "' + companyName + '"');
+    } catch (we) {
+      Logger.log('[Dashboard] getSimilarCustomers cache write failed (non-fatal): ' + we.message);
+    }
+
+    return JSON.stringify(result);
+  } catch (e) {
+    Logger.log('[Dashboard] getSimilarCustomers failed for "' + companyName + '": ' + e.message);
+    return JSON.stringify({ similarCustomers: [] });
+  }
+}
+
+// ── GVS Results Cache Reader ──────────────────────────────────────────
+
+/**
+ * Returns cached GVS results for a company (gvs-results.json from Drive cache).
+ * @param {string} companyName
+ * @returns {string|null} JSON string or null if no cache exists
+ */
+function getGVSResults(companyName) {
+  if (!companyName) return null;
+  try {
+    var folder = _getCompanyFolder(companyName, false);
+    if (!folder) return null;
+    var gvsFile = folder.getFilesByName('gvs-results.json');
+    if (!gvsFile.hasNext()) return null;
+    var content = gvsFile.next().getBlob().getDataAsString();
+    Logger.log('[Dashboard] getGVSResults for "' + companyName + '": ' + content.length + ' chars');
+    return content;
+  } catch (e) {
+    Logger.log('[Dashboard] getGVSResults failed for "' + companyName + '": ' + e.message);
+    return null;
+  }
+}
+
+// ── Check which accounts have cached data ────────────────────────────
+
+/**
+ * Checks which company names have AR cache folders (for similar customer cross-linking).
+ * @param {string[]} names Array of company names to check
+ * @returns {Object} Map of { companyName: true } for those that have cache
+ */
+function checkCachedAccounts(names) {
+  if (!names || !names.length) return {};
+  var result = {};
+  try {
+    var root = _getCacheRootFolder();
+    for (var i = 0; i < names.length; i++) {
+      var folders = root.getFoldersByName(names[i]);
+      if (folders.hasNext()) {
+        result[names[i]] = true;
+      }
+    }
+  } catch (e) {
+    Logger.log('[Dashboard] checkCachedAccounts failed: ' + e.message);
+  }
+  return result;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
