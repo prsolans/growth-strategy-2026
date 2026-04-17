@@ -38,7 +38,7 @@ function doGet(e) {
 
 /** Include an HTML partial (used by <?!= include('file') ?> in templates). */
 function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  return HtmlService.createTemplateFromFile(filename).getRawContent();
 }
 
 // ── Account name autocomplete ─────────────────────────────────────────────

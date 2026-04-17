@@ -17,7 +17,7 @@
 - [x] Phase B: Update Glean prompts — Branch 6 (sources, conversationStarter) + Branch 7 (trigger flag, context)
 - [x] Deploy and verify with test account (GVS-cached + non-cached + empty)
 - [ ] Set INTELLIGENCE_CACHE_FOLDER_ID in GVS script properties (same value as AR project)
-- [ ] Split Dashboard.html into CSS/JS includes (post-verification)
+- [x] Split Dashboard.html into CSS/JS includes (DashboardCSS.html + DashboardJS.html)
 
 ### PRS-244: Fix Slack project Drive/Doc OAuth scopes for cache writes (High)
 - [ ] Diagnose and fix OAuth scope issues preventing cache writes from Slack-triggered runs
