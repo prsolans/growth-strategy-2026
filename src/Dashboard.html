@@ -108,6 +108,9 @@
       <i data-lucide="building" style="width:14px;height:14px;"></i> Similar Customers
       <span class="tab-badge" id="tabSimilarBadge" style="display:none;"></span>
     </button>
+    <button class="tab-btn" data-tab="account" onclick="switchTab('account')">
+      <i data-lucide="user-circle" style="width:14px;height:14px;"></i> Account Info
+    </button>
   </div>
 
   <!-- ═══════════════════ TAB: OVERVIEW ═══════════════════ -->
@@ -182,53 +185,6 @@
           </div>
         </div>
 
-        <!-- Contract & Renewal -->
-        <div class="panel sidebar-section" id="panelContract">
-          <div class="panel-header" onclick="togglePanel('panelContract')">
-            <div class="panel-header-left">
-              <i data-lucide="calendar" style="width:18px;height:18px;"></i>
-              <span class="panel-title">Contract & Renewal</span>
-            </div>
-            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-          </div>
-          <div class="panel-body" id="contractBody">
-            <div class="skeleton skeleton-line w-full"></div>
-            <div class="skeleton skeleton-line w-75"></div>
-          </div>
-        </div>
-
-        <!-- Account Team -->
-        <div class="panel sidebar-section" id="panelTeam">
-          <div class="panel-header" onclick="togglePanel('panelTeam')">
-            <div class="panel-header-left">
-              <i data-lucide="users" style="width:18px;height:18px;"></i>
-              <span class="panel-title">Account Team</span>
-            </div>
-            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-          </div>
-          <div class="panel-body" id="teamBody">
-            <div class="skeleton skeleton-line w-full"></div>
-            <div class="skeleton skeleton-line w-75"></div>
-          </div>
-        </div>
-
-        <!-- Recent Activity -->
-        <div class="panel sidebar-section" id="panelRecentActivity">
-          <div class="panel-header" onclick="togglePanel('panelRecentActivity')">
-            <div class="panel-header-left">
-              <i data-lucide="activity" style="width:18px;height:18px;"></i>
-              <span class="panel-title">Recent Activity</span>
-              <span class="badge" id="recentActivityBadge" style="display:none; font-size:10px; padding:1px 6px; border-radius:8px; background:var(--primary-light); color:var(--primary); font-weight:600;"></span>
-            </div>
-            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-          </div>
-          <div class="panel-body" id="recentActivityBody">
-            <div class="skeleton skeleton-line w-full"></div>
-            <div class="skeleton skeleton-line w-75"></div>
-            <div class="skeleton skeleton-line w-full"></div>
-          </div>
-        </div>
-
         <!-- Content -->
         <div class="panel sidebar-section" id="panelContent">
           <div class="panel-header" onclick="togglePanel('panelContent')">
@@ -243,12 +199,6 @@
             <div class="skeleton skeleton-line w-full"></div>
             <div class="skeleton skeleton-line w-75"></div>
           </div>
-        </div>
-
-        <!-- Secondary actions -->
-        <div style="display:flex; justify-content:center; gap:16px; margin-top:8px;">
-          <button class="action-link" onclick="triggerRefresh()">Refresh AR</button>
-          <button class="action-link action-link-danger" onclick="removeAccount()">Remove Account</button>
         </div>
 
       </div><!-- /dash-sidebar -->
@@ -327,6 +277,76 @@
     </div>
 
   </div><!-- /tabSimilar -->
+
+  <!-- ═══════════════════ TAB: ACCOUNT INFO ═══════════════════ -->
+  <div class="tab-pane" id="tabAccount" style="display:none;">
+
+    <div class="dash-grid">
+
+      <div class="dash-primary">
+
+        <!-- Contract & Renewal -->
+        <div class="panel" id="panelContract">
+          <div class="panel-header" onclick="togglePanel('panelContract')">
+            <div class="panel-header-left">
+              <i data-lucide="calendar" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Contract & Renewal</span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="contractBody">
+            <div class="skeleton skeleton-line w-full"></div>
+            <div class="skeleton skeleton-line w-75"></div>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="panel" id="panelRecentActivity">
+          <div class="panel-header" onclick="togglePanel('panelRecentActivity')">
+            <div class="panel-header-left">
+              <i data-lucide="activity" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Recent Activity</span>
+              <span class="badge" id="recentActivityBadge" style="display:none; font-size:10px; padding:1px 6px; border-radius:8px; background:var(--primary-light); color:var(--primary); font-weight:600;"></span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="recentActivityBody">
+            <div class="skeleton skeleton-line w-full"></div>
+            <div class="skeleton skeleton-line w-75"></div>
+            <div class="skeleton skeleton-line w-full"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="dash-sidebar">
+
+        <!-- Account Team -->
+        <div class="panel sidebar-section" id="panelTeam">
+          <div class="panel-header" onclick="togglePanel('panelTeam')">
+            <div class="panel-header-left">
+              <i data-lucide="users" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Account Team</span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="teamBody">
+            <div class="skeleton skeleton-line w-full"></div>
+            <div class="skeleton skeleton-line w-75"></div>
+          </div>
+        </div>
+
+        <!-- Secondary actions -->
+        <div style="display:flex; justify-content:center; gap:16px; margin-top:8px;">
+          <button class="action-link" onclick="triggerRefresh()">Refresh AR</button>
+          <button class="action-link action-link-danger" onclick="removeAccount()">Remove Account</button>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div><!-- /tabAccount -->
 
 </div><!-- /dashboardView -->
 

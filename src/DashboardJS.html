@@ -507,7 +507,7 @@ function switchTab(tabId) {
   for (var i = 0; i < btns.length; i++) {
     btns[i].classList.remove('active');
   }
-  var tabMap = { 'overview': 'tabOverview', 'intelligence': 'tabIntelligence', 'similar': 'tabSimilar' };
+  var tabMap = { 'overview': 'tabOverview', 'intelligence': 'tabIntelligence', 'similar': 'tabSimilar', 'account': 'tabAccount' };
   var pane = document.getElementById(tabMap[tabId]);
   if (pane) { pane.style.display = 'block'; pane.classList.add('active'); }
   var btn = document.querySelector('.tab-btn[data-tab="' + tabId + '"]');
@@ -1094,12 +1094,12 @@ function actionOpen(type) {
 
 function renderContentPanel(deliverables) {
   var allTypes = [
-    { type: 'ar_brief', name: 'Intelligence Brief', icon: 'file-search' },
-    { type: 'ar_full', name: 'Full Report', icon: 'file-text' },
-    { type: 'gvs_value_case', name: 'Value Case', icon: 'calculator' },
-    { type: 'gvs_pov', name: 'POV Deck', icon: 'lightbulb' },
-    { type: 'gvs_email', name: 'Follow-up Email', icon: 'mail' },
-    { type: 'gvs_champion_brief', name: 'Champion Brief', icon: 'shield' }
+    { type: 'ar_brief', name: 'Intelligence Brief', icon: 'file-search', create: 'triggerRefresh' },
+    { type: 'ar_full', name: 'Full Report', icon: 'file-text', create: 'triggerRefresh' },
+    { type: 'gvs_value_case', name: 'Value Case', icon: 'calculator', create: 'buildValueCase' },
+    { type: 'gvs_pov', name: 'POV Deck', icon: 'lightbulb', create: 'buildValueCase' },
+    { type: 'gvs_email', name: 'Follow-up Email', icon: 'mail', create: 'buildValueCase' },
+    { type: 'gvs_champion_brief', name: 'Champion Brief', icon: 'shield', create: 'buildValueCase' }
   ];
 
   var delivMap = {};
@@ -1110,21 +1110,18 @@ function renderContentPanel(deliverables) {
 
   allTypes.forEach(function(t) {
     var existing = delivMap[t.type];
-    var action;
     if (existing && existing.url) {
       readyCount++;
-      action = '<a href="' + existing.url + '" target="_blank" class="btn btn-sm btn-secondary" style="white-space:nowrap;">Open</a>';
-    } else if (existing) {
-      readyCount++;
-      action = '<span class="badge badge-success">Ready</span>';
+      html += '<a href="' + existing.url + '" target="_blank" class="deliverable-card deliverable-clickable">' +
+        '<div class="deliverable-icon"><i data-lucide="' + t.icon + '" style="width:16px;height:16px;"></i></div>' +
+        '<div class="deliverable-info"><div class="deliverable-name">' + t.name + '</div></div>' +
+        '<div class="deliverable-action"><i data-lucide="external-link" style="width:14px;height:14px;color:var(--primary);"></i></div></a>';
     } else {
-      action = '<span class="badge badge-neutral" style="font-size:10px;">--</span>';
+      html += '<div class="deliverable-card deliverable-clickable deliverable-create" onclick="' + t.create + '()">' +
+        '<div class="deliverable-icon" style="opacity:0.4;"><i data-lucide="' + t.icon + '" style="width:16px;height:16px;"></i></div>' +
+        '<div class="deliverable-info"><div class="deliverable-name" style="color:var(--muted);">' + t.name + '</div></div>' +
+        '<div class="deliverable-action"><i data-lucide="plus" style="width:14px;height:14px;color:var(--muted);"></i></div></div>';
     }
-
-    html += '<div class="deliverable-card">' +
-      '<div class="deliverable-icon"><i data-lucide="' + t.icon + '" style="width:16px;height:16px;"></i></div>' +
-      '<div class="deliverable-info"><div class="deliverable-name">' + t.name + '</div></div>' +
-      '<div class="deliverable-action">' + action + '</div></div>';
   });
 
   document.getElementById('contentBody').innerHTML = html;
