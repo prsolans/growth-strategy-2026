@@ -96,230 +96,239 @@
     <div class="acct-signals" id="acctSignals"></div>
   </div>
 
-  <!-- Two-Column Grid -->
-  <div class="dash-grid">
-
-    <!-- ═══ PRIMARY COLUMN ═══ -->
-    <div class="dash-primary">
-
-      <!-- ◆ LAYER 1: THE VALUE STORY -->
-      <div class="layer-header"><i data-lucide="diamond" style="width:14px;height:14px;"></i> THE VALUE STORY</div>
-
-      <!-- Panel: Value Narrative -->
-      <div class="panel" id="panelValueNarrative">
-        <div class="panel-header" onclick="togglePanel('panelValueNarrative')">
-          <div class="panel-header-left">
-            <i data-lucide="sparkles" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Value Narrative</span>
-            <span class="value-source-badge" id="valueSourceBadge" style="display:none"></span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="valueNarrativeBody">
-          <div class="empty-state">
-            <div class="empty-state-icon"><i data-lucide="sparkles" style="width:36px;height:36px;"></i></div>
-            <div class="empty-state-title">No Intelligence Brief Yet</div>
-            <div class="empty-state-desc">Generate an AR brief to see AI-synthesized executive summary.</div>
-            <button class="btn btn-sm btn-primary" onclick="triggerRefresh()"><i data-lucide="zap" style="width:13px;height:13px;"></i> Generate Intelligence Brief</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Panel: Big Bets -->
-      <div class="panel" id="panelBigBets">
-        <div class="panel-header" onclick="togglePanel('panelBigBets')">
-          <div class="panel-header-left">
-            <i data-lucide="rocket" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Big Bets</span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="bigBetsBody">
-          <div class="empty-state">
-            <div class="empty-state-icon"><i data-lucide="rocket" style="width:36px;height:36px;"></i></div>
-            <div class="empty-state-title">No Big Bets Yet</div>
-            <div class="empty-state-desc">Generate an AR brief to identify expansion opportunities.</div>
-            <button class="btn btn-sm btn-primary" onclick="triggerRefresh()"><i data-lucide="zap" style="width:13px;height:13px;"></i> Generate Intelligence Brief</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Panel: Similar Customers -->
-      <div class="panel" id="panelSimilarCustomers">
-        <div class="panel-header" onclick="togglePanel('panelSimilarCustomers')">
-          <div class="panel-header-left">
-            <i data-lucide="building" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Similar Customers</span>
-            <span class="badge" id="similarCustomersBadge" style="display:none; font-size:10px; padding:1px 6px; border-radius:8px; background:var(--primary-light); color:var(--primary); font-weight:600;"></span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="similarCustomersBody">
-          <div class="skeleton skeleton-line w-full"></div>
-          <div class="skeleton skeleton-line w-75"></div>
-          <div class="skeleton skeleton-line w-full"></div>
-        </div>
-      </div>
-
-      <!-- ◆ LAYER 2: THE INTELLIGENCE -->
-      <div class="layer-header"><i data-lucide="bar-chart-3" style="width:14px;height:14px;"></i> THE INTELLIGENCE</div>
-
-      <!-- Panel: Adoption Funnel -->
-      <div class="panel" id="panelProducts">
-        <div class="panel-header" onclick="togglePanel('panelProducts')">
-          <div class="panel-header-left">
-            <i data-lucide="layers" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Adoption Funnel</span>
-            <span class="badge badge-primary" id="productBadge">—</span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="productsBody">
-          <div class="skeleton skeleton-line w-full"></div>
-          <div class="skeleton skeleton-line w-75"></div>
-        </div>
-      </div>
-
-      <!-- Panel: Agreement Landscape -->
-      <div class="panel" id="panelAgreements">
-        <div class="panel-header" onclick="togglePanel('panelAgreements')">
-          <div class="panel-header-left">
-            <i data-lucide="file-text" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Agreement Landscape</span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="agreementsBody">
-          <div class="empty-state">
-            <div class="empty-state-icon"><i data-lucide="file-text" style="width:36px;height:36px;"></i></div>
-            <div class="empty-state-title">No Agreement Data</div>
-            <div class="empty-state-desc">Generate an AR brief to map the agreement landscape.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Panel: Contract Commerce -->
-      <div class="panel" id="panelCommerce">
-        <div class="panel-header" onclick="togglePanel('panelCommerce')">
-          <div class="panel-header-left">
-            <i data-lucide="banknote" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Contract Commerce</span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="commerceBody">
-          <div class="empty-state">
-            <div class="empty-state-icon"><i data-lucide="banknote" style="width:36px;height:36px;"></i></div>
-            <div class="empty-state-title">No Commerce Data</div>
-            <div class="empty-state-desc">Generate an AR brief to analyze contract commerce.</div>
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /dash-primary -->
-
-    <!-- ═══ SIDEBAR: ACCOUNT CONTEXT ═══ -->
-    <div class="dash-sidebar">
-
-      <div class="layer-header"><i data-lucide="compass" style="width:14px;height:14px;"></i> ACCOUNT CONTEXT</div>
-
-      <!-- Value Case -->
-      <div class="panel sidebar-section" id="panelValueCase">
-        <div class="panel-header" onclick="togglePanel('panelValueCase')">
-          <div class="panel-header-left">
-            <i data-lucide="calculator" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Value Case</span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="valueCaseBody">
-          <div class="value-case-cta" onclick="buildValueCase()">
-            <i data-lucide="calculator" style="width:18px;height:18px;"></i>
-            Build a Value Case to quantify ROI →
-          </div>
-        </div>
-      </div>
-
-      <!-- Contract & Renewal -->
-      <div class="panel sidebar-section" id="panelContract">
-        <div class="panel-header" onclick="togglePanel('panelContract')">
-          <div class="panel-header-left">
-            <i data-lucide="calendar" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Contract & Renewal</span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="contractBody">
-          <div class="skeleton skeleton-line w-full"></div>
-          <div class="skeleton skeleton-line w-75"></div>
-        </div>
-      </div>
-
-      <!-- Account Team -->
-      <div class="panel sidebar-section" id="panelTeam">
-        <div class="panel-header" onclick="togglePanel('panelTeam')">
-          <div class="panel-header-left">
-            <i data-lucide="users" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Account Team</span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="teamBody">
-          <div class="skeleton skeleton-line w-full"></div>
-          <div class="skeleton skeleton-line w-75"></div>
-        </div>
-      </div>
-
-      <!-- Recent Activity -->
-      <div class="panel sidebar-section" id="panelRecentActivity">
-        <div class="panel-header" onclick="togglePanel('panelRecentActivity')">
-          <div class="panel-header-left">
-            <i data-lucide="activity" style="width:18px;height:18px;"></i>
-            <span class="panel-title">Recent Activity</span>
-            <span class="badge" id="recentActivityBadge" style="display:none; font-size:10px; padding:1px 6px; border-radius:8px; background:var(--primary-light); color:var(--primary); font-weight:600;"></span>
-          </div>
-          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
-        </div>
-        <div class="panel-body" id="recentActivityBody">
-          <div class="skeleton skeleton-line w-full"></div>
-          <div class="skeleton skeleton-line w-75"></div>
-          <div class="skeleton skeleton-line w-full"></div>
-        </div>
-      </div>
-
-      <!-- Secondary actions -->
-      <div style="display:flex; justify-content:center; gap:16px; margin-top:8px;">
-        <button class="action-link" onclick="triggerRefresh()">Refresh AR</button>
-        <button class="action-link action-link-danger" onclick="removeAccount()">Remove Account</button>
-      </div>
-
-    </div><!-- /dash-sidebar -->
-
-  </div><!-- /dash-grid -->
-</div><!-- /dashboardView -->
-
-<!-- ═══════════════════ EDGE TAB ═══════════════════ -->
-<div class="edge-tab" id="edgeTab" style="display:none;">
-  <button class="drawer-tab" onclick="toggleDrawer()">Content Factory</button>
-</div>
-
-<!-- ═══════════════════ CONTENT FACTORY DRAWER ═══════════════════ -->
-<div class="drawer-backdrop" id="drawerBackdrop" onclick="toggleDrawer()"></div>
-<div class="drawer" id="drawer">
-  <div class="drawer-header">
-    <div>
-      <h3><i data-lucide="package" style="width:18px;height:18px;display:inline;vertical-align:middle;margin-right:6px;"></i>Content Factory</h3>
-      <div class="drawer-status" id="drawerStatus">Loading...</div>
-    </div>
-    <button class="drawer-close" onclick="toggleDrawer()"><i data-lucide="x" style="width:20px;height:20px;"></i></button>
-  </div>
-  <div class="drawer-body" id="drawerBody"></div>
-  <div class="drawer-footer">
-    <button class="btn btn-primary" style="width:100%;" onclick="triggerRefresh()">
-      <i data-lucide="zap" style="width:15px;height:15px;"></i> Generate Intelligence Brief
+  <!-- ═══════════════════ TAB NAVIGATION ═══════════════════ -->
+  <div class="tab-bar" id="tabBar">
+    <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">
+      <i data-lucide="layout-dashboard" style="width:14px;height:14px;"></i> Overview
+    </button>
+    <button class="tab-btn" data-tab="intelligence" onclick="switchTab('intelligence')">
+      <i data-lucide="bar-chart-3" style="width:14px;height:14px;"></i> Intelligence
+    </button>
+    <button class="tab-btn" data-tab="similar" onclick="switchTab('similar')">
+      <i data-lucide="building" style="width:14px;height:14px;"></i> Similar Customers
+      <span class="tab-badge" id="tabSimilarBadge" style="display:none;"></span>
     </button>
   </div>
-</div>
+
+  <!-- ═══════════════════ TAB: OVERVIEW ═══════════════════ -->
+  <div class="tab-pane active" id="tabOverview">
+    <div class="dash-grid">
+
+      <!-- ═══ PRIMARY COLUMN ═══ -->
+      <div class="dash-primary">
+
+        <div class="layer-header"><i data-lucide="diamond" style="width:14px;height:14px;"></i> THE VALUE STORY</div>
+
+        <!-- Panel: Value Narrative -->
+        <div class="panel" id="panelValueNarrative">
+          <div class="panel-header" onclick="togglePanel('panelValueNarrative')">
+            <div class="panel-header-left">
+              <i data-lucide="sparkles" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Value Narrative</span>
+              <span class="value-source-badge" id="valueSourceBadge" style="display:none"></span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="valueNarrativeBody">
+            <div class="empty-state">
+              <div class="empty-state-icon"><i data-lucide="sparkles" style="width:36px;height:36px;"></i></div>
+              <div class="empty-state-title">No Intelligence Brief Yet</div>
+              <div class="empty-state-desc">Generate an AR brief to see AI-synthesized executive summary.</div>
+              <button class="btn btn-sm btn-primary" onclick="triggerRefresh()"><i data-lucide="zap" style="width:13px;height:13px;"></i> Generate Intelligence Brief</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel: Big Bets -->
+        <div class="panel" id="panelBigBets">
+          <div class="panel-header" onclick="togglePanel('panelBigBets')">
+            <div class="panel-header-left">
+              <i data-lucide="rocket" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Big Bets</span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="bigBetsBody">
+            <div class="empty-state">
+              <div class="empty-state-icon"><i data-lucide="rocket" style="width:36px;height:36px;"></i></div>
+              <div class="empty-state-title">No Big Bets Yet</div>
+              <div class="empty-state-desc">Generate an AR brief to identify expansion opportunities.</div>
+              <button class="btn btn-sm btn-primary" onclick="triggerRefresh()"><i data-lucide="zap" style="width:13px;height:13px;"></i> Generate Intelligence Brief</button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /dash-primary -->
+
+      <!-- ═══ SIDEBAR: ACCOUNT CONTEXT ═══ -->
+      <div class="dash-sidebar">
+
+        <div class="layer-header"><i data-lucide="compass" style="width:14px;height:14px;"></i> ACCOUNT CONTEXT</div>
+
+        <!-- Value Case -->
+        <div class="panel sidebar-section" id="panelValueCase">
+          <div class="panel-header" onclick="togglePanel('panelValueCase')">
+            <div class="panel-header-left">
+              <i data-lucide="calculator" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Value Case</span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="valueCaseBody">
+            <div class="value-case-cta" onclick="buildValueCase()">
+              <i data-lucide="calculator" style="width:18px;height:18px;"></i>
+              Build a Value Case to quantify ROI →
+            </div>
+          </div>
+        </div>
+
+        <!-- Contract & Renewal -->
+        <div class="panel sidebar-section" id="panelContract">
+          <div class="panel-header" onclick="togglePanel('panelContract')">
+            <div class="panel-header-left">
+              <i data-lucide="calendar" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Contract & Renewal</span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="contractBody">
+            <div class="skeleton skeleton-line w-full"></div>
+            <div class="skeleton skeleton-line w-75"></div>
+          </div>
+        </div>
+
+        <!-- Account Team -->
+        <div class="panel sidebar-section" id="panelTeam">
+          <div class="panel-header" onclick="togglePanel('panelTeam')">
+            <div class="panel-header-left">
+              <i data-lucide="users" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Account Team</span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="teamBody">
+            <div class="skeleton skeleton-line w-full"></div>
+            <div class="skeleton skeleton-line w-75"></div>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="panel sidebar-section" id="panelRecentActivity">
+          <div class="panel-header" onclick="togglePanel('panelRecentActivity')">
+            <div class="panel-header-left">
+              <i data-lucide="activity" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Recent Activity</span>
+              <span class="badge" id="recentActivityBadge" style="display:none; font-size:10px; padding:1px 6px; border-radius:8px; background:var(--primary-light); color:var(--primary); font-weight:600;"></span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="recentActivityBody">
+            <div class="skeleton skeleton-line w-full"></div>
+            <div class="skeleton skeleton-line w-75"></div>
+            <div class="skeleton skeleton-line w-full"></div>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="panel sidebar-section" id="panelContent">
+          <div class="panel-header" onclick="togglePanel('panelContent')">
+            <div class="panel-header-left">
+              <i data-lucide="package" style="width:18px;height:18px;"></i>
+              <span class="panel-title">Content</span>
+              <span class="badge" id="contentBadge" style="display:none; font-size:10px; padding:1px 6px; border-radius:8px; background:var(--primary-light); color:var(--primary); font-weight:600;"></span>
+            </div>
+            <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+          </div>
+          <div class="panel-body" id="contentBody">
+            <div class="skeleton skeleton-line w-full"></div>
+            <div class="skeleton skeleton-line w-75"></div>
+          </div>
+        </div>
+
+        <!-- Secondary actions -->
+        <div style="display:flex; justify-content:center; gap:16px; margin-top:8px;">
+          <button class="action-link" onclick="triggerRefresh()">Refresh AR</button>
+          <button class="action-link action-link-danger" onclick="removeAccount()">Remove Account</button>
+        </div>
+
+      </div><!-- /dash-sidebar -->
+
+    </div><!-- /dash-grid -->
+  </div><!-- /tabOverview -->
+
+  <!-- ═══════════════════ TAB: INTELLIGENCE ═══════════════════ -->
+  <div class="tab-pane" id="tabIntelligence" style="display:none;">
+
+    <div class="layer-header"><i data-lucide="bar-chart-3" style="width:14px;height:14px;"></i> THE INTELLIGENCE</div>
+
+    <!-- Panel: Adoption Funnel -->
+    <div class="panel" id="panelProducts">
+      <div class="panel-header" onclick="togglePanel('panelProducts')">
+        <div class="panel-header-left">
+          <i data-lucide="layers" style="width:18px;height:18px;"></i>
+          <span class="panel-title">Adoption Funnel</span>
+          <span class="badge badge-primary" id="productBadge">—</span>
+        </div>
+        <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+      </div>
+      <div class="panel-body" id="productsBody">
+        <div class="skeleton skeleton-line w-full"></div>
+        <div class="skeleton skeleton-line w-75"></div>
+      </div>
+    </div>
+
+    <!-- Panel: Agreement Landscape -->
+    <div class="panel" id="panelAgreements">
+      <div class="panel-header" onclick="togglePanel('panelAgreements')">
+        <div class="panel-header-left">
+          <i data-lucide="file-text" style="width:18px;height:18px;"></i>
+          <span class="panel-title">Agreement Landscape</span>
+        </div>
+        <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+      </div>
+      <div class="panel-body" id="agreementsBody">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i data-lucide="file-text" style="width:36px;height:36px;"></i></div>
+          <div class="empty-state-title">No Agreement Data</div>
+          <div class="empty-state-desc">Generate an AR brief to map the agreement landscape.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel: Contract Commerce -->
+    <div class="panel" id="panelCommerce">
+      <div class="panel-header" onclick="togglePanel('panelCommerce')">
+        <div class="panel-header-left">
+          <i data-lucide="banknote" style="width:18px;height:18px;"></i>
+          <span class="panel-title">Contract Commerce</span>
+        </div>
+        <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+      </div>
+      <div class="panel-body" id="commerceBody">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i data-lucide="banknote" style="width:36px;height:36px;"></i></div>
+          <div class="empty-state-title">No Commerce Data</div>
+          <div class="empty-state-desc">Generate an AR brief to analyze contract commerce.</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tabIntelligence -->
+
+  <!-- ═══════════════════ TAB: SIMILAR CUSTOMERS ═══════════════════ -->
+  <div class="tab-pane" id="tabSimilar" style="display:none;">
+
+    <div class="layer-header"><i data-lucide="building" style="width:14px;height:14px;"></i> SIMILAR CUSTOMERS</div>
+
+    <div id="similarCustomersBody">
+      <div class="skeleton skeleton-line w-full"></div>
+      <div class="skeleton skeleton-line w-75"></div>
+      <div class="skeleton skeleton-line w-full"></div>
+    </div>
+
+  </div><!-- /tabSimilar -->
+
+</div><!-- /dashboardView -->
 
 <!-- ═══════════════════ REFRESH STATUS BAR ═══════════════════ -->
 <div id="refreshBar" style="display:none; position:fixed; bottom:0; left:0; right:0; background:var(--primary-dark); color:white; padding:12px 24px; z-index:500; text-align:center; font-size:13px; font-weight:600;">

@@ -272,11 +272,19 @@ function resetDashboardPanels() {
   // Reset badges
   var rab = document.getElementById('recentActivityBadge');
   if (rab) { rab.style.display = 'none'; rab.textContent = ''; }
-  var scb = document.getElementById('similarCustomersBadge');
-  if (scb) { scb.style.display = 'none'; scb.textContent = ''; }
+  // Reset tab badges
+  var tsb = document.getElementById('tabSimilarBadge');
+  if (tsb) { tsb.style.display = 'none'; tsb.textContent = ''; }
+  // Reset content panel
+  var contentBody = document.getElementById('contentBody');
+  if (contentBody) contentBody.innerHTML = '<div class="skeleton skeleton-line w-full"></div><div class="skeleton skeleton-line w-75"></div>';
+  var contentBadge = document.getElementById('contentBadge');
+  if (contentBadge) contentBadge.style.display = 'none';
   // Track GVS state for smart defaults
   _hasGVSData = false;
   _hasARData = false;
+  // Reset to Overview tab
+  switchTab('overview');
 }
 
 function selectAccount(name) {
@@ -292,8 +300,6 @@ function selectAccount(name) {
     searchView.style.display = 'none';
     dashView.classList.add('visible');
     document.getElementById('headerSearchWrap').style.display = 'block';
-
-    document.getElementById('edgeTab').style.display = 'block';
 
     // Clear all panels from previous account
     resetDashboardPanels();
@@ -325,7 +331,6 @@ function goHome() {
   searchView.style.opacity = '1';
   document.getElementById('headerSearchWrap').style.display = 'none';
 
-  document.getElementById('edgeTab').style.display = 'none';
   mainSearch.value = '';
   loadCachedAccounts();
 }
@@ -433,7 +438,7 @@ function loadDeliverables(name) {
     .withSuccessHandler(function(results) {
       log('Deliverables: ' + (results || []).length + ' found');
       (results || []).forEach(function(d) { log('  → ' + d.type + ': ' + (d.url || 'no url')); });
-      renderDrawer(results || []);
+      renderContentPanel(results || []);
       // Update header action buttons from deliverables
       var bUrl = null, fUrl = null;
       (results || []).forEach(function(d) {
@@ -490,6 +495,26 @@ function getIndustryIcon(industry) {
 var _hasGVSData = false;
 var _hasARData = false;
 var _cachedGVSResults = null;
+var currentTab = 'overview';
+
+function switchTab(tabId) {
+  var panes = document.querySelectorAll('.tab-pane');
+  for (var i = 0; i < panes.length; i++) {
+    panes[i].style.display = 'none';
+    panes[i].classList.remove('active');
+  }
+  var btns = document.querySelectorAll('.tab-btn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.remove('active');
+  }
+  var tabMap = { 'overview': 'tabOverview', 'intelligence': 'tabIntelligence', 'similar': 'tabSimilar' };
+  var pane = document.getElementById(tabMap[tabId]);
+  if (pane) { pane.style.display = 'block'; pane.classList.add('active'); }
+  var btn = document.querySelector('.tab-btn[data-tab="' + tabId + '"]');
+  if (btn) btn.classList.add('active');
+  currentTab = tabId;
+  lucide.createIcons();
+}
 
 function renderHeader(data) {
   var d = data;
@@ -516,12 +541,6 @@ function renderHeader(data) {
   // ACV
   var acv = d.financial.acv ? '$' + formatNum(d.financial.acv) : '—';
   signals += signalBadge(acv, 'ACV', null);
-
-  // Health Score
-  var health = computeHealthScore(d);
-  var healthColor = health >= 70 ? 'green' : health >= 40 ? 'amber' : 'red';
-  var healthLabel = health >= 70 ? 'Good' : health >= 40 ? 'Watch' : 'At Risk';
-  signals += signalBadge(health + ' ' + healthLabel, 'Health', healthColor);
 
   // Renewal Countdown
   if (d.contract && d.contract.monthsLeft != null) {
@@ -1057,20 +1076,11 @@ function renderContract(data) {
 var _actionUrls = { briefUrl: null, fullUrl: null };
 
 function applySmartDefaults() {
-  // If Layer 1 has GVS data, collapse Layer 2 panels
-  var l2Panels = ['panelProducts', 'panelAgreements', 'panelCommerce'];
-  if (_hasGVSData) {
-    l2Panels.forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el && !el.classList.contains('collapsed')) el.classList.add('collapsed');
-    });
-  } else if (!_hasARData) {
-    // No AR cache — expand Layer 2 so bookscrub data is visible
-    l2Panels.forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.classList.remove('collapsed');
-    });
+  // With tabs: no data → switch to Intelligence tab so bookscrub panels are visible
+  if (!_hasARData && !_hasGVSData) {
+    switchTab('intelligence');
   }
+  // Otherwise stay on Overview (default)
 }
 
 function actionOpen(type) {
@@ -1082,14 +1092,14 @@ function actionOpen(type) {
   }
 }
 
-function renderDrawer(deliverables) {
+function renderContentPanel(deliverables) {
   var allTypes = [
-    { type: 'ar_brief', name: 'Account Intelligence Brief', desc: 'AI-generated account summary', icon: 'file-search' },
-    { type: 'ar_full', name: 'Full Research Report', desc: 'Comprehensive account analysis', icon: 'file-text' },
-    { type: 'gvs_value_case', name: 'Value Case Assessment', desc: 'ROI model + business case', icon: 'calculator' },
-    { type: 'gvs_pov', name: 'Industry POV Deck', desc: 'Vertical insights presentation', icon: 'lightbulb' },
-    { type: 'gvs_email', name: 'Follow-up Email', desc: 'Post-meeting executive recap', icon: 'mail' },
-    { type: 'gvs_champion_brief', name: 'Champion Brief', desc: 'Internal sell document', icon: 'shield' }
+    { type: 'ar_brief', name: 'Intelligence Brief', icon: 'file-search' },
+    { type: 'ar_full', name: 'Full Report', icon: 'file-text' },
+    { type: 'gvs_value_case', name: 'Value Case', icon: 'calculator' },
+    { type: 'gvs_pov', name: 'POV Deck', icon: 'lightbulb' },
+    { type: 'gvs_email', name: 'Follow-up Email', icon: 'mail' },
+    { type: 'gvs_champion_brief', name: 'Champion Brief', icon: 'shield' }
   ];
 
   var delivMap = {};
@@ -1100,28 +1110,31 @@ function renderDrawer(deliverables) {
 
   allTypes.forEach(function(t) {
     var existing = delivMap[t.type];
-    var status, action;
+    var action;
     if (existing && existing.url) {
       readyCount++;
-      status = '<span class="badge badge-success">Ready</span>';
-      action = '<a href="' + existing.url + '" target="_blank" class="btn btn-sm btn-secondary">Open</a>';
+      action = '<a href="' + existing.url + '" target="_blank" class="btn btn-sm btn-secondary" style="white-space:nowrap;">Open</a>';
     } else if (existing) {
       readyCount++;
-      status = '<span class="badge badge-success">Ready</span>';
-      action = '';
+      action = '<span class="badge badge-success">Ready</span>';
     } else {
-      status = '<span class="badge badge-neutral">Not Started</span>';
-      action = '';
+      action = '<span class="badge badge-neutral" style="font-size:10px;">--</span>';
     }
 
     html += '<div class="deliverable-card">' +
-      '<div class="deliverable-icon"><i data-lucide="' + t.icon + '" style="width:18px;height:18px;"></i></div>' +
-      '<div class="deliverable-info"><div class="deliverable-name">' + t.name + '</div><div class="deliverable-desc">' + t.desc + '</div></div>' +
-      '<div class="deliverable-action">' + (action || status) + '</div></div>';
+      '<div class="deliverable-icon"><i data-lucide="' + t.icon + '" style="width:16px;height:16px;"></i></div>' +
+      '<div class="deliverable-info"><div class="deliverable-name">' + t.name + '</div></div>' +
+      '<div class="deliverable-action">' + action + '</div></div>';
   });
 
-  document.getElementById('drawerBody').innerHTML = html;
-  document.getElementById('drawerStatus').textContent = readyCount + ' of ' + allTypes.length + ' deliverables ready';
+  document.getElementById('contentBody').innerHTML = html;
+  var badge = document.getElementById('contentBadge');
+  if (readyCount > 0) {
+    badge.textContent = readyCount + ' ready';
+    badge.style.display = 'inline';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -1298,24 +1311,9 @@ function toggleBet(id) {
   }
 }
 
-function toggleDrawer() {
-  var drawer = document.getElementById('drawer');
-  var backdrop = document.getElementById('drawerBackdrop');
-  var isOpen = drawer.classList.contains('open');
-  if (isOpen) {
-    drawer.classList.remove('open');
-    backdrop.classList.remove('open');
-  } else {
-    drawer.classList.add('open');
-    backdrop.classList.add('open');
-    lucide.createIcons();
-  }
-}
-
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     if (document.getElementById('activityModalBackdrop').classList.contains('open')) { closeActivityModal(); return; }
-    if (document.getElementById('drawer').classList.contains('open')) toggleDrawer();
   }
 });
 
@@ -1498,21 +1496,23 @@ function loadSimilarCustomers(name) {
 
 function renderSimilarCustomers(items, cachedAccountMap) {
   var body = document.getElementById('similarCustomersBody');
-  var badge = document.getElementById('similarCustomersBadge');
+  var tabBadge = document.getElementById('tabSimilarBadge');
 
   if (!items || items.length === 0) {
     body.innerHTML = '<div class="empty-state" style="padding:20px 10px;">' +
       '<div style="font-size:12px; color:var(--muted);">No similar customers found</div>' +
       '</div>';
-    badge.style.display = 'none';
+    if (tabBadge) tabBadge.style.display = 'none';
     return;
   }
 
-  badge.textContent = items.length;
-  badge.style.display = 'inline';
+  if (tabBadge) {
+    tabBadge.textContent = items.length;
+    tabBadge.style.display = 'inline';
+  }
   var cMap = cachedAccountMap || {};
 
-  var html = '';
+  var html = '<div class="sim-customer-grid">';
   for (var i = 0; i < items.length; i++) {
     var c = items[i];
     html += '<div class="sim-customer">' +
@@ -1582,6 +1582,7 @@ function renderSimilarCustomers(items, cachedAccountMap) {
 
     html += '</div>';
   }
+  html += '</div>'; // close sim-customer-grid
   body.innerHTML = html;
 }
 
