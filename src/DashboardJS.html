@@ -43,6 +43,7 @@ function log(msg) {
 
 // ── State ──
 var currentAccount = null;
+var _loadGen = 0;  // increments on each account switch; stale callbacks check this
 var cachedAccounts = [];
 var allCompanyNames = {};  // letter -> [names]
 var isRefreshing = false;  // guard against duplicate refresh triggers
@@ -248,11 +249,15 @@ headerSearch.addEventListener('keydown', function(e) {
 // ── View Switching ──
 var _selectLock = 0;
 function resetDashboardPanels() {
+  _loadGen++;
   var loadingHtml = '<p style="color:var(--muted);font-size:13px;">Loading…</p>';
-  ['valueNarrativeBody', 'productsBody', 'bigBetsBody', 'agreementsBody', 'commerceBody', 'similarCustomersBody', 'teamBody', 'contractBody', 'recentActivityBody'].forEach(function(id) {
+  ['valueNarrativeBody', 'productsBody', 'bigBetsBody', 'agreementsBody', 'commerceBody', 'similarCustomersBody', 'teamBody', 'contractBody', 'recentActivityBody', 'initiativesBody', 'painPointsBody', 'platformUsageBody'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.innerHTML = loadingHtml;
   });
+  // Hide two-column container until data arrives
+  var twoCol = document.getElementById('intelTwoCol');
+  if (twoCol) twoCol.style.display = 'none';
   // Reset value case to CTA
   var vcBody = document.getElementById('valueCaseBody');
   if (vcBody) vcBody.innerHTML = '<div class="value-case-cta" onclick="buildValueCase()"><i data-lucide="calculator" style="width:18px;height:18px;"></i> Build a Value Case to quantify ROI →</div>';
@@ -283,6 +288,8 @@ function resetDashboardPanels() {
   // Track GVS state for smart defaults
   _hasGVSData = false;
   _hasARData = false;
+  _currentDeliverables = [];
+  _gvsResultsAvailable = {};
   // Reset to Overview tab
   switchTab('overview');
 }
@@ -342,8 +349,10 @@ function goHome() {
 // ── Live Bookscrub Data (instant, no AR needed) ──
 function loadLiveData(name) {
   log('Calling getDashboardLiveData("' + name + '")...');
+  var gen = _loadGen;
   google.script.run
     .withSuccessHandler(function(jsonStr) {
+      if (gen !== _loadGen) return;
       if (!jsonStr) { log('<span style="color:#D97706;">getDashboardLiveData returned null</span>'); return; }
       try {
         var result = JSON.parse(jsonStr);
@@ -354,12 +363,14 @@ function loadLiveData(name) {
         renderProducts(data, signals);
         renderTeam(data);
         renderContract(data);
+        renderPlatformUsage(data);
         lucide.createIcons();
       } catch (e) {
         log('<span style="color:#FF5252;">JSON parse error: ' + e.message + '</span>');
       }
     })
     .withFailureHandler(function(e) {
+      if (gen !== _loadGen) return;
       log('<span style="color:#FF5252;">ERROR getDashboardLiveData: ' + (e.message || e) + '</span>');
       document.getElementById('acctMeta').innerHTML = '<span class="badge badge-danger">Error loading data</span>';
     })
@@ -369,8 +380,10 @@ function loadLiveData(name) {
 // ── Cached AR Data (includes L1 bookscrub data when available) ──
 function loadARData(name) {
   log('Calling getDashboardData("' + name + '")...');
+  var gen = _loadGen;
   google.script.run
     .withSuccessHandler(function(jsonStr) {
+      if (gen !== _loadGen) return;
       if (!jsonStr) {
         log('<span style="color:#D97706;">No AR cache found — falling back to live data + auto-triggering generation</span>');
         loadLiveData(name);
@@ -390,6 +403,7 @@ function loadARData(name) {
         // Render L2 intelligence panels
         renderValueNarrative(result);
         renderBigBets(result);
+        renderInitiatives(result);
         renderAgreements(result);
         renderCommerce(result);
         updateHeaderActions(result.briefUrl, result.fullUrl);
@@ -399,11 +413,18 @@ function loadARData(name) {
           log('<span style="color:#059669;">GVS cache found</span> — rendering value case');
           _hasGVSData = true;
           renderValueCase(result.gvsResults);
-          // Re-render narrative with GVS data if available
           renderValueNarrative(result);
+          // Track which GVS deliverables have data
+          var g = result.gvsResults;
+          if (g.headlines && g.headlines.length) _gvsResultsAvailable.gvs_value_case = true;
+          if (g.email) _gvsResultsAvailable.gvs_email = true;
+          if (g.briefs) _gvsResultsAvailable.gvs_champion_brief = true;
         }
 
-        // Smart collapse: if Layer 1 has GVS data, collapse Layer 2
+        // Merge AR URLs + GVS state into content panel
+        refreshContentPanel();
+
+        // Smart defaults: no data → switch to intelligence tab
         applySmartDefaults();
 
         // Render L1 bookscrub panels (merged into same response)
@@ -413,6 +434,7 @@ function loadARData(name) {
           renderProducts(result.liveData, result.liveProductSignals);
           renderTeam(result.liveData);
           renderContract(result.liveData);
+          renderPlatformUsage(result.liveData);
         } else {
           // Sheet fallback path doesn't include liveData — fetch separately
           log('<span style="color:#D97706;">No bookscrub data in AR response — fetching separately</span>');
@@ -425,6 +447,7 @@ function loadARData(name) {
       }
     })
     .withFailureHandler(function(e) {
+      if (gen !== _loadGen) return;
       log('<span style="color:#FF5252;">ERROR getDashboardData: ' + (e.message || e) + '</span>');
       loadLiveData(name);
     })
@@ -436,17 +459,18 @@ function loadDeliverables(name) {
   log('Calling getDeliverables("' + name + '")...');
   google.script.run
     .withSuccessHandler(function(results) {
-      log('Deliverables: ' + (results || []).length + ' found');
-      (results || []).forEach(function(d) { log('  → ' + d.type + ': ' + (d.url || 'no url')); });
-      renderContentPanel(results || []);
+      _currentDeliverables = results || [];
+      log('Deliverables: ' + _currentDeliverables.length + ' found');
+      _currentDeliverables.forEach(function(d) { log('  → ' + d.type + ': ' + (d.url || 'no url')); });
       // Update header action buttons from deliverables
       var bUrl = null, fUrl = null;
-      (results || []).forEach(function(d) {
+      _currentDeliverables.forEach(function(d) {
         if (d.type === 'ar_brief' && d.url) bUrl = d.url;
         if (d.type === 'ar_full' && d.url) fUrl = d.url;
       });
       if (bUrl || fUrl) updateHeaderActions(bUrl, fUrl);
-      lucide.createIcons();
+      // Merge with AR/GVS state and render
+      refreshContentPanel();
     })
     .withFailureHandler(function(e) { log('<span style="color:#FF5252;">ERROR getDeliverables: ' + (e.message || e) + '</span>'); })
     .getDeliverables(name);
@@ -529,11 +553,15 @@ function renderHeader(data) {
 
   document.getElementById('acctMeta').innerHTML = meta.join('<span class="acct-meta-dot"></span>');
 
-  // SFDC link in header
+  // SFDC link in header — fallback to constructed Lightning URL if sfdcUrl is empty
   var sfdcBtn = document.getElementById('headerBtnSfdc');
-  if (d.identity.sfdcUrl && sfdcBtn) {
-    sfdcBtn.href = d.identity.sfdcUrl;
-    sfdcBtn.style.display = 'inline-flex';
+  if (sfdcBtn) {
+    var sfdcHref = d.identity.sfdcUrl ||
+      (d.identity.salesforceAccountId ? 'https://docusign.lightning.force.com/lightning/r/Account/' + d.identity.salesforceAccountId + '/view' : '');
+    if (sfdcHref) {
+      sfdcBtn.href = sfdcHref;
+      sfdcBtn.style.display = 'inline-flex';
+    }
   }
 
   // Build urgency signal badges
@@ -753,8 +781,36 @@ function renderValueNarrative(ar) {
   badge.style.display = 'inline-flex';
 }
 
+function renderInitiatives(ar) {
+  var ap = ar.accountProfile;
+  if (!ap || !ap.businessPerformance || !ap.businessPerformance.strategicInitiatives) return;
+  var inits = ap.businessPerformance.strategicInitiatives;
+  if (!Array.isArray(inits) || inits.length === 0) return;
+
+  var html = '<div class="init-list">';
+  inits.forEach(function(init) {
+    var title = init.title || init.name || '';
+    var desc = init.description || '';
+    var tf = init.timeframe || '';
+    html += '<div class="init-card">' +
+      '<div class="init-title"><i data-lucide="rocket" style="width:14px;height:14px;color:#0284C7;flex-shrink:0;"></i> ' + esc(String(title)) + '</div>' +
+      (desc ? '<div class="init-desc">' + esc(String(desc)) + '</div>' : '') +
+      (tf ? '<div class="init-timeframe">' + esc(String(tf)) + '</div>' : '') +
+      '</div>';
+  });
+  html += '</div>';
+  document.getElementById('initiativesBody').innerHTML = html;
+  document.getElementById('intelTwoCol').style.display = '';
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+var _betStatuses = {};
+
 function renderBigBets(ar) {
   if (!ar.bigBets) return;
+
+  // Load persisted bet statuses from cache
+  if (ar.betStatuses) _betStatuses = ar.betStatuses;
 
   var bets = Array.isArray(ar.bigBets) ? ar.bigBets :
     (ar.bigBets.bigBets || ar.bigBets.opportunities || ar.bigBets.bets || []);
@@ -780,15 +836,12 @@ function renderBigBets(ar) {
     if (typeof products === 'string') products = products.split(',').map(function(p) { return p.trim(); });
     var rationale = bet.rationale || bet.strategicConnection || bet.description || '';
 
-    // Validation: 2+ of rationale, products, estimatedValue
-    var evidenceCount = 0;
-    if (rationale) evidenceCount++;
-    if (products.length > 0) evidenceCount++;
-    if (value) evidenceCount++;
-    var isValidated = evidenceCount >= 2;
-    var validBadge = isValidated
-      ? '<span class="badge badge-success" style="margin-left:6px;">Validated</span>'
-      : '<span class="badge badge-warning" style="margin-left:6px;">Needs Validation</span>';
+    // Validation status — persisted in Drive cache via meta.json
+    var betIdx = String(i);
+    var storedStatus = _betStatuses[betIdx] || 'needs_validation';
+    var statusMeta = { needs_validation: { cls: 'badge-warning', label: 'Needs Validation' }, validated: { cls: 'badge-success', label: 'Validated' }, rejected: { cls: 'badge-danger', label: 'Rejected' } };
+    var sm = statusMeta[storedStatus] || statusMeta.needs_validation;
+    var validBadge = '<span class="badge ' + sm.cls + ' bet-status-badge" onclick="event.stopPropagation(); cycleBetStatus(this, \'' + betIdx + '\')" style="margin-left:6px;cursor:pointer;" title="Click to change status">' + sm.label + '</span>';
 
     html += '<div class="big-bet' + (isFirst ? '' : ' collapsed') + '" id="bet' + i + '">' +
       '<div class="big-bet-header" onclick="toggleBet(\'bet' + i + '\')">' +
@@ -815,12 +868,24 @@ function renderBigBets(ar) {
       html += '<div class="callout" style="margin-bottom:12px;"><div class="callout-label">Strategic Connection</div><div class="callout-text">' + esc(rationale) + '</div></div>';
     }
 
-    html += '<div style="display:flex; gap:8px;">' +
-      '<button class="btn btn-sm btn-primary" onclick="buildValueCase(\'' + esc(title) + '\')">Build Value Case</button>' +
-      '</div></div></div>';
+    html += '</div></div>';
   });
 
   document.getElementById('bigBetsBody').innerHTML = html;
+}
+
+function cycleBetStatus(el, betIdx) {
+  var cycle = ['needs_validation', 'validated', 'rejected'];
+  var labels = { needs_validation: 'Needs Validation', validated: 'Validated', rejected: 'Rejected' };
+  var classes = { needs_validation: 'badge-warning', validated: 'badge-success', rejected: 'badge-danger' };
+  var cur = _betStatuses[betIdx] || 'needs_validation';
+  var next = cycle[(cycle.indexOf(cur) + 1) % cycle.length];
+  _betStatuses[betIdx] = next;
+  el.className = 'badge ' + classes[next] + ' bet-status-badge';
+  el.textContent = labels[next];
+  el.title = 'Click to change status';
+  // Persist to Drive cache
+  google.script.run.saveBetStatuses(currentAccount, _betStatuses);
 }
 
 function renderAgreements(ar) {
@@ -927,42 +992,246 @@ function renderCommerce(ar) {
   if (!ar.contractCommerce) return;
 
   var cc = ar.contractCommerce;
-  var depts = cc.commerceByDepartment || cc.departments || cc.divisions || cc.businessUnits || [];
-  if (!Array.isArray(depts) || depts.length === 0) return;
+  var html = '';
 
-  var rows = '';
-  var totalVol = 0, totalVal = 0;
+  // ── Hero Stats Row ──
+  var ec = cc.estimatedCommerce || {};
+  var heroStats = [];
+  if (ec.totalRevenue) heroStats.push({ val: esc(String(ec.totalRevenue)), lbl: 'Total Revenue' });
+  if (ec.spendManaged) heroStats.push({ val: esc(String(ec.spendManaged)), lbl: 'Spend Managed' });
+  if (ec.opex) heroStats.push({ val: esc(String(ec.opex)), lbl: 'OpEx' });
 
-  depts.forEach(function(dept) {
-    var name = dept.name || dept.department || dept.division || '';
-    if (typeof name === 'object') name = name.name || JSON.stringify(name);
-    var vol = Number(dept.volume || dept.contractVolume || 0);
-    var val = dept.value || dept.estimatedValue || dept.estimatedAnnualValue || dept.annualValue || '';
-    var complexity = dept.complexity || '';
-    totalVol += vol;
-
-    var valStr = '';
-    if (typeof val === 'number') { totalVal += val; valStr = '$' + formatNum(val); }
-    else if (typeof val === 'string' && val) { valStr = val; }
-
-    var compBadge = '';
-    if (complexity) {
-      var cls = String(complexity).toLowerCase().indexOf('high') !== -1 ? 'badge-danger' :
-                String(complexity).toLowerCase().indexOf('med') !== -1 ? 'badge-warning' : 'badge-neutral';
-      compBadge = '<span class="badge ' + cls + '">' + esc(String(complexity)) + '</span>';
-    }
-
-    rows += '<tr><td style="font-weight:600;">' + esc(String(name)) + '</td><td>' + formatNum(vol) + '</td><td class="td-primary">' + valStr + '</td><td>' + compBadge + '</td></tr>';
-  });
-
-  if (totalVol > 0) {
-    rows += '<tr style="font-weight:700; background:var(--bg);"><td style="font-weight:800;">Total</td><td style="font-weight:800;">' + formatNum(totalVol) + '</td><td class="td-primary" style="font-size:15px;">' + (totalVal ? '$' + formatNum(totalVal) : '') + '</td><td></td></tr>';
+  if (heroStats.length > 0) {
+    html += '<div class="commerce-hero">';
+    heroStats.forEach(function(s) {
+      html += '<div class="commerce-hero-stat"><div class="commerce-hero-lbl">' + s.lbl + '</div><div class="commerce-hero-val">' + s.val + '</div></div>';
+    });
+    html += '</div>';
   }
 
-  document.getElementById('commerceBody').innerHTML =
-    '<table class="data-table"><thead><tr><th>Department</th><th>Volume</th><th style="text-align:right;">Est. Value</th><th>Complexity</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  // ── Commercial Relationships ──
+  var cr = cc.commercialRelationships || {};
+  var relKeys = ['employees', 'suppliers', 'customers', 'partners'];
+  var relItems = [];
+  relKeys.forEach(function(k) { if (cr[k]) relItems.push({ lbl: k.charAt(0).toUpperCase() + k.slice(1), val: esc(String(cr[k])) }); });
+  if (relItems.length > 0) {
+    html += '<div class="commerce-relationships">';
+    relItems.forEach(function(r) {
+      html += '<div class="commerce-rel-item"><div class="commerce-rel-lbl">' + r.lbl + '</div><div class="commerce-rel-val">' + r.val + '</div></div>';
+    });
+    html += '</div>';
+  }
+
+  // ── Department Table ──
+  var depts = cc.commerceByDepartment || cc.departments || cc.divisions || cc.businessUnits || [];
+  if (Array.isArray(depts) && depts.length > 0) {
+    var rows = '';
+    var totalVol = 0, totalVal = 0;
+
+    depts.forEach(function(dept) {
+      var name = dept.name || dept.department || dept.division || '';
+      if (typeof name === 'object') name = name.name || JSON.stringify(name);
+      var vol = Number(dept.volume || dept.contractVolume || 0);
+      var val = dept.value || dept.estimatedValue || dept.estimatedAnnualValue || dept.annualValue || '';
+      var complexity = dept.complexity || '';
+      totalVol += vol;
+
+      var valStr = '';
+      if (typeof val === 'number') { totalVal += val; valStr = '$' + formatNum(val); }
+      else if (typeof val === 'string' && val) { valStr = val; }
+
+      var compBadge = '';
+      if (complexity) {
+        var cls = String(complexity).toLowerCase().indexOf('high') !== -1 ? 'badge-danger' :
+                  String(complexity).toLowerCase().indexOf('med') !== -1 ? 'badge-warning' : 'badge-neutral';
+        compBadge = '<span class="badge ' + cls + '">' + esc(String(complexity)) + '</span>';
+      }
+
+      rows += '<tr><td style="font-weight:600;">' + esc(String(name)) + '</td><td>' + formatNum(vol) + '</td><td class="td-primary">' + valStr + '</td><td>' + compBadge + '</td></tr>';
+    });
+
+    if (totalVol > 0) {
+      rows += '<tr style="font-weight:700; background:var(--bg);"><td style="font-weight:800;">Total</td><td style="font-weight:800;">' + formatNum(totalVol) + '</td><td class="td-primary" style="font-size:15px;">' + (totalVal ? '$' + formatNum(totalVal) : '') + '</td><td></td></tr>';
+    }
+
+    html += '<div class="section-label">By Department</div>';
+    html += '<table class="data-table"><thead><tr><th>Department</th><th>Volume</th><th style="text-align:right;">Est. Value</th><th>Complexity</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  // ── Agreement Type Breakdown ──
+  var byType = cc.commerceByAgreementType || [];
+  if (Array.isArray(byType) && byType.length > 0) {
+    // Parse values and sort descending
+    var parsed = byType.map(function(item) {
+      var rawVal = item.estimatedAnnualValue || item.value || item.annualValue || '';
+      var numVal = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.]/g, '')) || 0;
+      return { name: item.agreementType || item.type || item.name || '', rawVal: rawVal, numVal: numVal, volume: item.volume || '' };
+    }).sort(function(a, b) { return b.numVal - a.numVal; });
+
+    var maxVal = parsed[0].numVal || 1;
+
+    html += '<div class="section-label">By Agreement Type</div>';
+    html += '<div class="commerce-agtype-list">';
+    parsed.forEach(function(item) {
+      var pct = maxVal > 0 ? Math.round((item.numVal / maxVal) * 100) : 0;
+      var valLabel = typeof item.rawVal === 'string' && item.rawVal ? esc(item.rawVal) : (item.numVal > 0 ? '$' + formatNum(item.numVal) : '');
+      html += '<div class="commerce-agtype-row">' +
+        '<div class="commerce-agtype-name">' + esc(String(item.name)) + '</div>' +
+        '<div class="commerce-agtype-bar-wrap"><div class="commerce-agtype-bar" style="width:' + pct + '%;"></div></div>' +
+        '<div class="commerce-agtype-val">' + valLabel + '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+  }
+
+  if (!html) return;
+  document.getElementById('commerceBody').innerHTML = html;
+
+  // ── Pain Points → separate panel ──
+  var pains = cc.painPoints || [];
+  if (Array.isArray(pains) && pains.length > 0) {
+    var painHtml = '<div class="commerce-pains">';
+    pains.forEach(function(p) {
+      var title = p.title || p.name || '';
+      var desc = p.description || p.detail || '';
+      painHtml += '<div class="commerce-pain-card">' +
+        '<div class="commerce-pain-title"><i data-lucide="alert-circle" style="width:14px;height:14px;color:#D97706;flex-shrink:0;"></i> ' + esc(String(title)) + '</div>' +
+        (desc ? '<div class="commerce-pain-desc">' + esc(String(desc)) + '</div>' : '') +
+        '</div>';
+    });
+    painHtml += '</div>';
+    document.getElementById('painPointsBody').innerHTML = painHtml;
+    document.getElementById('intelTwoCol').style.display = '';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
 }
 
+function renderPlatformUsage(data) {
+  var body = document.getElementById('platformUsageBody');
+  if (!body) return;
+  var con = data.consumption || {};
+  var intg = data.integrations || {};
+  var seats = data.seats || {};
+  var html = '';
+
+  // ── Envelope Velocity ──
+  var velBuckets = [
+    { label: '7d', val: Number(con.sent7d) || 0 },
+    { label: '30d', val: Number(con.sent30d) || 0 },
+    { label: '90d', val: Number(con.sent90d) || 0 },
+    { label: '365d', val: Number(con.sent365d) || 0 }
+  ];
+  var maxVel = Math.max.apply(null, velBuckets.map(function(b) { return b.val; })) || 1;
+  var hasVelocity = velBuckets.some(function(b) { return b.val > 0; });
+
+  if (hasVelocity) {
+    html += '<div class="section-label">Envelope Velocity</div>';
+    html += '<div class="pu-velocity">';
+    velBuckets.forEach(function(b) {
+      var pct = Math.round((b.val / maxVel) * 100);
+      html += '<div class="pu-vel-row">' +
+        '<div class="pu-vel-label">' + b.label + '</div>' +
+        '<div class="pu-vel-bar-wrap"><div class="pu-vel-bar" style="width:' + pct + '%;"></div></div>' +
+        '<div class="pu-vel-val">' + formatNum(b.val) + '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+  }
+
+  // ── Channel Mix ──
+  var channels = [
+    { label: 'Salesforce', val: Number(intg.salesforce) || 0 },
+    { label: 'Workday', val: Number(intg.workday) || 0 },
+    { label: 'SAP', val: Number(intg.sap) || 0 },
+    { label: 'Custom API', val: Number(intg.customApi) || 0 },
+    { label: 'PowerForms', val: Number(intg.powerforms) || 0 },
+    { label: 'Bulk Send', val: Number(intg.bulkSend) || 0 }
+  ].filter(function(c) { return c.val > 0; });
+
+  var webSends = Number(intg.webappSends || con.annualWebappSends) || 0;
+  var autoSends = Number(intg.automationSends || con.annualAutomationSends) || 0;
+
+  if (channels.length > 0 || (webSends + autoSends) > 0) {
+    html += '<div class="section-label">Channel Mix</div>';
+
+    if (channels.length > 0) {
+      var maxCh = Math.max.apply(null, channels.map(function(c) { return c.val; })) || 1;
+      html += '<div class="pu-channels">';
+      channels.forEach(function(c) {
+        var pct = Math.round((c.val / maxCh) * 100);
+        html += '<div class="pu-vel-row">' +
+          '<div class="pu-vel-label">' + c.label + '</div>' +
+          '<div class="pu-vel-bar-wrap"><div class="pu-ch-bar" style="width:' + pct + '%;"></div></div>' +
+          '<div class="pu-vel-val">' + formatNum(c.val) + '</div>' +
+          '</div>';
+      });
+      html += '</div>';
+    }
+
+    if ((webSends + autoSends) > 0) {
+      var total = webSends + autoSends;
+      var webPct = Math.round((webSends / total) * 100);
+      html += '<div class="pu-split-bar-wrap">' +
+        '<div class="pu-split-bar">' +
+        '<div class="pu-split-web" style="width:' + webPct + '%;"></div>' +
+        '<div class="pu-split-auto" style="width:' + (100 - webPct) + '%;"></div>' +
+        '</div>' +
+        '<div class="pu-split-legend">' +
+        '<span><span class="pu-dot pu-dot-web"></span>Web App ' + formatNum(webSends) + ' (' + webPct + '%)</span>' +
+        '<span><span class="pu-dot pu-dot-auto"></span>Automation ' + formatNum(autoSends) + ' (' + (100 - webPct) + '%)</span>' +
+        '</div></div>';
+    }
+  }
+
+  // ── Seat Utilization ──
+  var seatPurchased = Number(seats.purchased) || 0;
+  var seatActive = Number(seats.active) || 0;
+  var seatRate = Number(seats.activationRate) || 0;
+
+  if (seatPurchased > 0 || seatActive > 0) {
+    html += '<div class="section-label">Seat Utilization</div>';
+    var seatPct = seatPurchased > 0 ? Math.round((seatActive / seatPurchased) * 100) : seatRate;
+    var seatColor = seatPct >= 70 ? '#059669' : seatPct >= 40 ? '#D97706' : '#DC2626';
+    html += '<div class="pu-seats">' +
+      '<div class="pu-seat-stats">' +
+      '<span class="pu-seat-active">' + formatNum(seatActive) + '</span>' +
+      '<span class="pu-seat-sep"> / </span>' +
+      '<span class="pu-seat-total">' + formatNum(seatPurchased) + ' seats</span>' +
+      '</div>' +
+      '<div class="pu-seat-bar-wrap"><div class="pu-seat-bar" style="width:' + Math.min(100, seatPct) + '%; background:' + seatColor + ';"></div></div>' +
+      '<div class="pu-seat-rate" style="color:' + seatColor + ';">' + seatPct + '% activation</div>' +
+      '</div>';
+  }
+
+  // ── Transaction Health ──
+  var completedRate = Number(con.completedRate) || 0;
+  var pctDeclined = Number(con.pctDeclined) || 0;
+  var pctVoided = Number(con.pctVoided) || 0;
+  var pctExpired = Number(con.pctExpired) || 0;
+  var hasTxData = completedRate > 0 || pctDeclined > 0 || pctVoided > 0 || pctExpired > 0;
+
+  if (hasTxData) {
+    html += '<div class="section-label">Transaction Health</div>';
+    html += '<div class="pu-tx-health">';
+    if (completedRate > 0) html += txBadge(completedRate.toFixed(1) + '%', 'Completed', completedRate >= 90 ? 'green' : completedRate >= 75 ? 'amber' : 'red');
+    if (pctDeclined > 0) html += txBadge(pctDeclined.toFixed(1) + '%', 'Declined', pctDeclined < 3 ? 'green' : pctDeclined < 8 ? 'amber' : 'red');
+    if (pctVoided > 0) html += txBadge(pctVoided.toFixed(1) + '%', 'Voided', pctVoided < 3 ? 'green' : pctVoided < 8 ? 'amber' : 'red');
+    if (pctExpired > 0) html += txBadge(pctExpired.toFixed(1) + '%', 'Expired', pctExpired < 5 ? 'green' : pctExpired < 15 ? 'amber' : 'red');
+    html += '</div>';
+  }
+
+  if (!html) {
+    body.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="activity" style="width:36px;height:36px;"></i></div><div class="empty-state-title">No Usage Data</div><div class="empty-state-desc">No bookscrub consumption data available for this account.</div></div>';
+    return;
+  }
+  body.innerHTML = html;
+}
+
+function txBadge(val, label, color) {
+  var bg = color === 'green' ? '#ECFDF5' : color === 'amber' ? '#FFFBEB' : '#FFF0F0';
+  var fg = color === 'green' ? '#059669' : color === 'amber' ? '#D97706' : '#DC2626';
+  return '<div class="pu-tx-badge" style="background:' + bg + '; color:' + fg + ';"><div class="pu-tx-val">' + val + '</div><div class="pu-tx-lbl">' + label + '</div></div>';
+}
 
 function renderValueCase(gvs) {
   var body = document.getElementById('valueCaseBody');
@@ -1058,14 +1327,14 @@ function renderContract(data) {
     var pct = Math.min(100, Math.max(0, Math.round(c.percentComplete)));
     var barColor = c.monthsLeft != null && c.monthsLeft <= 3 ? '#dc2626' : c.monthsLeft != null && c.monthsLeft <= 6 ? '#d97706' : 'var(--primary)';
     html += '<div class="contract-timeline"><div class="contract-timeline-fill" style="width:' + pct + '%; background:' + barColor + ';"></div></div>';
-    html += '<div class="contract-timeline-labels"><span>' + (c.termStart || '') + '</span><span>' + pct + '% complete</span><span>' + (c.termEnd || '') + '</span></div>';
+    html += '<div class="contract-timeline-labels"><span>' + formatDate(c.termStart) + '</span><span>' + pct + '% complete</span><span>' + formatDate(c.termEnd) + '</span></div>';
   }
 
   // Key metrics
   var rows = [];
   if (c.monthsLeft != null) rows.push(teamRow('Months Left', c.monthsLeft));
-  if (c.termStart && !c.percentComplete) rows.push(teamRow('Term Start', c.termStart));
-  if (c.termEnd && !c.percentComplete) rows.push(teamRow('Term End', c.termEnd));
+  if (c.termStart && !c.percentComplete) rows.push(teamRow('Term Start', formatDate(c.termStart)));
+  if (c.termEnd && !c.percentComplete) rows.push(teamRow('Term End', formatDate(c.termEnd)));
   if (rows.length > 0) {
     html += '<table class="data-table" style="margin-top:8px;"><tbody>' + rows.join('') + '</tbody></table>';
   }
@@ -1074,6 +1343,8 @@ function renderContract(data) {
 }
 
 var _actionUrls = { briefUrl: null, fullUrl: null };
+var _currentDeliverables = [];
+var _gvsResultsAvailable = {};
 
 function applySmartDefaults() {
   // With tabs: no data → switch to Intelligence tab so bookscrub panels are visible
@@ -1090,6 +1361,31 @@ function actionOpen(type) {
   } else {
     triggerRefresh();
   }
+}
+
+// Merge deliverables from server with cached AR/GVS state, then render
+function refreshContentPanel() {
+  var merged = (_currentDeliverables || []).slice();
+  var has = function(type) { return merged.some(function(d) { return d.type === type && d.url; }); };
+  var upsert = function(type, url) {
+    for (var i = 0; i < merged.length; i++) {
+      if (merged[i].type === type) { merged[i].url = url; return; }
+    }
+    merged.push({ type: type, url: url });
+  };
+
+  // Inject AR brief/full from cached URLs (from getDashboardData → meta.json)
+  if (_actionUrls.briefUrl && !has('ar_brief')) upsert('ar_brief', _actionUrls.briefUrl);
+  if (_actionUrls.fullUrl && !has('ar_full'))   upsert('ar_full', _actionUrls.fullUrl);
+
+  // Inject GVS items from cached gvs-results.json
+  var gvsTypes = ['gvs_value_case', 'gvs_email', 'gvs_champion_brief'];
+  gvsTypes.forEach(function(gtype) {
+    if (_gvsResultsAvailable[gtype] && !has(gtype)) upsert(gtype, 'gvs://open');
+  });
+
+  renderContentPanel(merged);
+  lucide.createIcons();
 }
 
 function renderContentPanel(deliverables) {
@@ -1112,10 +1408,19 @@ function renderContentPanel(deliverables) {
     var existing = delivMap[t.type];
     if (existing && existing.url) {
       readyCount++;
-      html += '<a href="' + existing.url + '" target="_blank" class="deliverable-card deliverable-clickable">' +
-        '<div class="deliverable-icon"><i data-lucide="' + t.icon + '" style="width:16px;height:16px;"></i></div>' +
-        '<div class="deliverable-info"><div class="deliverable-name">' + t.name + '</div></div>' +
-        '<div class="deliverable-action"><i data-lucide="external-link" style="width:14px;height:14px;color:var(--primary);"></i></div></a>';
+      if (existing.url.indexOf('gvs://') === 0) {
+        // GVS item — open content viewer modal
+        html += '<div class="deliverable-card deliverable-clickable" onclick="openContentModal(\'' + t.type + '\')" style="cursor:pointer;">' +
+          '<div class="deliverable-icon"><i data-lucide="' + t.icon + '" style="width:16px;height:16px;"></i></div>' +
+          '<div class="deliverable-info"><div class="deliverable-name">' + t.name + '</div></div>' +
+          '<div class="deliverable-action"><i data-lucide="eye" style="width:14px;height:14px;color:var(--primary);"></i></div></div>';
+      } else {
+        // Regular URL — open in new tab
+        html += '<a href="' + existing.url + '" target="_blank" class="deliverable-card deliverable-clickable">' +
+          '<div class="deliverable-icon"><i data-lucide="' + t.icon + '" style="width:16px;height:16px;"></i></div>' +
+          '<div class="deliverable-info"><div class="deliverable-name">' + t.name + '</div></div>' +
+          '<div class="deliverable-action"><i data-lucide="external-link" style="width:14px;height:14px;color:var(--primary);"></i></div></a>';
+      }
     } else {
       html += '<div class="deliverable-card deliverable-clickable deliverable-create" onclick="' + t.create + '()">' +
         '<div class="deliverable-icon" style="opacity:0.4;"><i data-lucide="' + t.icon + '" style="width:16px;height:16px;"></i></div>' +
@@ -1133,6 +1438,97 @@ function renderContentPanel(deliverables) {
     badge.style.display = 'none';
   }
 }
+
+// ═══════════════════════════════════════════════════
+// CONTENT VIEWER MODAL
+// ═══════════════════════════════════════════════════
+
+var _contentModalPlainText = '';
+
+function openContentModal(type) {
+  var gvs = _cachedGVSResults;
+  if (!gvs) return;
+
+  var title = '';
+  var meta = '';
+  var bodyHtml = '';
+  var plainText = '';
+
+  if (gvs.generatedAt) {
+    meta = 'Generated ' + new Date(gvs.generatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    if (gvs.generatedBy) meta += ' by ' + esc(gvs.generatedBy);
+  }
+
+  if (type === 'gvs_value_case') {
+    title = 'Value Case';
+    var headlines = gvs.headlines || [];
+    if (headlines.length > 0) {
+      bodyHtml += '<div class="content-section-label">Value Propositions</div>';
+      headlines.forEach(function(h) {
+        bodyHtml += '<div class="content-headline"><div class="content-headline-title">' + esc(h.title || '') + '</div><div class="content-headline-body">' + esc(h.body || '') + '</div></div>';
+        plainText += (h.title || '') + '\n' + (h.body || '') + '\n\n';
+      });
+    }
+    var fin = gvs.financials;
+    if (fin && (fin.totalBenefit || fin.roi)) {
+      bodyHtml += '<div class="content-section-label">Financial Summary</div>';
+      var stats = [];
+      if (fin.totalBenefit) stats.push('Annual Benefit: $' + formatNum(fin.totalBenefit));
+      if (fin.roi) stats.push('ROI: ' + fin.roi + '%');
+      if (fin.paybackMonths) stats.push('Payback: ' + fin.paybackMonths + ' months');
+      if (fin.annualInvestment) stats.push('Annual Investment: $' + formatNum(fin.annualInvestment));
+      bodyHtml += '<div class="content-text">' + stats.join('\n') + '</div>';
+      plainText += stats.join('\n') + '\n';
+    }
+  } else if (type === 'gvs_email') {
+    title = 'Follow-up Email';
+    var email = gvs.email || '';
+    bodyHtml = '<div class="content-text">' + esc(email) + '</div>';
+    plainText = email;
+  } else if (type === 'gvs_champion_brief') {
+    title = 'Champion Brief';
+    var brief = (gvs.briefs && gvs.briefs.champion) || '';
+    bodyHtml = '<div class="content-text">' + esc(brief) + '</div>';
+    plainText = brief;
+  }
+
+  if (!bodyHtml) {
+    bodyHtml = '<div class="content-text" style="color:var(--muted);">No content available. Open GVS to generate.</div>';
+    plainText = '';
+  }
+
+  _contentModalPlainText = plainText.trim();
+  document.getElementById('contentModalTitle').textContent = title;
+  document.getElementById('contentModalMeta').textContent = meta;
+  document.getElementById('contentModalBody').innerHTML = bodyHtml;
+  document.getElementById('contentCopyBtn').innerHTML = '<i data-lucide="copy" style="width:14px;height:14px;"></i> Copy';
+  document.getElementById('contentModalBackdrop').classList.add('open');
+  lucide.createIcons();
+}
+
+function closeContentModal() {
+  document.getElementById('contentModalBackdrop').classList.remove('open');
+}
+
+function copyContentModal() {
+  if (!_contentModalPlainText) return;
+  navigator.clipboard.writeText(_contentModalPlainText).then(function() {
+    var btn = document.getElementById('contentCopyBtn');
+    btn.innerHTML = '<i data-lucide="check" style="width:14px;height:14px;"></i> Copied!';
+    lucide.createIcons();
+    setTimeout(function() {
+      btn.innerHTML = '<i data-lucide="copy" style="width:14px;height:14px;"></i> Copy';
+      lucide.createIcons();
+    }, 2000);
+  });
+}
+
+// Close on Escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('contentModalBackdrop').classList.contains('open')) {
+    closeContentModal();
+  }
+});
 
 // ═══════════════════════════════════════════════════
 // ACTIONS
@@ -1242,6 +1638,7 @@ function pollDriveCache() {
               _hasARData = true;
               renderValueNarrative(result);
               renderBigBets(result);
+              renderInitiatives(result);
               renderAgreements(result);
               renderCommerce(result);
               if (result.gvsResults) {
@@ -1249,8 +1646,13 @@ function pollDriveCache() {
                 _cachedGVSResults = result.gvsResults;
                 renderValueCase(result.gvsResults);
                 renderValueNarrative(result);
+                var g = result.gvsResults;
+                if (g.headlines && g.headlines.length) _gvsResultsAvailable.gvs_value_case = true;
+                if (g.email) _gvsResultsAvailable.gvs_email = true;
+                if (g.briefs) _gvsResultsAvailable.gvs_champion_brief = true;
               }
               updateHeaderActions(result.briefUrl, result.fullUrl);
+              refreshContentPanel();
               applySmartDefaults();
               loadDeliverables(currentAccount);
               lucide.createIcons();
@@ -1317,8 +1719,10 @@ document.addEventListener('keydown', function(e) {
 // ── Recent Activity ──
 function loadRecentActivity(name) {
   log('Calling getRecentActivity("' + name + '")...');
+  var gen = _loadGen;
   google.script.run
     .withSuccessHandler(function(jsonStr) {
+      if (gen !== _loadGen) return;  // stale callback
       if (!jsonStr) {
         log('<span style="color:#D97706;">getRecentActivity returned null</span>');
         renderRecentActivity([]);
@@ -1336,6 +1740,7 @@ function loadRecentActivity(name) {
       }
     })
     .withFailureHandler(function(e) {
+      if (gen !== _loadGen) return;
       log('<span style="color:#FF5252;">ERROR getRecentActivity: ' + (e.message || e) + '</span>');
       renderRecentActivity([]);
     })
@@ -1448,10 +1853,23 @@ function formatRelativeDate(dateStr) {
 }
 
 // ── Similar Customers ──
-function loadSimilarCustomers(name) {
-  log('Calling getSimilarCustomers("' + name + '")...');
+function loadSimilarCustomers(name, forceRefresh) {
+  var label = forceRefresh ? 'Refreshing' : 'Loading';
+  log(label + ' similar customers for "' + name + '"...');
+  if (forceRefresh) {
+    document.getElementById('similarCustomersBody').innerHTML =
+      '<div class="skeleton skeleton-line w-full"></div>' +
+      '<div class="skeleton skeleton-line w-75"></div>' +
+      '<div class="skeleton skeleton-line w-full"></div>';
+  }
+  var gen = _loadGen;
   google.script.run
     .withSuccessHandler(function(jsonStr) {
+      if (gen !== _loadGen) return;  // stale callback
+      // Show refresh button once data is loaded
+      var refreshBtn = document.getElementById('btnRefreshSimilar');
+      if (refreshBtn) refreshBtn.style.display = '';
+
       if (!jsonStr) {
         log('<span style="color:#D97706;">getSimilarCustomers returned null</span>');
         renderSimilarCustomers([]);
@@ -1461,16 +1879,24 @@ function loadSimilarCustomers(name) {
         var result = JSON.parse(jsonStr);
         var items = result.similarCustomers || [];
         log('<span style="color:#059669;">Similar customers loaded</span> — ' + items.length + ' customers');
+        if (items.length > 0) {
+          var sample = items[0];
+          log('Sample keys: ' + Object.keys(sample).join(', ') +
+            ' | sources: ' + JSON.stringify(sample.sources || 'MISSING') +
+            ' | resources: ' + JSON.stringify(sample.resources || 'MISSING'));
+        }
 
-        // Check which similar customers have cached data for cross-linking
+        // Check which similar customers have cached data + SFDC URLs
         var names = items.map(function(c) { return c.name; }).filter(Boolean);
         if (names.length > 0) {
           google.script.run
             .withSuccessHandler(function(cachedMap) {
+              if (gen !== _loadGen) return;
               renderSimilarCustomers(items, cachedMap || {});
               lucide.createIcons();
             })
             .withFailureHandler(function() {
+              if (gen !== _loadGen) return;
               renderSimilarCustomers(items, {});
               lucide.createIcons();
             })
@@ -1485,10 +1911,18 @@ function loadSimilarCustomers(name) {
       }
     })
     .withFailureHandler(function(e) {
+      if (gen !== _loadGen) return;
       log('<span style="color:#FF5252;">ERROR getSimilarCustomers: ' + (e.message || e) + '</span>');
       renderSimilarCustomers([]);
+      var refreshBtn = document.getElementById('btnRefreshSimilar');
+      if (refreshBtn) refreshBtn.style.display = '';
     })
-    .getSimilarCustomers(name);
+    .getSimilarCustomers(name, !!forceRefresh);
+}
+
+function refreshSimilarCustomers() {
+  if (!currentAccount) return;
+  loadSimilarCustomers(currentAccount, true);
 }
 
 function renderSimilarCustomers(items, cachedAccountMap) {
@@ -1509,13 +1943,29 @@ function renderSimilarCustomers(items, cachedAccountMap) {
   }
   var cMap = cachedAccountMap || {};
 
+  // Resource type → Lucide icon mapping
+  var resourceIcons = {
+    proposal: 'file-presentation',
+    solution_design: 'compass',
+    case_study: 'bookmark',
+    customer_story: 'message-square',
+    reference: 'award'
+  };
+
   var html = '<div class="sim-customer-grid">';
   for (var i = 0; i < items.length; i++) {
     var c = items[i];
+    var entry = cMap[c.name] || {};
+    var sfdcUrl = entry.sfdcUrl || '';
+    var hasCached = entry.cached || (entry === true); // backward compat with old boolean format
+
     html += '<div class="sim-customer">' +
       '<div class="sim-customer-header">' +
         '<span class="sim-customer-name">' + esc(c.name || '') + '</span>' +
-        '<span class="sim-customer-industry">' + esc(c.industry || '') + '</span>' +
+        '<span style="display:flex;align-items:center;gap:6px;">' +
+          (sfdcUrl ? '<a href="' + esc(sfdcUrl) + '" target="_blank" class="sim-sfdc-link" title="Open in Salesforce"><i data-lucide="external-link" style="width:10px;height:10px;"></i> SFDC</a>' : '') +
+          '<span class="sim-customer-industry">' + esc(c.industry || '') + '</span>' +
+        '</span>' +
       '</div>' +
       '<div class="sim-customer-similarity">' + esc(c.similarity || '') + '</div>';
 
@@ -1559,6 +2009,21 @@ function renderSimilarCustomers(items, cachedAccountMap) {
       html += '</div>';
     }
 
+    // Resources (collateral links)
+    if (c.resources && c.resources.length > 0) {
+      html += '<div class="sim-customer-section">' +
+        '<div class="sim-customer-label">Resources</div>';
+      for (var ri = 0; ri < c.resources.length; ri++) {
+        var res = c.resources[ri];
+        if (res.url) {
+          var rIcon = resourceIcons[res.type] || 'file-text';
+          html += '<a href="' + esc(res.url) + '" target="_blank" class="sim-resource-row">' +
+            '<i data-lucide="' + rIcon + '" style="width:11px;height:11px;"></i> ' + esc(res.title || 'Resource') + '</a>';
+        }
+      }
+      html += '</div>';
+    }
+
     // Source links
     if (c.sources && c.sources.length > 0) {
       html += '<div class="sim-customer-links">';
@@ -1572,9 +2037,17 @@ function renderSimilarCustomers(items, cachedAccountMap) {
       html += '</div>';
     }
 
-    // Command Center cross-link
-    if (cMap[c.name]) {
-      html += '<div class="sim-cc-link" onclick="selectAccount(\'' + esc(c.name).replace(/'/g, "\\'") + '\')"><i data-lucide="compass" style="width:12px;height:12px;"></i> View in Command Center</div>';
+    // Card footer — CC cross-link + SFDC
+    var hasFooter = hasCached || sfdcUrl;
+    if (hasFooter) {
+      html += '<div class="sim-customer-footer">';
+      if (hasCached) {
+        html += '<span class="sim-cc-link" onclick="selectAccount(\'' + esc(c.name).replace(/'/g, "\\'") + '\')"><i data-lucide="compass" style="width:12px;height:12px;"></i> View in Command Center</span>';
+      }
+      if (sfdcUrl) {
+        html += '<a href="' + esc(sfdcUrl) + '" target="_blank" class="sim-cc-link"><i data-lucide="external-link" style="width:12px;height:12px;"></i> Salesforce</a>';
+      }
+      html += '</div>';
     }
 
     html += '</div>';
@@ -1588,6 +2061,13 @@ function esc(str) {
   var div = document.createElement('div');
   div.appendChild(document.createTextNode(String(str)));
   return div.innerHTML;
+}
+
+function formatDate(s) {
+  if (!s) return '';
+  var d = new Date(s);
+  if (isNaN(d)) return String(s);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function formatNum(n) {

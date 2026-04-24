@@ -61,6 +61,7 @@ function _callLLMEndpoint(endpoint, systemPrompt, userPrompt) {
   };
 
   Logger.log('[LLM] Sending request...');
+  Utilities.sleep(1000);
   var response = UrlFetchApp.fetch(endpoint, options);
   var code = response.getResponseCode();
   var body = response.getContentText();
@@ -269,6 +270,7 @@ function buildLLMRequest(systemPrompt, userPrompt) {
 function callLLMJsonParallel(requests) {
   Logger.log('[LLM-Parallel] Sending ' + requests.length + ' requests in parallel');
 
+  Utilities.sleep(1000);
   var responses = UrlFetchApp.fetchAll(requests);
   var results = [];
 

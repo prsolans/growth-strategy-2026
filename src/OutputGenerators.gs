@@ -313,6 +313,7 @@ function _callLLM(prompt) {
   };
 
   Logger.log('[OutputGenerators] LLM call — prompt size: ' + prompt.length + ' chars');
+  Utilities.sleep(1000);
   var response = UrlFetchApp.fetch(GLEAN_ENDPOINT, fetchOptions);
   var code     = response.getResponseCode();
   var body     = response.getContentText();

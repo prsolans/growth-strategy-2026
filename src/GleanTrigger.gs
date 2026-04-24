@@ -311,6 +311,7 @@ function _runResearchParallel(companyName, industry) {
   var msg1 = 'STEP: company-search\n\nCOMPANY: ' + companyName + '\nINDUSTRY: ' + industry;
   var msg2 = 'STEP: web-search\n\nCOMPANY: ' + companyName + '\nINDUSTRY: ' + industry;
 
+  Utilities.sleep(1000);
   var responses = UrlFetchApp.fetchAll([makeReq('company-search', msg1), makeReq('web-search', msg2)]);
 
   return {
@@ -353,6 +354,7 @@ function _postToGleanStep(stepName, messageContent) {
 
   for (var attempt = 1; attempt <= maxAttempts; attempt++) {
     Logger.log('[Glean] ' + stepName + ' — attempt ' + attempt + ' — POSTing to ' + GLEAN_ENDPOINT);
+    Utilities.sleep(1000);
     response     = UrlFetchApp.fetch(GLEAN_ENDPOINT, fetchOptions);
     code         = response.getResponseCode();
     responseBody = response.getContentText();

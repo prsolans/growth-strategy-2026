@@ -22,6 +22,7 @@
  */
 function fetchPublicJson(url) {
   try {
+    Utilities.sleep(1000);
     var response = UrlFetchApp.fetch(url, {
       muteHttpExceptions: true,
       headers: { 'Accept': 'application/json' }

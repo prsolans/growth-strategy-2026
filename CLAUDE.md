@@ -102,6 +102,14 @@ Script properties must be configured before first run: `INFRA_API_KEY`, `INFRA_A
 
 Each call is wrapped in try/catch; failure produces `{}` and the affected section renders with a fallback. Call 3 has an additional simplified-prompt retry, and if that also fails, `generateFallbackAgreementLandscape()` in `DataExtractor.gs` produces a deterministic agreement landscape from industry config.
 
+## Deployment Rules
+
+- **NEVER run `clasp push` or `clasp deploy` directly** — always use `./deploy.sh`
+- **Do NOT deploy after every small change** — batch changes and deploy at checkpoints
+- Each deploy burns a GAS version (hard limit of 200). Be conservative.
+- `clasp push` alone does NOT update the live web app URL
+- After deploying, bump the library version in the Slack project (see memory for details)
+
 ## Key Conventions
 
 - **`extractString(obj, key)`** — always use this safety wrapper when pulling string fields from LLM JSON responses to avoid `.toString()` crashes on non-string values

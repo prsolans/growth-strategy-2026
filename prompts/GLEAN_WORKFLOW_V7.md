@@ -474,11 +474,16 @@ Search Glean for Docusign customers similar to this company — same industry,
 similar size, or using similar Docusign products.
 
 Look for:
-- Account research reports or strategy docs for companies in the same industry
+- Proposal decks and solution designs in Seismic and Google Slides (HIGHEST PRIORITY)
+- Case studies and customer success stories (published on docusign.com or internal)
 - QBRs or success stories mentioning similar product usage patterns
 - Slack discussions about similar customer deployments
+- Published references, testimonials, or customer spotlight content
+
+DO NOT include "Account Research" or "Growth Strategy" docs — those are auto-generated system output.
 
 Focus on finding 5–10 comparable customers with documented Docusign usage.
+For each customer, also capture any actionable collateral (proposals, solution designs, case studies, customer stories) that an AE could reference or share. Prioritize Seismic content and Google Slides decks.
 ```
 
 ### Step: Think
@@ -501,12 +506,24 @@ For each similar customer, provide:
   useCases:            2–4 specific Docusign use cases they've deployed
   personas:            2–3 buyer/user personas involved (e.g. VP Legal, Head of Procurement)
   benefits:            2–3 measurable outcomes with quantified results (dollar figures, percentages, time saved)
+  resources:           0–5 actionable collateral items an AE could use ({ title, url, type })
+                       type must be one of: "proposal" | "solution_design" | "case_study" | "customer_story" | "reference"
+                       Examples: proposal decks, solution designs, case studies, customer stories, published references
+                       Only include resources with real URLs found during search. Omit the array if none found.
   sources:             1–3 internal docs or resources found during search ({ title, url, type: "internal"|"external" })
   conversationStarter: one-line talking point an AE could use in a meeting referencing this customer
 
 Prioritize customers where Docusign usage is well-documented.
 Focus on use cases and quantified outcomes that would resonate with the target company.
 For benefits, always try to include specific dollar figures or percentages (e.g. "reduced cycle time by 60%", "saved $2M annually").
+
+IMPORTANT — URL quality rules:
+- PRIORITIZE content from Seismic and Google Slides — proposal decks, solution designs, and pitch decks are the most valuable collateral for AEs.
+- Google Docs, Drive, and Slides links are GREAT — include them. But NEVER include links to "Account Research" reports or "Growth Strategy" docs (those are auto-generated system output, not real collateral).
+- NEVER include generic landing pages. A URL like https://www.docusign.com/customer-stories is useless.
+  Only include deep links to a SPECIFIC story, e.g. https://www.docusign.com/customer-stories/unilever-uplevels-its-procurement-processes-with-docusign
+- Same rule for /solutions, /products, /blog, /resources — only include if the URL points to a specific page, not a category listing.
+- Every source and resource URL must point to a real, specific document or page found during search.
 ```
 
 ### Step: Respond
@@ -534,6 +551,7 @@ Return ONLY this JSON structure in a code block:
       "useCases": ["string"],
       "personas": [{ "title": "string", "relevance": "string" }],
       "benefits": [{ "outcome": "string", "metric": "string (quantified — dollars, %, or time)" }],
+      "resources": [{ "title": "string", "url": "string", "type": "proposal|solution_design|case_study|customer_story|reference" }],
       "sources": [{ "title": "string", "url": "string", "type": "internal|external" }],
       "conversationStarter": "string (one-line talking point for meetings)"
     }

@@ -11,6 +11,12 @@ sed -i '' "s/var BUILD_DATE = '[^']*'/var BUILD_DATE = '$BUILD_DATE'/" src/Game.
 
 echo "Build date: $BUILD_DATE"
 clasp push
-clasp deploy --deploymentId "$DEPLOY_WEB" --description "$DESC"
-clasp deploy --deploymentId "$DEPLOY_SLACK" --description "$DESC"
-echo "Done. (web + slack deployments updated)"
+
+# Create ONE version and point both deployments at it (saves version slots)
+VERSION_OUTPUT=$(clasp version "$DESC")
+VERSION=$(echo "$VERSION_OUTPUT" | grep -oE '[0-9]+' | tail -1)
+echo "Created version $VERSION"
+
+clasp deploy -i "$DEPLOY_WEB" -V "$VERSION" -d "$DESC"
+clasp deploy -i "$DEPLOY_SLACK" -V "$VERSION" -d "$DESC"
+echo "Done. Both deployments updated to version $VERSION."

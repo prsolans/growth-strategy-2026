@@ -474,6 +474,7 @@ function createQuadrantChart(agreements) {
       format: 'png',
       backgroundColor: '#FFFFFF'
     });
+    Utilities.sleep(1000);
     var response = UrlFetchApp.fetch('https://quickchart.io/chart', {
       method: 'post',
       contentType: 'application/json',
@@ -615,6 +616,7 @@ function notifyUserOfProgress (email, channelId, message){
       'contentType': 'application/json',
       'payload' : JSON.stringify(formData)
     };
+    Utilities.sleep(1000);
     var response = UrlFetchApp.fetch(slackWebhookUrl, options);
   }
 }
@@ -1548,14 +1550,14 @@ function addBigBetInitiativesSection(body, data, bigBets, accountProfile, contra
         var matched = findMatchingBU(b.targetBusinessUnit);
         return (matched && matched.name) || b.targetBusinessUnit || '—';
       })),
-      ['Use Case'].concat(top3Bets.map(function(b) { return b.useCase || '—'; })),
+      ['Challenges - Why change'].concat(top3Bets.map(function(b) { return b.painPoint || '—'; })),
+      ['Required Capabilities - Use Case'].concat(top3Bets.map(function(b) { return b.useCase || '—'; })),
       ['IAM Solution'].concat(top3Bets.map(function(b) {
         var sol = b.solution || {};
         var products = (sol.primaryProducts || []).join(', ');
         return products || sol.description || '—';
       })),
-      ['Why change'].concat(top3Bets.map(function(b) { return b.painPoint || '—'; })),
-      ['Size and Scope'].concat(top3Bets.map(function(b) {
+      ['Commerce Flowing in Agreements'].concat(top3Bets.map(function(b) {
         return buildSizeAndScope(b, findMatchingBU(b.targetBusinessUnit));
       }))
     ];

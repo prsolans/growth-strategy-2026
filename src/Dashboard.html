@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Command Center — Genius Bar</title>
+<title>Value Selling Command Center — Genius Bar</title>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
 <?!= include('DashboardCSS') ?>
@@ -17,7 +17,7 @@
     <div class="cc-logo" onclick="goHome()">
       <i data-lucide="terminal" style="width:20px;height:20px;color:#FF4438;"></i>
       <span class="cc-wordmark" style="color:#FF4438;">geniusbar</span>
-      <span class="cc-logo-sub">Command Center</span>
+      <span class="cc-logo-sub">Value Selling Command Center</span>
     </div>
     <div class="cc-header-actions">
       <div class="cc-search-mini-wrap" style="display:none" id="headerSearchWrap">
@@ -211,6 +211,45 @@
 
     <div class="layer-header"><i data-lucide="bar-chart-3" style="width:14px;height:14px;"></i> THE INTELLIGENCE</div>
 
+    <!-- Two-column: Strategic Initiatives + Pain Points -->
+    <div class="intel-two-col" id="intelTwoCol" style="display:none;">
+      <div class="panel" id="panelInitiatives">
+        <div class="panel-header" onclick="togglePanel('panelInitiatives')">
+          <div class="panel-header-left">
+            <i data-lucide="rocket" style="width:18px;height:18px;"></i>
+            <span class="panel-title">Strategic Initiatives</span>
+          </div>
+          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+        </div>
+        <div class="panel-body" id="initiativesBody"></div>
+      </div>
+      <div class="panel" id="panelPainPoints">
+        <div class="panel-header" onclick="togglePanel('panelPainPoints')">
+          <div class="panel-header-left">
+            <i data-lucide="alert-circle" style="width:18px;height:18px;"></i>
+            <span class="panel-title">Strategic Pain Points</span>
+          </div>
+          <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+        </div>
+        <div class="panel-body" id="painPointsBody"></div>
+      </div>
+    </div>
+
+    <!-- Panel: Platform Usage (bookscrub-only, no LLM) -->
+    <div class="panel" id="panelPlatformUsage">
+      <div class="panel-header" onclick="togglePanel('panelPlatformUsage')">
+        <div class="panel-header-left">
+          <i data-lucide="activity" style="width:18px;height:18px;"></i>
+          <span class="panel-title">Platform Usage</span>
+        </div>
+        <i data-lucide="chevron-down" style="width:18px;height:18px;" class="panel-chevron"></i>
+      </div>
+      <div class="panel-body" id="platformUsageBody">
+        <div class="skeleton skeleton-line w-full"></div>
+        <div class="skeleton skeleton-line w-75"></div>
+      </div>
+    </div>
+
     <!-- Panel: Adoption Funnel -->
     <div class="panel" id="panelProducts">
       <div class="panel-header" onclick="togglePanel('panelProducts')">
@@ -268,7 +307,10 @@
   <!-- ═══════════════════ TAB: SIMILAR CUSTOMERS ═══════════════════ -->
   <div class="tab-pane" id="tabSimilar" style="display:none;">
 
-    <div class="layer-header"><i data-lucide="building" style="width:14px;height:14px;"></i> SIMILAR CUSTOMERS</div>
+    <div class="layer-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <span><i data-lucide="building" style="width:14px;height:14px;"></i> SIMILAR CUSTOMERS</span>
+      <button id="btnRefreshSimilar" onclick="refreshSimilarCustomers()" class="btn-icon" title="Refresh from Glean" style="display:none;"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>
+    </div>
 
     <div id="similarCustomersBody">
       <div class="skeleton skeleton-line w-full"></div>
@@ -366,6 +408,25 @@
   <!-- Expandable log panel — hidden by default -->
   <div id="logPanel" style="display:none; background:rgba(19,0,50,0.95); color:#CBC2FF; font-family:monospace; font-size:11px; border-top:1px solid var(--primary);">
     <div id="logEntries" style="max-height:160px; overflow-y:auto; padding:6px 16px;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CONTENT VIEWER MODAL ═══════════════════ -->
+<div class="content-modal-backdrop" id="contentModalBackdrop" onclick="closeContentModal()">
+  <div class="content-modal" onclick="event.stopPropagation()">
+    <div class="content-modal-header">
+      <div>
+        <h3 id="contentModalTitle"></h3>
+        <div id="contentModalMeta" style="font-size:11px; color:var(--muted); margin-top:2px;"></div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <button class="btn btn-sm" id="contentCopyBtn" onclick="copyContentModal()"><i data-lucide="copy" style="width:14px;height:14px;"></i> Copy</button>
+        <button class="activity-modal-close" onclick="closeContentModal()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      </div>
+    </div>
+    <div class="content-modal-body">
+      <div id="contentModalBody"></div>
+    </div>
   </div>
 </div>
 

@@ -252,6 +252,76 @@ body {
 .value-case-cta { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px; border: 2px dashed var(--border); border-radius: var(--radius); color: var(--primary); font-weight: 600; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
 .value-case-cta:hover { background: var(--primary-light); border-color: var(--primary); }
 
+/* Commerce hero stats */
+.commerce-hero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.commerce-hero-stat { background: var(--bg); border-radius: var(--radius-sm); padding: 16px; text-align: center; }
+.commerce-hero-val { font-size: 22px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
+.commerce-hero-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+.commerce-relationships { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+.commerce-rel-item { text-align: center; padding: 10px 4px; background: var(--bg); border-radius: var(--radius-sm); }
+.commerce-rel-val { font-size: 16px; font-weight: 800; color: var(--text); }
+.commerce-rel-lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+
+/* Commerce agreement type bars */
+.commerce-agtype-list { display: flex; flex-direction: column; gap: 6px; }
+.commerce-agtype-row { display: flex; align-items: center; gap: 10px; }
+.commerce-agtype-name { width: 140px; flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.commerce-agtype-bar-wrap { flex: 1; height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.commerce-agtype-bar { height: 100%; background: var(--primary); border-radius: 5px; transition: width 0.4s; }
+.commerce-agtype-val { width: 80px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--primary); text-align: right; }
+
+/* Commerce pain points */
+/* ── Intelligence two-column layout ── */
+.intel-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .intel-two-col { grid-template-columns: 1fr; } }
+
+/* ── Initiative cards ── */
+.init-list { display: flex; flex-direction: column; gap: 8px; }
+.init-card { background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: var(--radius-sm); padding: 12px 14px; }
+.init-title { font-size: 13px; font-weight: 700; color: #0C4A6E; display: flex; align-items: center; gap: 6px; }
+.init-desc { font-size: 12px; color: #0369A1; margin-top: 4px; line-height: 1.5; }
+.init-timeframe { font-size: 11px; color: #7DD3FC; margin-top: 4px; font-style: italic; }
+
+.commerce-pains { display: flex; flex-direction: column; gap: 8px; }
+.commerce-pain-card { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: var(--radius-sm); padding: 12px 14px; }
+.commerce-pain-title { font-size: 13px; font-weight: 700; color: #78350F; display: flex; align-items: center; gap: 6px; }
+.commerce-pain-desc { font-size: 12px; color: #92400E; margin-top: 4px; line-height: 1.5; }
+
+/* Platform Usage — velocity + channel bars */
+.pu-velocity, .pu-channels { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.pu-vel-row { display: flex; align-items: center; gap: 10px; }
+.pu-vel-label { width: 72px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--muted); text-align: right; }
+.pu-vel-bar-wrap { flex: 1; height: 12px; background: var(--bg); border-radius: 6px; overflow: hidden; }
+.pu-vel-bar { height: 100%; background: linear-gradient(90deg, var(--primary), #8B5CF6); border-radius: 6px; transition: width 0.4s; min-width: 2px; }
+.pu-ch-bar { height: 100%; background: linear-gradient(90deg, #059669, #34D399); border-radius: 6px; transition: width 0.4s; min-width: 2px; }
+.pu-vel-val { width: 64px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--text); text-align: right; }
+
+/* Platform Usage — webapp vs automation split */
+.pu-split-bar-wrap { margin-top: 8px; margin-bottom: 12px; }
+.pu-split-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; }
+.pu-split-web { background: var(--primary); }
+.pu-split-auto { background: #8B5CF6; }
+.pu-split-legend { display: flex; gap: 16px; margin-top: 6px; font-size: 11px; color: var(--muted); font-weight: 500; }
+.pu-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.pu-dot-web { background: var(--primary); }
+.pu-dot-auto { background: #8B5CF6; }
+
+/* Platform Usage — seat utilization */
+.pu-seats { margin-bottom: 12px; }
+.pu-seat-stats { display: flex; align-items: baseline; gap: 2px; margin-bottom: 6px; }
+.pu-seat-active { font-size: 22px; font-weight: 800; color: var(--text); }
+.pu-seat-sep { font-size: 14px; color: var(--muted); }
+.pu-seat-total { font-size: 13px; color: var(--muted); font-weight: 500; }
+.pu-seat-bar-wrap { height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.pu-seat-bar { height: 100%; border-radius: 5px; transition: width 0.4s; }
+.pu-seat-rate { font-size: 12px; font-weight: 700; margin-top: 4px; }
+
+/* Platform Usage — transaction health */
+.pu-tx-health { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pu-tx-badge { border-radius: var(--radius-sm); padding: 12px 8px; text-align: center; }
+.pu-tx-val { font-size: 18px; font-weight: 800; }
+.pu-tx-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; opacity: 0.8; }
+
 /* Contract timeline bar */
 .contract-timeline { position: relative; height: 8px; background: var(--bg); border-radius: 4px; margin: 12px 0 8px; overflow: hidden; }
 .contract-timeline-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
@@ -433,6 +503,13 @@ body {
 .sim-customer-tag.persona { background: #F5F3FF; color: #7C3AED; }
 .sim-benefit { font-size: 12px; color: var(--text); padding: 2px 0; }
 .sim-benefit-metric { font-weight: 600; color: var(--primary); }
+.sim-sfdc-link { font-size: 10px; color: var(--primary); text-decoration: none; display: inline-flex; align-items: center; gap: 3px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: #EFF6FF; }
+.sim-sfdc-link:hover { background: #DBEAFE; text-decoration: none; }
+.sim-resource-row { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--primary); text-decoration: none; padding: 2px 0; }
+.sim-resource-row:hover { text-decoration: underline; }
+.sim-customer-footer { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; padding: 4px 6px; color: var(--muted); display: inline-flex; align-items: center; }
+.btn-icon:hover { background: var(--bg); color: var(--primary); }
 
 /* ── Activity Detail Modal ── */
 .activity-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(19,0,50,0.5); z-index:900; backdrop-filter:blur(2px); }
@@ -446,6 +523,19 @@ body {
 .activity-modal-body { padding:16px 24px 24px; }
 .activity-modal-snippet { font-size:13px; color:var(--text); line-height:1.6; white-space:pre-wrap; }
 .activity-modal-footer { padding:0 24px 20px; display:flex; gap:10px; }
+/* ── Content Viewer Modal ── */
+.content-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(19,0,50,0.5); z-index:900; backdrop-filter:blur(2px); }
+.content-modal-backdrop.open { display:flex; align-items:center; justify-content:center; }
+.content-modal { background:var(--card); border-radius:var(--radius); box-shadow:0 20px 60px rgba(0,0,0,0.25); width:640px; max-width:90vw; max-height:80vh; display:flex; flex-direction:column; }
+.content-modal-header { padding:20px 24px 0; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-shrink:0; }
+.content-modal-header h3 { font-size:16px; font-weight:700; color:var(--primary-dark); margin:0; line-height:1.4; }
+.content-modal-body { padding:16px 24px 24px; overflow-y:auto; flex:1; min-height:0; }
+.content-modal-body .content-text { font-size:13px; color:var(--text); line-height:1.7; white-space:pre-wrap; }
+.content-modal-body .content-headline { margin-bottom:14px; }
+.content-modal-body .content-headline-title { font-size:14px; font-weight:700; color:var(--primary-dark); margin-bottom:2px; }
+.content-modal-body .content-headline-body { font-size:13px; color:var(--text); line-height:1.6; }
+.content-modal-body .content-section-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin:16px 0 8px; }
+.content-modal-body .content-section-label:first-child { margin-top:0; }
 /* ── Status strip overrides ── */
   #statusStrip.done  { background:#f0fdf4; color:#16a34a; border-top-color:#bbf7d0; }
   #statusStrip.error { background:#fff1f2; color:#b91c1c; border-top-color:#fecdd3; }

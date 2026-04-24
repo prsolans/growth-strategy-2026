@@ -117,7 +117,8 @@ function getDashboardData(companyName) {
           productSignals:     l1Signals,
           enrichment:         l1Enrichment,
           liveData:           l1Data,
-          liveProductSignals: l1Signals
+          liveProductSignals: l1Signals,
+          betStatuses:        meta.betStatuses || null
         };
 
         // Fill doc URLs from Deliverables if not in cardPreview
@@ -374,6 +375,21 @@ function updateCardPreview(companyName) {
   } catch (e) {
     Logger.log('[Dashboard] updateCardPreview failed for "' + companyName + '": ' + e.message);
   }
+}
+
+/**
+ * Saves bet validation statuses into meta.json for the given company.
+ * @param {string} companyName
+ * @param {Object} statuses  e.g. { "0": "validated", "1": "rejected", "2": "needs_validation" }
+ */
+function saveBetStatuses(companyName, statuses) {
+  if (!companyName || !statuses) return;
+  var folder = _getCompanyFolder(companyName, false);
+  if (!folder) return;
+  var meta = _readJsonFile(folder, 'meta.json') || {};
+  meta.betStatuses = statuses;
+  _writeJsonFile(folder, 'meta.json', meta);
+  Logger.log('[Dashboard] saveBetStatuses for "' + companyName + '": ' + JSON.stringify(statuses));
 }
 
 /**
@@ -639,21 +655,25 @@ function getRecentActivity(companyName) {
  * @param {string} companyName
  * @returns {string} JSON string of { similarCustomers: [...] }
  */
-function getSimilarCustomers(companyName) {
+function getSimilarCustomers(companyName, forceRefresh) {
   if (!companyName) return JSON.stringify({ similarCustomers: [] });
 
-  // ── Check Drive cache first ──
-  try {
-    var folder = _getCompanyFolder(companyName, false);
-    if (folder) {
-      var cached = _readJsonFile(folder, 'similar-customers.json');
-      if (cached && cached.similarCustomers) {
-        Logger.log('[Dashboard] getSimilarCustomers CACHE HIT for "' + companyName + '" — ' + cached.similarCustomers.length + ' customers');
-        return JSON.stringify(cached);
+  // ── Check Drive cache first (skip if forceRefresh) ──
+  if (!forceRefresh) {
+    try {
+      var folder = _getCompanyFolder(companyName, false);
+      if (folder) {
+        var cached = _readJsonFile(folder, 'similar-customers.json');
+        if (cached && cached.similarCustomers) {
+          Logger.log('[Dashboard] getSimilarCustomers CACHE HIT for "' + companyName + '" — ' + cached.similarCustomers.length + ' customers');
+          return JSON.stringify(cached);
+        }
       }
+    } catch (e) {
+      Logger.log('[Dashboard] getSimilarCustomers cache read failed (non-fatal): ' + e.message);
     }
-  } catch (e) {
-    Logger.log('[Dashboard] getSimilarCustomers cache read failed (non-fatal): ' + e.message);
+  } else {
+    Logger.log('[Dashboard] getSimilarCustomers FORCE REFRESH for "' + companyName + '"');
   }
 
   // ── Cache miss — call Glean ──
@@ -689,6 +709,7 @@ function getSimilarCustomers(companyName) {
     var responseText = _postToGleanStep('similar-customers', msg);
     var parsed = _parseStepJson(responseText, 'similar-customers');
     var items = parsed.similarCustomers || [];
+    items = _filterSimilarCustomerLinks(items);
     Logger.log('[Dashboard] getSimilarCustomers for "' + companyName + '": ' + items.length + ' customers');
 
     // Write to Drive cache
@@ -734,25 +755,109 @@ function getGVSResults(companyName) {
 // ── Check which accounts have cached data ────────────────────────────
 
 /**
- * Checks which company names have AR cache folders (for similar customer cross-linking).
+ * Checks which company names have AR cache folders (for similar customer cross-linking)
+ * and looks up SFDC URLs from bookscrub data.
  * @param {string[]} names Array of company names to check
- * @returns {Object} Map of { companyName: true } for those that have cache
+ * @returns {Object} Map of { companyName: { cached: bool, sfdcUrl: string } }
  */
 function checkCachedAccounts(names) {
   if (!names || !names.length) return {};
   var result = {};
+
+  // Check Drive cache folders
   try {
     var root = _getCacheRootFolder();
     for (var i = 0; i < names.length; i++) {
       var folders = root.getFoldersByName(names[i]);
-      if (folders.hasNext()) {
-        result[names[i]] = true;
-      }
+      result[names[i]] = { cached: folders.hasNext(), sfdcUrl: '' };
     }
   } catch (e) {
-    Logger.log('[Dashboard] checkCachedAccounts failed: ' + e.message);
+    Logger.log('[Dashboard] checkCachedAccounts Drive check failed: ' + e.message);
   }
+
+  // Batch SFDC lookup from bookscrub
+  try {
+    var cache = _loadSheet();
+    var urlCol = cache.headerIndex['URL'];
+    var sfidCol = cache.headerIndex['SALESFORCE_ACCOUNT_ID'];
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i];
+      var rowIdx = findCompanyRow(name, cache.headerIndex[COMPANY_NAME_COL],
+        { nameMap: cache.nameMap, normalizedMap: cache.normalizedMap });
+      if (rowIdx < 0) continue;
+      var sheetRow = rowIdx + 2; // 0-based data row → 1-based sheet row
+      var sfdcUrl = '';
+      if (urlCol !== undefined) {
+        sfdcUrl = String(cache.sheet.getRange(sheetRow, urlCol + 1).getValue()).trim();
+      }
+      if (!sfdcUrl && sfidCol !== undefined) {
+        var sfid = String(cache.sheet.getRange(sheetRow, sfidCol + 1).getValue()).trim();
+        if (sfid) sfdcUrl = 'https://docusign.lightning.force.com/lightning/r/Account/' + sfid + '/view';
+      }
+      if (!result[name]) result[name] = { cached: false, sfdcUrl: '' };
+      if (sfdcUrl) result[name].sfdcUrl = sfdcUrl;
+    }
+  } catch (e) {
+    Logger.log('[Dashboard] checkCachedAccounts bookscrub lookup failed: ' + e.message);
+  }
+
   return result;
+}
+
+/**
+ * Filters sources and resources from similar customer items:
+ * - Removes AR system-generated docs (Account Research reports, Growth Strategy docs)
+ * - Removes generic landing pages (e.g. /customer-stories without a specific slug)
+ * - Removes placeholder/hallucinated URLs
+ * - Keeps Google Docs/Drive/Slides — those are valuable collateral (especially Seismic + Slides)
+ */
+function _filterSimilarCustomerLinks(items) {
+  if (!items || !items.length) return items;
+
+  // Patterns for URLs to block
+  var BLOCKED_PATTERNS = [
+    /internal\.docusign/i,
+    /example\.com/i,
+    /localhost/i,
+    /placeholder/i
+  ];
+
+  // Title patterns for AR system-generated docs to block
+  var BLOCKED_TITLE_PATTERNS = [
+    /account\s*research/i,
+    /growth\s*strategy/i,
+    /account\s*research\s*report/i,
+    /executive\s*(meeting\s*)?briefing/i
+  ];
+
+  // Generic landing pages — match paths that end at the category level with no deeper slug
+  var GENERIC_PATH_RE = /\/(customer-stories|solutions|products|industries|resources|blog|case-studies|whitepapers)\/?(\?.*)?$/i;
+
+  function isGoodLink(item) {
+    var url = item.url;
+    if (!url || typeof url !== 'string') return false;
+    for (var i = 0; i < BLOCKED_PATTERNS.length; i++) {
+      if (BLOCKED_PATTERNS[i].test(url)) return false;
+    }
+    if (GENERIC_PATH_RE.test(url)) return false;
+    // Block AR system-generated docs by title
+    var title = item.title || '';
+    for (var j = 0; j < BLOCKED_TITLE_PATTERNS.length; j++) {
+      if (BLOCKED_TITLE_PATTERNS[j].test(title)) return false;
+    }
+    return true;
+  }
+
+  function filterLinkArray(arr) {
+    if (!arr || !arr.length) return arr;
+    return arr.filter(function(item) { return isGoodLink(item); });
+  }
+
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].sources) items[i].sources = filterLinkArray(items[i].sources);
+    if (items[i].resources) items[i].resources = filterLinkArray(items[i].resources);
+  }
+  return items;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
